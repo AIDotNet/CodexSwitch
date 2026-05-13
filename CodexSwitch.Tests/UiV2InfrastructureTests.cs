@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http;
 using System.Net.Sockets;
+using System.Text;
 using System.Text.Json;
 using CodexSwitch.Models;
 using CodexSwitch.Proxy;
@@ -305,6 +306,173 @@ public sealed class UiV2InfrastructureTests : IDisposable
         Assert.False(first.Headers.ConnectionClose.GetValueOrDefault());
         Assert.False(second.Headers.ConnectionClose.GetValueOrDefault());
         Assert.Equal(1, connectCount);
+    }
+
+    [Fact]
+    public async Task ProxyHostService_Messages_ProxiesAnthropicDirectRequest()
+    {
+        var paths = CreatePaths("messages-anthropic-direct");
+        var catalog = new ModelPricingCatalog();
+        var calculator = new PriceCalculator(catalog);
+        var meter = new UsageMeter(calculator);
+        var configStore = new ConfigurationStore(paths);
+        HttpRequestMessage? upstreamRequest = null;
+        string upstreamBody = "";
+        using var upstreamHttpClient = new HttpClient(new AsyncHandler(async (request, cancellationToken) =>
+        {
+            upstreamRequest = request;
+            upstreamBody = await request.Content!.ReadAsStringAsync(cancellationToken);
+            return new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent(
+                    """
+                    {
+                      "id": "msg_1",
+                      "type": "message",
+                      "role": "assistant",
+                      "model": "claude-sonnet-4-5-20250929",
+                      "content": [{ "type": "text", "text": "ok" }],
+                      "usage": { "input_tokens": 3, "output_tokens": 4 }
+                    }
+                    """,
+                    Encoding.UTF8,
+                    "application/json")
+            };
+        }));
+        var config = new AppConfig
+        {
+            ActiveClaudeCodeProviderId = "anthropic",
+            Proxy =
+            {
+                Enabled = true,
+                Host = "127.0.0.1",
+                Port = GetAvailablePort(),
+                InboundApiKey = "local-secret"
+            },
+            Providers =
+            {
+                new ProviderConfig
+                {
+                    Id = "anthropic",
+                    SupportsClaudeCode = true,
+                    BaseUrl = "https://upstream.test/v1",
+                    ApiKey = "provider-key",
+                    Protocol = ProviderProtocol.AnthropicMessages,
+                    DefaultModel = "sonnet",
+                    ClaudeCode =
+                    {
+                        Model = "sonnet",
+                        EnableOneMillionContext = true
+                    },
+                    Models =
+                    {
+                        new ModelRouteConfig
+                        {
+                            Id = "sonnet",
+                            Protocol = ProviderProtocol.AnthropicMessages,
+                            UpstreamModel = "claude-sonnet-4-5-20250929"
+                        }
+                    }
+                }
+            }
+        };
+        using var authHttpClient = new HttpClient();
+        await using var service = new ProxyHostService(
+            meter,
+            calculator,
+            new UsageLogWriter(paths),
+            new CodexConfigWriter(paths),
+            new ClaudeCodeConfigWriter(paths),
+            new ProviderAuthService(configStore, config, authHttpClient),
+            [new AnthropicMessagesAdapter(upstreamHttpClient)]);
+
+        await service.StartAsync(config);
+
+        using var client = new HttpClient(new SocketsHttpHandler { UseProxy = false });
+        using var request = new HttpRequestMessage(HttpMethod.Post, $"http://127.0.0.1:{config.Proxy.Port}/v1/messages")
+        {
+            Content = new StringContent(
+                """{"model":"sonnet[1m]","max_tokens":16,"messages":[{"role":"user","content":"ping"}]}""",
+                Encoding.UTF8,
+                "application/json")
+        };
+        request.Headers.TryAddWithoutValidation("anthropic-version", "2023-06-01");
+        using var response = await client.SendAsync(request);
+        var body = await response.Content.ReadAsStringAsync();
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Contains("\"msg_1\"", body, StringComparison.Ordinal);
+        Assert.NotNull(upstreamRequest);
+        Assert.Equal(new Uri("https://upstream.test/v1/messages"), upstreamRequest!.RequestUri);
+        Assert.True(upstreamRequest.Headers.TryGetValues("x-api-key", out var apiKeys));
+        Assert.Equal("provider-key", Assert.Single(apiKeys));
+        Assert.True(upstreamRequest.Headers.TryGetValues("anthropic-beta", out var betaValues));
+        Assert.Contains(betaValues, value => value.Contains("context-1m-2025-08-07", StringComparison.OrdinalIgnoreCase));
+
+        using var upstreamJson = JsonDocument.Parse(upstreamBody);
+        Assert.Equal("claude-sonnet-4-5-20250929", upstreamJson.RootElement.GetProperty("model").GetString());
+        Assert.Equal(1, meter.Snapshot.Requests);
+        Assert.Equal(3, meter.Snapshot.InputTokens);
+        Assert.Equal(4, meter.Snapshot.OutputTokens);
+    }
+
+    [Fact]
+    public async Task ProxyHostService_Messages_ReturnsNotImplementedForOpenAiProvider()
+    {
+        var paths = CreatePaths("messages-openai-not-implemented");
+        var catalog = new ModelPricingCatalog();
+        var calculator = new PriceCalculator(catalog);
+        var configStore = new ConfigurationStore(paths);
+        var config = new AppConfig
+        {
+            ActiveClaudeCodeProviderId = "openai",
+            Proxy =
+            {
+                Enabled = true,
+                Host = "127.0.0.1",
+                Port = GetAvailablePort()
+            },
+            Providers =
+            {
+                new ProviderConfig
+                {
+                    Id = "openai",
+                    SupportsClaudeCode = true,
+                    BaseUrl = "https://api.openai.com/v1",
+                    ApiKey = "provider-key",
+                    Protocol = ProviderProtocol.OpenAiChat,
+                    DefaultModel = "gpt-5.5",
+                    ClaudeCode = { Model = "gpt-5.5" },
+                    Models =
+                    {
+                        new ModelRouteConfig { Id = "gpt-5.5", Protocol = ProviderProtocol.OpenAiChat }
+                    }
+                }
+            }
+        };
+        using var authHttpClient = new HttpClient();
+        await using var service = new ProxyHostService(
+            new UsageMeter(calculator),
+            calculator,
+            new UsageLogWriter(paths),
+            new CodexConfigWriter(paths),
+            new ClaudeCodeConfigWriter(paths),
+            new ProviderAuthService(configStore, config, authHttpClient),
+            [new OpenAiChatAdapter()]);
+
+        await service.StartAsync(config);
+
+        using var client = new HttpClient(new SocketsHttpHandler { UseProxy = false });
+        using var response = await client.PostAsync(
+            $"http://127.0.0.1:{config.Proxy.Port}/v1/messages",
+            new StringContent(
+                """{"model":"gpt-5.5","max_tokens":16,"messages":[{"role":"user","content":"ping"}]}""",
+                Encoding.UTF8,
+                "application/json"));
+        var body = await response.Content.ReadAsStringAsync();
+
+        Assert.Equal(HttpStatusCode.NotImplemented, response.StatusCode);
+        Assert.Contains("does not support /v1/messages yet", body, StringComparison.Ordinal);
     }
 
     [Fact]
