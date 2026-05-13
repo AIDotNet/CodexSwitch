@@ -5,6 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v0.0.6] - 2026-05-14
+
+### Added
+
+- Added Anthropic Messages compatibility for OpenAI Chat and OpenAI Responses providers, including non-streaming and streaming conversion for messages, tool use, reasoning output, and usage accounting.
+- Added a separate hover details window for the mini status panel while keeping the compact usage strip pinned in place.
+- Added richer button variants, pressed/hover states, focus-visible styling, icon sizing, and danger styles.
+
+### Changed
+
+- Switched the built-in DeepSeek template and migration path to the Anthropic-compatible Messages API and enabled Claude Code support for DeepSeek.
+- Updated Claude Code proxy settings to write the proxy root URL instead of appending `/v1`.
+- Made Windows release packaging prefer `iscc` from `PATH` and handle runners without `ProgramFiles(x86)`.
+
+### Fixed
+
+- Automatically enable Claude Code support when a provider is switched to the Anthropic Messages protocol.
+
 ## [v0.0.5] - 2026-05-14
 
 ### Added
