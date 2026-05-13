@@ -165,7 +165,7 @@ docs/              发布流程说明
 
 ## CI 与发布流程
 
-`ci` 工作流会验证 changelog、还原依赖、构建测试项目、运行 xUnit 测试，并为 Windows、Linux、macOS runner 发布 zip 产物。GitHub Releases 仍然是手动创建，使用 CI 生成的产物。详情见 [docs/release.md](docs/release.md)。
+`ci` 工作流会验证 changelog、还原依赖、构建测试项目、运行 xUnit 测试，并为 Windows、Linux、macOS runner 发布 zip 产物。当前当工作流在 `vX.Y.Z` 标签上运行时，也会自动创建 GitHub Release 并上传生成的产物。详情见 [docs/release.md](docs/release.md)。
 
 ## 当前范围
 

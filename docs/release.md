@@ -1,6 +1,6 @@
 # Release Guide
 
-This repository uses a single in-repo version source plus a manual GitHub Release flow.
+This repository uses a single in-repo version source plus an automated GitHub Release flow driven by tagged CI runs.
 
 ## Version source
 
@@ -13,11 +13,8 @@ This repository uses a single in-repo version source plus a manual GitHub Releas
 1. Update the version in `Directory.Build.props`.
 2. Add the matching `vX.Y.Z` section to `CHANGELOG.md`.
 3. Push the branch and wait for the `ci` workflow to finish successfully.
-4. Download the workflow artifacts named `CodexSwitch-vX.Y.Z-<rid>`.
-5. Create a Git tag named `vX.Y.Z`.
-6. Create a GitHub Release in `https://github.com/AIDotNet/CodexSwitch`.
-7. Paste the matching changelog section into the Release notes.
-8. Upload all generated zip artifacts to the Release.
+4. Create and push a Git tag named `vX.Y.Z`. The release job checks that the tag matches `Directory.Build.props` before publishing.
+5. Wait for the tagged `ci` run to finish. It will publish the zipped artifacts and create the GitHub Release automatically.
 
 ## Artifact naming
 

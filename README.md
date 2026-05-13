@@ -165,7 +165,7 @@ docs/              Release process notes
 
 ## CI and Release Flow
 
-The `ci` workflow validates the changelog, restores packages, builds the test project, runs xUnit tests, and publishes zipped artifacts for Windows, Linux, and macOS runners. GitHub Releases are created manually using the artifacts produced by CI. See [docs/release.md](docs/release.md).
+The `ci` workflow validates the changelog, restores packages, builds the test project, runs xUnit tests, and publishes zipped artifacts for Windows, Linux, and macOS runners. When the workflow runs on a `vX.Y.Z` tag, it also creates the GitHub Release and uploads the generated artifacts automatically. See [docs/release.md](docs/release.md).
 
 ## Current Scope
 
