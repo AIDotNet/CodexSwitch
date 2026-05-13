@@ -1,3 +1,4 @@
+using System.Text.Json;
 using CodexSwitch.Models;
 using CodexSwitch.Services;
 
@@ -73,6 +74,99 @@ public sealed class CodexConfigWriterTests : IDisposable
         var authJson = File.ReadAllText(paths.CodexAuthPath);
         Assert.Contains("\"auth_mode\": \"apikey\"", authJson, StringComparison.Ordinal);
         Assert.Contains("\"OPENAI_API_KEY\": \"local-secret\"", authJson, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Apply_WritesCodexOneMillionContext_WhenActiveProviderEnablesIt()
+    {
+        var appRoot = Path.Combine(_tempDirectory, "codex-1m-appdata");
+        var codexRoot = Path.Combine(_tempDirectory, "codex-1m-codex");
+        var paths = new AppPaths(appRoot, codexRoot);
+        var writer = new CodexConfigWriter(paths);
+
+        writer.Apply(new AppConfig
+        {
+            ActiveProviderId = "anthropic",
+            ActiveCodexProviderId = "anthropic",
+            Providers =
+            {
+                new ProviderConfig
+                {
+                    Id = "anthropic",
+                    SupportsCodex = true,
+                    ClaudeCode = { EnableOneMillionContext = true }
+                }
+            }
+        });
+
+        Assert.Contains("model_context_window = 1000000", File.ReadAllText(paths.CodexConfigPath), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ClaudeCodeApply_MergesSettingsAndRestoresOriginal()
+    {
+        var appRoot = Path.Combine(_tempDirectory, "claude-appdata");
+        var codexRoot = Path.Combine(_tempDirectory, "claude-codex");
+        var claudeRoot = Path.Combine(_tempDirectory, "claude-home");
+        var paths = new AppPaths(appRoot, codexRoot, claudeRoot);
+        Directory.CreateDirectory(paths.ClaudeDirectory);
+        var original = """
+        {
+          "theme": "dark",
+          "env": {
+            "EXISTING": "keep"
+          }
+        }
+        """;
+        File.WriteAllText(paths.ClaudeSettingsPath, original);
+
+        var writer = new ClaudeCodeConfigWriter(paths);
+        writer.Apply(new AppConfig
+        {
+            ActiveClaudeCodeProviderId = "anthropic",
+            Proxy =
+            {
+                Host = "127.0.0.1",
+                Port = 12785,
+                InboundApiKey = "local-secret"
+            },
+            Providers =
+            {
+                new ProviderConfig
+                {
+                    Id = "anthropic",
+                    SupportsClaudeCode = true,
+                    DefaultModel = "claude-sonnet-4-5",
+                    ClaudeCode =
+                    {
+                        Model = "claude-sonnet-4-5",
+                        AlwaysThinkingEnabled = true,
+                        SkipDangerousModePermissionPrompt = true,
+                        EnableOneMillionContext = true
+                    },
+                    Models =
+                    {
+                        new ModelRouteConfig { Id = "claude-sonnet-4-5", Protocol = ProviderProtocol.AnthropicMessages }
+                    }
+                }
+            }
+        });
+
+        using (var document = JsonDocument.Parse(File.ReadAllText(paths.ClaudeSettingsPath)))
+        {
+            var root = document.RootElement;
+            Assert.Equal("dark", root.GetProperty("theme").GetString());
+            Assert.Equal("keep", root.GetProperty("env").GetProperty("EXISTING").GetString());
+            Assert.Equal("http://127.0.0.1:12785/v1", root.GetProperty("env").GetProperty("ANTHROPIC_BASE_URL").GetString());
+            Assert.Equal("local-secret", root.GetProperty("env").GetProperty("ANTHROPIC_AUTH_TOKEN").GetString());
+            Assert.Equal("claude-sonnet-4-5[1m]", root.GetProperty("model").GetString());
+            Assert.True(root.GetProperty("alwaysThinkingEnabled").GetBoolean());
+            Assert.True(root.GetProperty("skipDangerousModePermissionPrompt").GetBoolean());
+        }
+
+        writer.RestoreOriginal();
+
+        Assert.Equal(original, File.ReadAllText(paths.ClaudeSettingsPath));
     }
 
     [Fact]

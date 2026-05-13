@@ -34,6 +34,9 @@ public static class BuiltInModelCatalog
 
     public static IReadOnlyList<ProviderTemplateModel> AnthropicModels { get; } =
     [
+        AnthropicRoute("sonnet", "Claude Code Sonnet", upstreamModel: "claude-sonnet-4-5-20250929"),
+        AnthropicRoute("opus", "Claude Code Opus", upstreamModel: "claude-opus-4-5-20251101"),
+        AnthropicRoute("haiku", "Claude Code Haiku", upstreamModel: "claude-haiku-4-5-20251001"),
         AnthropicRoute("claude-opus-4-7", "Claude Opus 4.7"),
         AnthropicRoute("claude-opus-4-6", "Claude Opus 4.6"),
         AnthropicRoute("claude-opus-4-5", "Claude Opus 4.5", upstreamModel: "claude-opus-4-5-20251101"),

@@ -7,7 +7,12 @@ public static class ProviderRoutingResolver
 {
     public static ProviderRouteSelection? Resolve(AppConfig config, string? requestModel)
     {
-        var activeProvider = ResolveActiveProvider(config);
+        return Resolve(config, requestModel, ClientAppKind.Codex);
+    }
+
+    public static ProviderRouteSelection? Resolve(AppConfig config, string? requestModel, ClientAppKind kind)
+    {
+        var activeProvider = ResolveActiveProvider(config, kind);
         if (activeProvider is null)
             return null;
 
@@ -22,7 +27,7 @@ public static class ProviderRoutingResolver
             if (string.Equals(provider.Id, activeProvider.Id, StringComparison.OrdinalIgnoreCase))
                 continue;
 
-            if (ProviderSupports(provider, [requestModel]))
+            if (ProviderSupportsClient(provider, kind) && ProviderSupports(provider, [requestModel]))
                 return new ProviderRouteSelection(provider, ResolveModel(provider, requestModel));
         }
 
@@ -76,8 +81,18 @@ public static class ProviderRoutingResolver
 
     public static ProviderConfig? ResolveActiveProvider(AppConfig config)
     {
+        return ResolveActiveProvider(config, ClientAppKind.Codex);
+    }
+
+    public static ProviderConfig? ResolveActiveProvider(AppConfig config, ClientAppKind kind)
+    {
+        var activeProviderId = kind == ClientAppKind.Codex
+            ? string.IsNullOrWhiteSpace(config.ActiveCodexProviderId) ? config.ActiveProviderId : config.ActiveCodexProviderId
+            : config.ActiveClaudeCodeProviderId;
+
         return config.Providers.FirstOrDefault(provider =>
-            string.Equals(provider.Id, config.ActiveProviderId, StringComparison.OrdinalIgnoreCase));
+            ProviderSupportsClient(provider, kind) &&
+            string.Equals(provider.Id, activeProviderId, StringComparison.OrdinalIgnoreCase));
     }
 
     public static ModelRouteConfig? ResolveModel(ProviderConfig provider, string? requestModel)
@@ -222,6 +237,14 @@ public static class ProviderRoutingResolver
     private static IEnumerable<ModelConversionConfig> EnumerateConversions(ProviderConfig provider)
     {
         return provider.ModelConversions ?? Enumerable.Empty<ModelConversionConfig>();
+    }
+
+    public static bool ProviderSupportsClient(ProviderConfig provider, ClientAppKind kind)
+    {
+        if (!provider.SupportsCodex && !provider.SupportsClaudeCode)
+            return kind == ClientAppKind.Codex;
+
+        return kind == ClientAppKind.Codex ? provider.SupportsCodex : provider.SupportsClaudeCode;
     }
 }
 

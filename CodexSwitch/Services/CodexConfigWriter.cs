@@ -84,6 +84,8 @@ public sealed class CodexConfigWriter
         builder.AppendLine("model_supports_reasoning_summaries = true");
         builder.AppendLine("rmcp_client = true");
         builder.AppendLine("model_reasoning_effort = \"xhigh\"");
+        if (ShouldEnableOneMillionContext(config))
+            builder.AppendLine("model_context_window = 1000000");
         builder.AppendLine("personality = \"friendly\"");
         builder.AppendLine();
         builder.AppendLine($"[model_providers.{ManagedProviderId}]");
@@ -222,6 +224,17 @@ public sealed class CodexConfigWriter
 
         var port = proxy.Port <= 0 ? 12785 : proxy.Port;
         return $"http://{host}:{port}/v1";
+    }
+
+    private static bool ShouldEnableOneMillionContext(AppConfig config)
+    {
+        var providerId = string.IsNullOrWhiteSpace(config.ActiveCodexProviderId)
+            ? config.ActiveProviderId
+            : config.ActiveCodexProviderId;
+        var provider = config.Providers.FirstOrDefault(item =>
+            item.SupportsCodex &&
+            string.Equals(item.Id, providerId, StringComparison.OrdinalIgnoreCase));
+        return provider?.ClaudeCode?.EnableOneMillionContext == true;
     }
 
     private void BackupIfExists(string path)

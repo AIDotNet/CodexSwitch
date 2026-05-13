@@ -196,6 +196,7 @@
                             <ui:CsText Text="{Binding AppDataRootPath}" Classes="muted"/>
                             <ui:CsText Text="{Binding CodexConfigFilePath}" Classes="muted"/>
                             <ui:CsText Text="{Binding CodexAuthFilePath}" Classes="muted"/>
+                            <ui:CsText Text="{Binding ClaudeSettingsFilePath}" Classes="muted"/>
                             <ui:CsText Text="{Binding UsageLogFilePath}" Classes="muted"/>
                         </StackPanel>
                     </ui:CsSection>

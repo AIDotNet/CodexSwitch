@@ -2,7 +2,7 @@ namespace CodexSwitch.Services;
 
 public sealed class AppPaths
 {
-    public AppPaths(string? rootDirectory = null, string? codexDirectory = null)
+    public AppPaths(string? rootDirectory = null, string? codexDirectory = null, string? claudeDirectory = null)
     {
         var root = rootDirectory ?? Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
@@ -29,6 +29,16 @@ public sealed class AppPaths
         CodexDirectory = codexRoot;
         CodexConfigPath = Path.Combine(codexRoot, "config.toml");
         CodexAuthPath = Path.Combine(codexRoot, "auth.json");
+
+        var claudeRoot = claudeDirectory ??
+            (codexDirectory is not null
+                ? Path.Combine(Path.GetDirectoryName(codexRoot) ?? root, ".claude")
+                : Path.Combine(
+                    Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+                    ".claude"));
+        ClaudeDirectory = claudeRoot;
+        ClaudeSettingsPath = Path.Combine(claudeRoot, "settings.json");
+        ClaudeRestoreStatePath = Path.Combine(root, "claude-restore-state.json");
     }
 
     public string RootDirectory { get; }
@@ -54,4 +64,10 @@ public sealed class AppPaths
     public string CodexConfigPath { get; }
 
     public string CodexAuthPath { get; }
+
+    public string ClaudeDirectory { get; }
+
+    public string ClaudeSettingsPath { get; }
+
+    public string ClaudeRestoreStatePath { get; }
 }

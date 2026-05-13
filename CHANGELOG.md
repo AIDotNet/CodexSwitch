@@ -11,10 +11,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Added outbound network proxy settings with system proxy, custom proxy, and disabled proxy modes.
 - Added a shared HTTP client factory that defaults to the system proxy, prefers HTTP/2, keeps pooled connections alive, and enables HTTP/2 keep-alive pings.
+- Added Claude Code provider settings that write and restore `~/.claude/settings.json`, expose provider/model controls, and route `/v1/messages` through CodexSwitch.
+- Added Claude Code `sonnet`, `opus`, and `haiku` aliases for Anthropic providers, including optional 1M context handling for Sonnet models.
 
 ### Changed
 
 - Optimized the local Codex to CodexSwitch proxy listener for low-latency keep-alive connections with TCP no-delay, longer client keep-alive, disabled response buffering, and higher connection limits.
+- Split active provider selection for Codex and Claude Code so the local proxy can serve either client and migrate legacy provider configs safely.
 - Recreate shared networking services when proxy settings change so provider adapters, OAuth, usage queries, icon loading, and update checks use the latest network configuration.
 - Moved proxy request usage logging to buffered background writes and coalesced concurrent OAuth token refreshes to reduce request-path latency.
 - Bounded cached Responses conversation state with capacity and TTL pruning to prevent unbounded memory growth.

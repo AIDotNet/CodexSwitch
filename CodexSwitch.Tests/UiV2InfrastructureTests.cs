@@ -33,6 +33,47 @@ public sealed class UiV2InfrastructureTests : IDisposable
         Assert.Equal("first", config.ActiveProviderId);
     }
 
+    [Fact]
+    public void EnsureValidDefaults_MigratesSeparateCodexAndClaudeCodeActiveProviders()
+    {
+        var config = new AppConfig
+        {
+            ActiveProviderId = "codex",
+            Providers =
+            {
+                new ProviderConfig
+                {
+                    Id = "codex",
+                    DisplayName = "Codex",
+                    Protocol = ProviderProtocol.OpenAiResponses,
+                    DefaultModel = "gpt-5.5"
+                },
+                new ProviderConfig
+                {
+                    Id = "anthropic",
+                    DisplayName = "Anthropic",
+                    Protocol = ProviderProtocol.AnthropicMessages,
+                    DefaultModel = "claude-sonnet-4-5",
+                    Models =
+                    {
+                        new ModelRouteConfig { Id = "claude-sonnet-4-5", Protocol = ProviderProtocol.AnthropicMessages }
+                    }
+                }
+            }
+        };
+
+        ConfigurationStore.EnsureValidDefaults(config);
+
+        Assert.Equal("codex", config.ActiveCodexProviderId);
+        Assert.Equal("codex", config.ActiveProviderId);
+        Assert.Equal("anthropic", config.ActiveClaudeCodeProviderId);
+        Assert.True(config.Providers[0].SupportsCodex);
+        Assert.False(config.Providers[0].SupportsClaudeCode);
+        Assert.True(config.Providers[1].SupportsCodex);
+        Assert.True(config.Providers[1].SupportsClaudeCode);
+        Assert.Equal("claude-sonnet-4-5", config.Providers[1].ClaudeCode.Model);
+    }
+
     [Theory]
     [InlineData(null)]
     [InlineData("")]
@@ -187,6 +228,7 @@ public sealed class UiV2InfrastructureTests : IDisposable
             calculator,
             new UsageLogWriter(paths),
             new CodexConfigWriter(paths),
+            new ClaudeCodeConfigWriter(paths),
             new ProviderAuthService(configStore, config, httpClient),
             Array.Empty<IProviderProtocolAdapter>());
 
@@ -231,6 +273,7 @@ public sealed class UiV2InfrastructureTests : IDisposable
             calculator,
             new UsageLogWriter(paths),
             new CodexConfigWriter(paths),
+            new ClaudeCodeConfigWriter(paths),
             new ProviderAuthService(configStore, config, authHttpClient),
             Array.Empty<IProviderProtocolAdapter>());
 
@@ -297,6 +340,7 @@ public sealed class UiV2InfrastructureTests : IDisposable
             calculator,
             new UsageLogWriter(paths),
             new CodexConfigWriter(paths),
+            new ClaudeCodeConfigWriter(paths),
             new ProviderAuthService(configStore, config, httpClient),
             Array.Empty<IProviderProtocolAdapter>());
         var statuses = new List<string>();

@@ -65,11 +65,13 @@ public sealed class ProxyHostService : IAsyncDisposable
         {
             _codexConfigWriter.RestoreOriginal();
             _claudeCodeConfigWriter.RestoreOriginal();
-            SetState(false, "Disabled", config.Proxy.Endpoint, config.ActiveCodexProviderId, "", null);
+            SetState(false, "Disabled", config.Proxy.Endpoint, ResolveCodexProviderId(config), "", null);
             return;
         }
 
-        var provider = ProviderRoutingResolver.ResolveActiveProvider(config, ClientAppKind.Codex);
+        var codexProvider = ProviderRoutingResolver.ResolveActiveProvider(config, ClientAppKind.Codex);
+        var claudeProvider = ProviderRoutingResolver.ResolveActiveProvider(config, ClientAppKind.ClaudeCode);
+        var provider = codexProvider ?? claudeProvider;
         if (provider is null)
         {
             _codexConfigWriter.RestoreOriginal();
@@ -138,7 +140,10 @@ public sealed class ProxyHostService : IAsyncDisposable
 
         try
         {
-            _codexConfigWriter.Apply(config);
+            if (codexProvider is null)
+                _codexConfigWriter.RestoreOriginal();
+            else
+                _codexConfigWriter.Apply(config);
             _claudeCodeConfigWriter.Apply(config);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
@@ -174,7 +179,7 @@ public sealed class ProxyHostService : IAsyncDisposable
             }
 
             if (publishStoppedState)
-                SetState(false, "Stopped", _config.Proxy.Endpoint, _config.ActiveCodexProviderId, "", null);
+                SetState(false, "Stopped", _config.Proxy.Endpoint, ResolveCodexProviderId(_config), "", null);
             return;
         }
 
@@ -189,7 +194,7 @@ public sealed class ProxyHostService : IAsyncDisposable
         }
 
         if (publishStoppedState)
-            SetState(false, "Stopped", _config.Proxy.Endpoint, _config.ActiveCodexProviderId, "", null);
+            SetState(false, "Stopped", _config.Proxy.Endpoint, ResolveCodexProviderId(_config), "", null);
     }
 
     public async Task RestartAsync(AppConfig config, CancellationToken cancellationToken = default)
@@ -206,7 +211,7 @@ public sealed class ProxyHostService : IAsyncDisposable
             false,
             "Starting",
             config.Proxy.Endpoint,
-            provider?.Id ?? config.ActiveCodexProviderId,
+            provider?.Id ?? ResolveCodexProviderId(config),
             provider?.Protocol.ToString() ?? "",
             null);
         await StopRuntimeAsync(restoreOriginal: false, publishStoppedState: false, cancellationToken);
@@ -224,7 +229,7 @@ public sealed class ProxyHostService : IAsyncDisposable
             true,
             State.StatusText,
             config.Proxy.Endpoint,
-            provider?.Id ?? config.ActiveCodexProviderId,
+            provider?.Id ?? ResolveCodexProviderId(config),
             provider?.Protocol.ToString() ?? "",
             State.Error);
     }
@@ -431,6 +436,13 @@ public sealed class ProxyHostService : IAsyncDisposable
         return string.IsNullOrWhiteSpace(model)
             ? null
             : ClaudeCodeConfigWriter.StripOneMillionSuffix(model.Trim());
+    }
+
+    private static string ResolveCodexProviderId(AppConfig config)
+    {
+        return string.IsNullOrWhiteSpace(config.ActiveCodexProviderId)
+            ? config.ActiveProviderId
+            : config.ActiveCodexProviderId;
     }
 
     private static ProviderCostSettings ResolveCostSettings(

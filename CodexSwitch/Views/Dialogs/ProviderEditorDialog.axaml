@@ -86,6 +86,10 @@
                                             Grid.ColumnSpan="2"
                                             Orientation="Horizontal"
                                             Spacing="22">
+                                    <ui:CsSwitch Content="{i18n:Tr providerDialog.supportsCodex}"
+                                                 IsChecked="{Binding SelectedSupportsCodex, Mode=TwoWay}"/>
+                                    <ui:CsSwitch Content="{i18n:Tr providerDialog.supportsClaudeCode}"
+                                                 IsChecked="{Binding SelectedSupportsClaudeCode, Mode=TwoWay}"/>
                                     <ui:CsSwitch Content="{i18n:Tr providerDialog.overrideRequestModel}"
                                                  IsChecked="{Binding SelectedOverrideModel, Mode=TwoWay}"/>
                                     <ui:CsSwitch Content="{i18n:Tr providerDialog.fastModePricing}"

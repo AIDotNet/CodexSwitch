@@ -24,6 +24,7 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
     private readonly UsageLogWriter _usageLogWriter;
     private readonly UsageLogReader _usageLogReader;
     private readonly CodexConfigWriter _codexConfigWriter;
+    private readonly ClaudeCodeConfigWriter _claudeCodeConfigWriter;
     private readonly I18nService _i18n;
     private HttpClient _sharedHttpClient = null!;
     private IconCacheService _iconCacheService = null!;
@@ -49,6 +50,7 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
     private string? _providerPendingDeleteId;
     private bool _isRefreshingSettingsFields;
     private bool _isLoadingProviderFields;
+    private bool _isLoadingClaudeCodeFields;
     private bool _isUpdatingUsageFilterOptions;
     private bool _hasUsageDashboardSnapshot;
     private UsageTimeRange _lastUsageDashboardRange;
@@ -121,6 +123,24 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
 
     [ObservableProperty]
     private string _selectedServiceTier = "";
+
+    [ObservableProperty]
+    private bool _selectedSupportsCodex = true;
+
+    [ObservableProperty]
+    private bool _selectedSupportsClaudeCode;
+
+    [ObservableProperty]
+    private string _claudeCodeModel = "";
+
+    [ObservableProperty]
+    private bool _claudeCodeThinkEnabled = true;
+
+    [ObservableProperty]
+    private bool _claudeCodeSkipDangerousModePermissionPrompt = true;
+
+    [ObservableProperty]
+    private bool _claudeCodeOneMillionContextEnabled;
 
     [ObservableProperty]
     private bool _selectedUsageQueryEnabled;
@@ -425,6 +445,7 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
         _usageLogWriter = new UsageLogWriter(_paths);
         _usageLogReader = new UsageLogReader(_paths);
         _codexConfigWriter = new CodexConfigWriter(_paths);
+        _claudeCodeConfigWriter = new ClaudeCodeConfigWriter(_paths);
         _startupRegistrationService = new StartupRegistrationService();
         SyncStartupRegistrationFromConfig();
         CreateNetworkServices();
@@ -441,6 +462,8 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
         ProviderTemplates = [];
         UsageQueryTemplates = [];
         ProviderRows = [];
+        ClaudeProviderRows = [];
+        ClaudeCodeModelOptions = [];
         ModelRows = [];
         ModelConversionRows = [];
         PricingRows = [];
@@ -475,6 +498,7 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
         RestartProxyCommand = new AsyncRelayCommand(RestartProxyAsync);
         StopProxyCommand = new AsyncRelayCommand(StopProxyAsync);
         SelectProviderCommand = new RelayCommand<ProviderListItem>(row => _ = ActivateProviderAsync(row));
+        SaveClaudeCodeSettingsCommand = new AsyncRelayCommand(SaveClaudeCodeSettingsAsync);
         EditProviderCommand = new RelayCommand<ProviderListItem>(OpenEditProvider);
         AddProviderCommand = new RelayCommand(OpenAddProvider);
         SelectProviderTemplateCommand = new RelayCommand<ProviderTemplateItem>(SelectProviderTemplate);
@@ -538,6 +562,10 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
     public ObservableCollection<UsageQueryTemplateItem> UsageQueryTemplates { get; }
 
     public ObservableCollection<ProviderListItem> ProviderRows { get; }
+
+    public ObservableCollection<ProviderListItem> ClaudeProviderRows { get; }
+
+    public ObservableCollection<string> ClaudeCodeModelOptions { get; }
 
     public ObservableCollection<ModelEditorItem> ModelRows { get; }
 
@@ -606,6 +634,8 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
     public IAsyncRelayCommand StopProxyCommand { get; }
 
     public IRelayCommand<ProviderListItem> SelectProviderCommand { get; }
+
+    public IAsyncRelayCommand SaveClaudeCodeSettingsCommand { get; }
 
     public IRelayCommand<ProviderListItem> EditProviderCommand { get; }
 
@@ -692,6 +722,7 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
             _priceCalculator,
             _usageLogWriter,
             _codexConfigWriter,
+            _claudeCodeConfigWriter,
             _providerAuthService,
             [
                 new OpenAiResponsesAdapter(_sharedHttpClient),
@@ -1056,10 +1087,17 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
             return;
 
         SelectProvider(row);
-        _config.ActiveProviderId = row.Id;
+        if (row.ClientApp == ClientAppKind.ClaudeCode)
+            _config.ActiveClaudeCodeProviderId = row.Id;
+        else
+        {
+            _config.ActiveCodexProviderId = row.Id;
+            _config.ActiveProviderId = row.Id;
+        }
+
         _store.SaveConfig(_config);
         RefreshProviderRows();
-        SelectProvider(ProviderRows.FirstOrDefault(provider => provider.Id == row.Id));
+        SelectProvider(FindProviderRow(row.ClientApp, row.Id));
         if (_config.Proxy.Enabled)
             await RestartProxyAsync();
     }
@@ -1072,12 +1110,21 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
         SelectedProviderId = row.Id;
         foreach (var providerRow in ProviderRows)
             providerRow.IsSelected = string.Equals(providerRow.Id, SelectedProviderId, StringComparison.OrdinalIgnoreCase);
+        foreach (var providerRow in ClaudeProviderRows)
+            providerRow.IsSelected = string.Equals(providerRow.Id, SelectedProviderId, StringComparison.OrdinalIgnoreCase);
 
         var provider = FindSelectedProvider();
         if (provider is null)
             return;
 
         LoadProviderFields(provider);
+        RefreshClaudeCodeFields(provider);
+    }
+
+    private ProviderListItem? FindProviderRow(ClientAppKind kind, string providerId)
+    {
+        var rows = kind == ClientAppKind.ClaudeCode ? ClaudeProviderRows : ProviderRows;
+        return rows.FirstOrDefault(row => string.Equals(row.Id, providerId, StringComparison.OrdinalIgnoreCase));
     }
 
     public bool MoveProvider(string providerId, int targetIndex)
@@ -1105,7 +1152,7 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
         RefreshProviderRows();
         SelectProvider(
             ProviderRows.FirstOrDefault(row => string.Equals(row.Id, selectedProviderId, StringComparison.OrdinalIgnoreCase)) ??
-            ProviderRows.FirstOrDefault(row => string.Equals(row.Id, _config.ActiveProviderId, StringComparison.OrdinalIgnoreCase)) ??
+            ProviderRows.FirstOrDefault(row => string.Equals(row.Id, _config.ActiveCodexProviderId, StringComparison.OrdinalIgnoreCase)) ??
             ProviderRows.FirstOrDefault());
         return true;
     }
@@ -1209,8 +1256,18 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
         provider.ApiKey = provider.AuthMode == ProviderAuthMode.OAuth ? "" : SelectedApiKey.Trim();
         provider.DefaultModel = SelectedDefaultModel.Trim();
         provider.Protocol = SelectedProtocol;
+        provider.SupportsCodex = SelectedSupportsCodex;
+        provider.SupportsClaudeCode = SelectedSupportsClaudeCode;
+        if (!provider.SupportsCodex && !provider.SupportsClaudeCode)
+            provider.SupportsCodex = true;
         provider.OverrideRequestModel = SelectedOverrideModel;
         provider.ServiceTier = string.IsNullOrWhiteSpace(SelectedServiceTier) ? null : SelectedServiceTier.Trim();
+        provider.ClaudeCode ??= new ClaudeCodeProviderSettings();
+        provider.ClaudeCode.Model = ResolveClaudeCodeModel(provider, ClaudeCodeModel);
+        provider.ClaudeCode.AlwaysThinkingEnabled = ClaudeCodeThinkEnabled;
+        provider.ClaudeCode.SkipDangerousModePermissionPrompt = ClaudeCodeSkipDangerousModePermissionPrompt;
+        provider.ClaudeCode.EnableOneMillionContext = ClaudeCodeOneMillionContextEnabled &&
+            ClaudeCodeConfigWriter.IsOneMillionContextModel(provider.ClaudeCode.Model);
         provider.UsageQuery = BuildSelectedUsageQuery();
         provider.Cost ??= new ProviderCostSettings();
         provider.Cost.FastMode = SelectedFastMode;
@@ -1262,18 +1319,28 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
         if (isNew)
         {
             _config.Providers.Add(provider);
-            if (string.IsNullOrWhiteSpace(_config.ActiveProviderId))
+            if (provider.SupportsCodex && string.IsNullOrWhiteSpace(_config.ActiveCodexProviderId))
+            {
+                _config.ActiveCodexProviderId = provider.Id;
                 _config.ActiveProviderId = provider.Id;
+            }
+            if (provider.SupportsClaudeCode && string.IsNullOrWhiteSpace(_config.ActiveClaudeCodeProviderId))
+                _config.ActiveClaudeCodeProviderId = provider.Id;
         }
 
         _store.SaveConfig(_config);
         RefreshProviderRows();
-        SelectProvider(ProviderRows.FirstOrDefault(row => row.Id == provider.Id));
+        SelectProvider(ProviderRows.FirstOrDefault(row => row.Id == provider.Id) ??
+            ClaudeProviderRows.FirstOrDefault(row => row.Id == provider.Id));
         IsProviderDialogOpen = false;
         StatusMessage = isNew ? T("status.providerAdded") : T("status.providerSaved");
         await RefreshProviderUsageQueryAsync(provider.Id);
-        if (_config.Proxy.Enabled && string.Equals(_config.ActiveProviderId, provider.Id, StringComparison.OrdinalIgnoreCase))
+        if (_config.Proxy.Enabled &&
+            (string.Equals(_config.ActiveCodexProviderId, provider.Id, StringComparison.OrdinalIgnoreCase) ||
+             string.Equals(_config.ActiveClaudeCodeProviderId, provider.Id, StringComparison.OrdinalIgnoreCase)))
+        {
             await RestartProxyAsync();
+        }
     }
 
     private void LoadProviderFields(ProviderConfig provider)
@@ -1288,9 +1355,12 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
             SelectedApiKey = provider.AuthMode == ProviderAuthMode.OAuth ? "" : provider.ApiKey;
             SelectedDefaultModel = provider.DefaultModel;
             SelectedProtocol = provider.Protocol;
+            SelectedSupportsCodex = provider.SupportsCodex;
+            SelectedSupportsClaudeCode = provider.SupportsClaudeCode;
             SelectedOverrideModel = provider.OverrideRequestModel;
             SelectedServiceTier = provider.ServiceTier ?? "";
             SelectedFastMode = provider.Cost?.FastMode ?? _config.GlobalCost.FastMode;
+            RefreshClaudeCodeFields(provider);
             LoadUsageQueryFields(provider.UsageQuery ?? UsageQueryTemplateCatalog.CreateQuery(UsageQueryTemplateCatalog.CustomTemplateId));
             ModelRows.Clear();
             ModelConversionRows.Clear();
@@ -1349,6 +1419,115 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
         {
             _isLoadingProviderFields = false;
         }
+    }
+
+    private void RefreshClaudeCodeFields(ProviderConfig? provider = null)
+    {
+        provider ??= _config.Providers.FirstOrDefault(item =>
+            item.SupportsClaudeCode &&
+            string.Equals(item.Id, _config.ActiveClaudeCodeProviderId, StringComparison.OrdinalIgnoreCase));
+
+        _isLoadingClaudeCodeFields = true;
+        try
+        {
+            ClaudeCodeModelOptions.Clear();
+            if (provider is null)
+            {
+                ClaudeCodeModel = "";
+                ClaudeCodeThinkEnabled = true;
+                ClaudeCodeSkipDangerousModePermissionPrompt = true;
+                ClaudeCodeOneMillionContextEnabled = false;
+                return;
+            }
+
+            AddClaudeCodeModelOptions(provider);
+            var model = ResolveClaudeCodeModel(provider, provider.ClaudeCode.Model);
+            if (provider.ClaudeCode.EnableOneMillionContext &&
+                ClaudeCodeConfigWriter.IsOneMillionContextModel(model))
+            {
+                model += "[1m]";
+            }
+
+            if (!ClaudeCodeModelOptions.Contains(model, StringComparer.OrdinalIgnoreCase))
+                ClaudeCodeModelOptions.Add(model);
+
+            ClaudeCodeModel = model;
+            ClaudeCodeThinkEnabled = provider.ClaudeCode.AlwaysThinkingEnabled;
+            ClaudeCodeSkipDangerousModePermissionPrompt = provider.ClaudeCode.SkipDangerousModePermissionPrompt;
+            ClaudeCodeOneMillionContextEnabled = provider.ClaudeCode.EnableOneMillionContext &&
+                ClaudeCodeConfigWriter.IsOneMillionContextModel(model);
+        }
+        finally
+        {
+            _isLoadingClaudeCodeFields = false;
+            OnPropertyChanged(nameof(IsClaudeOneMillionContextAvailable));
+        }
+    }
+
+    private void AddClaudeCodeModelOptions(ProviderConfig provider)
+    {
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var model in provider.Models)
+        {
+            AddClaudeCodeModelOption(model.Id, seen);
+            if (ClaudeCodeConfigWriter.IsOneMillionContextModel(model.Id))
+                AddClaudeCodeModelOption(ClaudeCodeConfigWriter.StripOneMillionSuffix(model.Id) + "[1m]", seen);
+        }
+
+        AddClaudeCodeModelOption(provider.DefaultModel, seen);
+        AddClaudeCodeModelOption(provider.ClaudeCode.Model, seen);
+    }
+
+    private void AddClaudeCodeModelOption(string? model, HashSet<string> seen)
+    {
+        if (string.IsNullOrWhiteSpace(model))
+            return;
+
+        var normalized = model.Trim();
+        if (seen.Add(normalized))
+            ClaudeCodeModelOptions.Add(normalized);
+    }
+
+    private static string ResolveClaudeCodeModel(ProviderConfig provider, string? model)
+    {
+        var candidate = string.IsNullOrWhiteSpace(model)
+            ? provider.DefaultModel
+            : model.Trim();
+        candidate = ClaudeCodeConfigWriter.StripOneMillionSuffix(candidate);
+        if (!string.IsNullOrWhiteSpace(candidate))
+            return candidate;
+
+        return provider.Models.FirstOrDefault(route => route.Protocol == ProviderProtocol.AnthropicMessages)?.Id ??
+            provider.Models.FirstOrDefault()?.Id ??
+            "claude-sonnet-4-5";
+    }
+
+    private async Task SaveClaudeCodeSettingsAsync()
+    {
+        var provider = _config.Providers.FirstOrDefault(item =>
+            item.SupportsClaudeCode &&
+            string.Equals(item.Id, _config.ActiveClaudeCodeProviderId, StringComparison.OrdinalIgnoreCase));
+        if (provider is null)
+            return;
+
+        var selectedModel = string.IsNullOrWhiteSpace(ClaudeCodeModel)
+            ? provider.ClaudeCode.Model
+            : ClaudeCodeModel.Trim();
+        var modelRequestedOneMillion = selectedModel.EndsWith("[1m]", StringComparison.OrdinalIgnoreCase);
+        var model = ResolveClaudeCodeModel(provider, selectedModel);
+
+        provider.ClaudeCode.Model = model;
+        provider.ClaudeCode.AlwaysThinkingEnabled = ClaudeCodeThinkEnabled;
+        provider.ClaudeCode.SkipDangerousModePermissionPrompt = ClaudeCodeSkipDangerousModePermissionPrompt;
+        provider.ClaudeCode.EnableOneMillionContext =
+            (ClaudeCodeOneMillionContextEnabled || modelRequestedOneMillion) &&
+            ClaudeCodeConfigWriter.IsOneMillionContextModel(model);
+
+        _store.SaveConfig(_config);
+        RefreshProviderRows();
+        StatusMessage = T("status.claudeSettingsSaved");
+        if (_config.Proxy.Enabled)
+            await RestartProxyAsync();
     }
 
     private void LoadUsageQueryFields(ProviderUsageQueryConfig query)
@@ -1651,7 +1830,9 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
         {
             var account = await _codexOAuthLoginService.LoginAsync(provider.OAuth, CancellationToken.None);
             _providerAuthService.AddOrUpdateOAuthAccount(provider, account, makeActive: true);
+            provider.SupportsCodex = true;
             _config.ActiveProviderId = provider.Id;
+            _config.ActiveCodexProviderId = provider.Id;
             _store.SaveConfig(_config);
             RefreshProviderRows();
             SelectProvider(ProviderRows.FirstOrDefault(row => row.Id == provider.Id));
@@ -1688,22 +1869,26 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
             return;
         }
 
-        var wasActive = string.Equals(provider.Id, _config.ActiveProviderId, StringComparison.OrdinalIgnoreCase);
+        var wasCodexActive = string.Equals(provider.Id, _config.ActiveCodexProviderId, StringComparison.OrdinalIgnoreCase);
+        var wasClaudeActive = string.Equals(provider.Id, _config.ActiveClaudeCodeProviderId, StringComparison.OrdinalIgnoreCase);
         _config.Providers.Remove(provider);
         _providerUsageResults.Remove(provider.Id);
         _refreshingUsageProviders.Remove(provider.Id);
         _providerUsageFailures.Remove(provider.Id);
-        if (wasActive)
-            _config.ActiveProviderId = _config.Providers.FirstOrDefault()?.Id ?? "";
+        if (wasCodexActive)
+            _config.ActiveCodexProviderId = _config.Providers.FirstOrDefault(item => item.SupportsCodex)?.Id ?? "";
+        if (wasClaudeActive)
+            _config.ActiveClaudeCodeProviderId = _config.Providers.FirstOrDefault(item => item.SupportsClaudeCode)?.Id ?? "";
+        _config.ActiveProviderId = _config.ActiveCodexProviderId;
 
         _providerPendingDeleteId = null;
         ProviderPendingDeleteName = "";
         IsDeleteProviderDialogOpen = false;
         _store.SaveConfig(_config);
         RefreshProviderRows();
-        SelectProvider(ProviderRows.FirstOrDefault(row => row.Id == _config.ActiveProviderId) ?? ProviderRows.FirstOrDefault());
+        SelectProvider(ProviderRows.FirstOrDefault(row => row.Id == _config.ActiveCodexProviderId) ?? ProviderRows.FirstOrDefault());
         StatusMessage = T("status.providerRemoved");
-        if (wasActive && _config.Proxy.Enabled)
+        if ((wasCodexActive || wasClaudeActive) && _config.Proxy.Enabled)
             await RestartProxyAsync();
     }
 
@@ -2010,66 +2195,80 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
     {
         ConfigurationStore.EnsureValidDefaults(_config);
         ProviderRows.Clear();
+        ClaudeProviderRows.Clear();
         foreach (var provider in _config.Providers)
         {
-            var iconSlug = provider.IconSlug ?? (provider.Protocol == ProviderProtocol.AnthropicMessages ? "claude" : "openai");
-            var activeAccount = provider.OAuthAccounts.FirstOrDefault(account =>
-                string.Equals(account.Id, provider.ActiveAccountId, StringComparison.OrdinalIgnoreCase));
-            var usage = CreateProviderUsageDisplay(provider);
-            var row = new ProviderListItem
-            {
-                Id = provider.Id,
-                DisplayName = string.IsNullOrWhiteSpace(provider.DisplayName) ? provider.Id : provider.DisplayName,
-                BaseUrl = provider.BaseUrl,
-                IconPath = _iconCacheService.GetIconPath(iconSlug),
-                Protocol = provider.Protocol.ToString(),
-                DefaultModel = provider.DefaultModel,
-                AuthMode = provider.AuthMode == ProviderAuthMode.OAuth ? "OAuth" : T("providers.apiKey"),
-                IsOAuth = provider.AuthMode == ProviderAuthMode.OAuth,
-                AccountSummary = provider.AuthMode == ProviderAuthMode.OAuth
-                    ? activeAccount is null
-                        ? T("providers.notLoggedIn")
-                        : F("providers.currentAccount", ProviderAuthService.ResolveAccountDisplayName(activeAccount))
-                    : T("providers.apiKey"),
-                ModelsText = provider.Models.Count == 0
-                    ? provider.DefaultModel
-                    : string.Join(", ", provider.Models.Select(model => $"{model.Id}:{model.Protocol}")),
-                UsageSummary = usage.Summary,
-                UsageMeta = usage.Meta,
-                UsageResetText = usage.ResetText,
-                UsageToolTip = usage.ToolTip,
-                HasUsageInfo = usage.HasUsageInfo,
-                HasUsageResetText = usage.HasResetText,
-                IsUsageRefreshing = usage.IsRefreshing,
-                IsUsageError = usage.IsError,
-                IsUsageValid = usage.IsValid,
-                IsActive = string.Equals(provider.Id, _config.ActiveProviderId, StringComparison.OrdinalIgnoreCase),
-                IsSelected = string.Equals(provider.Id, SelectedProviderId, StringComparison.OrdinalIgnoreCase),
-                SelectCommand = SelectProviderCommand,
-                EditCommand = EditProviderCommand,
-                DeleteCommand = RequestRemoveProviderCommand
-            };
-
-            foreach (var account in provider.OAuthAccounts)
-            {
-                row.OAuthAccounts.Add(new OAuthAccountListItem
-                {
-                    ProviderId = provider.Id,
-                    AccountId = account.Id,
-                    DisplayName = ProviderAuthService.ResolveAccountDisplayName(account),
-                    Email = account.Email ?? "",
-                    IsActive = string.Equals(account.Id, provider.ActiveAccountId, StringComparison.OrdinalIgnoreCase),
-                    SelectCommand = SelectOAuthAccountCommand,
-                    RemoveCommand = RemoveOAuthAccountCommand,
-                    SaveNameCommand = SaveOAuthAccountNameCommand
-                });
-            }
-
-            ProviderRows.Add(row);
+            if (provider.SupportsCodex)
+                ProviderRows.Add(CreateProviderRow(provider, ClientAppKind.Codex));
+            if (provider.SupportsClaudeCode)
+                ClaudeProviderRows.Add(CreateProviderRow(provider, ClientAppKind.ClaudeCode));
         }
 
-        ActiveProviderId = _config.ActiveProviderId;
+        ActiveProviderId = SelectedClientApp == ClientAppKind.ClaudeCode
+            ? _config.ActiveClaudeCodeProviderId
+            : _config.ActiveCodexProviderId;
+        RefreshClaudeCodeFields();
         RefreshMiniStatus();
+    }
+
+    private ProviderListItem CreateProviderRow(ProviderConfig provider, ClientAppKind kind)
+    {
+        var iconSlug = provider.IconSlug ?? (provider.Protocol == ProviderProtocol.AnthropicMessages ? "claude" : "openai");
+        var activeAccount = provider.OAuthAccounts.FirstOrDefault(account =>
+            string.Equals(account.Id, provider.ActiveAccountId, StringComparison.OrdinalIgnoreCase));
+        var usage = CreateProviderUsageDisplay(provider);
+        var activeId = kind == ClientAppKind.Codex ? _config.ActiveCodexProviderId : _config.ActiveClaudeCodeProviderId;
+        var row = new ProviderListItem
+        {
+            Id = provider.Id,
+            ClientApp = kind,
+            DisplayName = string.IsNullOrWhiteSpace(provider.DisplayName) ? provider.Id : provider.DisplayName,
+            BaseUrl = provider.BaseUrl,
+            IconPath = _iconCacheService.GetIconPath(iconSlug),
+            Protocol = provider.Protocol.ToString(),
+            DefaultModel = kind == ClientAppKind.ClaudeCode ? provider.ClaudeCode.Model : provider.DefaultModel,
+            AuthMode = provider.AuthMode == ProviderAuthMode.OAuth ? "OAuth" : T("providers.apiKey"),
+            IsOAuth = provider.AuthMode == ProviderAuthMode.OAuth,
+            AccountSummary = provider.AuthMode == ProviderAuthMode.OAuth
+                ? activeAccount is null
+                    ? T("providers.notLoggedIn")
+                    : F("providers.currentAccount", ProviderAuthService.ResolveAccountDisplayName(activeAccount))
+                : T("providers.apiKey"),
+            ModelsText = provider.Models.Count == 0
+                ? provider.DefaultModel
+                : string.Join(", ", provider.Models.Select(model => $"{model.Id}:{model.Protocol}")),
+            UsageSummary = usage.Summary,
+            UsageMeta = usage.Meta,
+            UsageResetText = usage.ResetText,
+            UsageToolTip = usage.ToolTip,
+            HasUsageInfo = usage.HasUsageInfo,
+            HasUsageResetText = usage.HasResetText,
+            IsUsageRefreshing = usage.IsRefreshing,
+            IsUsageError = usage.IsError,
+            IsUsageValid = usage.IsValid,
+            IsActive = string.Equals(provider.Id, activeId, StringComparison.OrdinalIgnoreCase),
+            IsSelected = string.Equals(provider.Id, SelectedProviderId, StringComparison.OrdinalIgnoreCase),
+            SelectCommand = SelectProviderCommand,
+            EditCommand = EditProviderCommand,
+            DeleteCommand = RequestRemoveProviderCommand
+        };
+
+        foreach (var account in provider.OAuthAccounts)
+        {
+            row.OAuthAccounts.Add(new OAuthAccountListItem
+            {
+                ProviderId = provider.Id,
+                AccountId = account.Id,
+                DisplayName = ProviderAuthService.ResolveAccountDisplayName(account),
+                Email = account.Email ?? "",
+                IsActive = string.Equals(account.Id, provider.ActiveAccountId, StringComparison.OrdinalIgnoreCase),
+                SelectCommand = SelectOAuthAccountCommand,
+                RemoveCommand = RemoveOAuthAccountCommand,
+                SaveNameCommand = SaveOAuthAccountNameCommand
+            });
+        }
+
+        return row;
     }
 
     private ProviderUsageDisplay CreateProviderUsageDisplay(ProviderConfig provider)
@@ -2184,8 +2383,11 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
 
     private void RefreshMiniStatus()
     {
+        var activeProviderId = SelectedClientApp == ClientAppKind.ClaudeCode
+            ? _config.ActiveClaudeCodeProviderId
+            : _config.ActiveCodexProviderId;
         var activeProvider = _config.Providers.FirstOrDefault(provider =>
-            string.Equals(provider.Id, _config.ActiveProviderId, StringComparison.OrdinalIgnoreCase));
+            string.Equals(provider.Id, activeProviderId, StringComparison.OrdinalIgnoreCase));
         var iconSlug = activeProvider?.IconSlug ??
             (activeProvider?.Protocol == ProviderProtocol.AnthropicMessages ? "claude" : "openai");
         MiniStatusProviderName = activeProvider is null
@@ -2959,7 +3161,9 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
     {
         ProxyStatus = FormatProxyStatus(state);
         Endpoint = state.Endpoint;
-        ActiveProviderId = state.ActiveProviderId;
+        ActiveProviderId = SelectedClientApp == ClientAppKind.ClaudeCode
+            ? _config.ActiveClaudeCodeProviderId
+            : state.ActiveProviderId;
         OnProxyStateDisplayChanged();
     }
 
@@ -3091,6 +3295,16 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
     partial void OnSelectedClientAppChanged(ClientAppKind value)
     {
         RefreshClientApps();
+        ActiveProviderId = value == ClientAppKind.ClaudeCode
+            ? _config.ActiveClaudeCodeProviderId
+            : _config.ActiveCodexProviderId;
+    }
+
+    partial void OnClaudeCodeModelChanged(string value)
+    {
+        OnPropertyChanged(nameof(IsClaudeOneMillionContextAvailable));
+        if (!_isLoadingClaudeCodeFields && !IsClaudeOneMillionContextAvailable)
+            ClaudeCodeOneMillionContextEnabled = false;
     }
 
     partial void OnUiLanguageChanged(string value)
@@ -3243,6 +3457,8 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
 
     public string ClaudeCodeIconPath => _iconCacheService.GetIconPath("claudecode-color");
 
+    public bool IsClaudeOneMillionContextAvailable => ClaudeCodeConfigWriter.IsOneMillionContextModel(ClaudeCodeModel);
+
     public string UpdateCheckButtonText => IsCheckingForUpdates ? T("update.checking") : T("settings.version.checkNow");
 
     public string RepositoryUrl => AppReleaseInfo.RepositoryUrl;
@@ -3254,6 +3470,8 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
     public string CodexConfigFilePath => _paths.CodexConfigPath;
 
     public string CodexAuthFilePath => _paths.CodexAuthPath;
+
+    public string ClaudeSettingsFilePath => _paths.ClaudeSettingsPath;
 
     public string UsageLogFilePath => _paths.UsageLogDirectory;
 
@@ -3325,6 +3543,8 @@ public sealed partial class ClientAppItem : ObservableObject
 public sealed partial class ProviderListItem : ObservableObject
 {
     public string Id { get; set; } = "";
+
+    public ClientAppKind ClientApp { get; set; } = ClientAppKind.Codex;
 
     public string DisplayName { get; set; } = "";
 

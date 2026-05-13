@@ -151,7 +151,7 @@ public sealed class ConfigurationStore
             }
         };
         SeedDefaultProviders(config);
-        config.ActiveProviderId = config.Providers[0].Id;
+        EnsureValidDefaults(config);
         return config;
     }
 
@@ -195,9 +195,6 @@ public sealed class ConfigurationStore
                 provider.SupportsCodex = true;
                 provider.SupportsClaudeCode = IsAnthropicProvider(provider);
             }
-
-            if (IsAnthropicProvider(provider))
-                provider.SupportsClaudeCode = true;
         }
     }
 
@@ -430,8 +427,11 @@ public sealed class ConfigurationStore
 
         provider.OAuth ??= CloneOAuth(template.OAuth);
         provider.RequestOverrides ??= CloneRequestOverrides(template.RequestOverrides);
-        provider.SupportsCodex = template.SupportsCodex;
-        provider.SupportsClaudeCode = template.SupportsClaudeCode;
+        if (!provider.SupportsCodex && !provider.SupportsClaudeCode)
+        {
+            provider.SupportsCodex = template.SupportsCodex;
+            provider.SupportsClaudeCode = template.SupportsClaudeCode;
+        }
         provider.ClaudeCode ??= new ClaudeCodeProviderSettings();
         if (string.IsNullOrWhiteSpace(provider.ClaudeCode.Model))
             provider.ClaudeCode.Model = ResolveDefaultClaudeCodeModel(provider);

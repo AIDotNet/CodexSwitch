@@ -19,7 +19,8 @@ public static class ProviderTemplateCatalog
             DisplayName = "Custom Provider",
             Description = "Manually configure the provider endpoint and model routes.",
             IconSlug = "openai",
-            IsCustom = true
+            IsCustom = true,
+            SupportsCodex = true
         },
         new()
         {
@@ -34,6 +35,7 @@ public static class ProviderTemplateCatalog
             IconSlug = IconCacheService.RoutinAiIconSlug,
             FastMode = true,
             ServiceTier = "priority",
+            SupportsCodex = true,
             Models = BuiltInModelCatalog.RoutinAiModels
         },
         new()
@@ -49,6 +51,7 @@ public static class ProviderTemplateCatalog
             IconSlug = IconCacheService.RoutinAiIconSlug,
             FastMode = true,
             ServiceTier = "priority",
+            SupportsCodex = true,
             Models = BuiltInModelCatalog.RoutinAiModels
         },
         new()
@@ -62,6 +65,7 @@ public static class ProviderTemplateCatalog
             Protocol = ProviderProtocol.OpenAiResponses,
             DefaultModel = CodexSwitchDefaults.ManagedCodexModel,
             IconSlug = "openai",
+            SupportsCodex = true,
             Models = BuiltInModelCatalog.OpenAiOfficialModels
         },
         new()
@@ -75,6 +79,8 @@ public static class ProviderTemplateCatalog
             Protocol = ProviderProtocol.AnthropicMessages,
             DefaultModel = "claude-sonnet-4-5",
             IconSlug = "claude",
+            SupportsCodex = true,
+            SupportsClaudeCode = true,
             Models = BuiltInModelCatalog.AnthropicModels
         },
         new()
@@ -88,6 +94,7 @@ public static class ProviderTemplateCatalog
             Protocol = ProviderProtocol.AnthropicMessages,
             DefaultModel = "deepseek-v4-flash",
             IconSlug = "deepseek",
+            SupportsCodex = true,
             Models = BuiltInModelCatalog.DeepSeekModels
         },
         new()
@@ -101,6 +108,7 @@ public static class ProviderTemplateCatalog
             Protocol = ProviderProtocol.OpenAiChat,
             DefaultModel = "mimo-v2.5-pro",
             IconSlug = "xiaomi",
+            SupportsCodex = true,
             Models = BuiltInModelCatalog.XiaomiModels
         }
     ];
@@ -123,6 +131,7 @@ public static class ProviderTemplateCatalog
         AuthMode = ProviderAuthMode.OAuth,
         FastMode = true,
         ServiceTier = "priority",
+        SupportsCodex = true,
         OAuth = new ProviderOAuthSettings
         {
             AuthorizeUrl = "https://auth.openai.com/oauth/authorize",
@@ -202,6 +211,14 @@ public static class ProviderTemplateCatalog
             DefaultModel = template.IsCustom ? CodexSwitchDefaults.ManagedCodexModel : template.DefaultModel,
             OverrideRequestModel = false,
             ServiceTier = template.ServiceTier,
+            SupportsCodex = template.SupportsCodex,
+            SupportsClaudeCode = template.SupportsClaudeCode,
+            ClaudeCode = new ClaudeCodeProviderSettings
+            {
+                Model = template.IsCustom ? "" : template.DefaultModel,
+                AlwaysThinkingEnabled = true,
+                SkipDangerousModePermissionPrompt = true
+            },
             OAuth = CloneOAuth(template.OAuth),
             RequestOverrides = CloneOverrides(template.RequestOverrides),
             UsageQuery = CreateDefaultUsageQuery(template),
@@ -242,6 +259,9 @@ public static class ProviderTemplateCatalog
         provider.AuthMode = seeded.AuthMode;
         provider.Protocol = seeded.Protocol;
         provider.DefaultModel = seeded.DefaultModel;
+        provider.SupportsCodex = seeded.SupportsCodex;
+        provider.SupportsClaudeCode = seeded.SupportsClaudeCode;
+        provider.ClaudeCode = CloneClaudeCode(seeded.ClaudeCode);
         provider.ServiceTier = seeded.ServiceTier;
         provider.OAuth = seeded.OAuth;
         provider.RequestOverrides = seeded.RequestOverrides;
@@ -345,6 +365,17 @@ public static class ProviderTemplateCatalog
         return clone;
     }
 
+    private static ClaudeCodeProviderSettings CloneClaudeCode(ClaudeCodeProviderSettings source)
+    {
+        return new ClaudeCodeProviderSettings
+        {
+            Model = source.Model,
+            AlwaysThinkingEnabled = source.AlwaysThinkingEnabled,
+            SkipDangerousModePermissionPrompt = source.SkipDangerousModePermissionPrompt,
+            EnableOneMillionContext = source.EnableOneMillionContext
+        };
+    }
+
     private static ModelConversionConfig CloneConversion(ModelConversionConfig source)
     {
         return new ModelConversionConfig
@@ -410,6 +441,10 @@ public sealed class ProviderTemplate
     public bool FastMode { get; init; }
 
     public string? ServiceTier { get; init; }
+
+    public bool SupportsCodex { get; init; }
+
+    public bool SupportsClaudeCode { get; init; }
 
     public bool IsCustom { get; init; }
 

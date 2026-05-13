@@ -189,6 +189,101 @@ public sealed class AnthropicMessagesAdapter : IProviderProtocolAdapter
         }
     }
 
+    public async Task HandleMessagesAsync(ProviderRequestContext context, CancellationToken cancellationToken)
+    {
+        var stopwatch = Stopwatch.StartNew();
+        var root = context.RequestRoot;
+        var isStream = root.TryGetProperty("stream", out var streamValue) && streamValue.ValueKind == JsonValueKind.True;
+        var requestModel = TryGetString(root, "model") ?? context.Provider.ClaudeCode.Model;
+        if (string.IsNullOrWhiteSpace(requestModel))
+            requestModel = context.Provider.DefaultModel;
+        requestModel = ClaudeCodeConfigWriter.StripOneMillionSuffix(requestModel);
+
+        var payload = BuildDirectMessagesPayload(context, requestModel);
+        using var upstreamRequest = CreateDirectMessagesRequest(context, payload, requestModel);
+
+        HttpResponseMessage upstreamResponse;
+        try
+        {
+            upstreamResponse = await _httpClient.SendAsync(
+                upstreamRequest,
+                isStream ? HttpCompletionOption.ResponseHeadersRead : HttpCompletionOption.ResponseContentRead,
+                cancellationToken);
+        }
+        catch (HttpRequestException ex)
+        {
+            stopwatch.Stop();
+            var record = ProtocolAdapterCommon.CreateRecord(
+                context,
+                requestModel,
+                isStream,
+                StatusCodes.Status502BadGateway,
+                stopwatch.ElapsedMilliseconds,
+                default,
+                null,
+                ex.Message);
+            ProtocolAdapterCommon.Record(context, record);
+            await ProtocolAdapterCommon.WriteJsonErrorAsync(
+                context.HttpContext,
+                HttpStatusCode.BadGateway,
+                ex.Message,
+                cancellationToken);
+            return;
+        }
+
+        using (upstreamResponse)
+        {
+            if (isStream && upstreamResponse.IsSuccessStatusCode)
+            {
+                context.HttpContext.Response.StatusCode = StatusCodes.Status200OK;
+                ProtocolAdapterCommon.CopyContentHeaders(upstreamResponse, context.HttpContext.Response);
+                context.HttpContext.Response.ContentType = upstreamResponse.Content.Headers.ContentType?.ToString() ??
+                    "text/event-stream";
+                await ProxyDirectMessagesStreamAsync(
+                    context,
+                    upstreamResponse,
+                    requestModel,
+                    stopwatch,
+                    cancellationToken);
+                return;
+            }
+
+            var responseBody = await upstreamResponse.Content.ReadAsStringAsync(cancellationToken);
+            UsageTokens usage = default;
+            string? responseModel = null;
+            if (upstreamResponse.IsSuccessStatusCode)
+            {
+                try
+                {
+                    using var document = JsonDocument.Parse(responseBody);
+                    usage = ParseAnthropicUsage(document.RootElement);
+                    responseModel = TryGetString(document.RootElement, "model");
+                }
+                catch (JsonException)
+                {
+                }
+            }
+
+            stopwatch.Stop();
+            var record = ProtocolAdapterCommon.CreateRecord(
+                context,
+                requestModel,
+                isStream,
+                (int)upstreamResponse.StatusCode,
+                stopwatch.ElapsedMilliseconds,
+                usage,
+                responseModel,
+                upstreamResponse.IsSuccessStatusCode ? null : responseBody);
+            ProtocolAdapterCommon.Record(context, record);
+
+            context.HttpContext.Response.StatusCode = (int)upstreamResponse.StatusCode;
+            ProtocolAdapterCommon.CopyContentHeaders(upstreamResponse, context.HttpContext.Response);
+            if (string.IsNullOrWhiteSpace(context.HttpContext.Response.ContentType))
+                context.HttpContext.Response.ContentType = "application/json";
+            await context.HttpContext.Response.WriteAsync(responseBody, cancellationToken);
+        }
+    }
+
     private static (byte[] Payload, AnthropicRequestPlan Plan) BuildUpstreamPayload(
         ProviderRequestContext context,
         ResponsesRequestContextData requestData)
@@ -2526,6 +2621,177 @@ public sealed class AnthropicMessagesAdapter : IProviderProtocolAdapter
             request.Headers.TryAddWithoutValidation("x-api-key", provider.ApiKey);
 
         return request;
+    }
+
+    private static byte[] BuildDirectMessagesPayload(ProviderRequestContext context, string requestModel)
+    {
+        var upstreamModel = ResolveDirectMessagesModel(context, requestModel);
+        using var buffer = new MemoryStream();
+        using (var writer = new Utf8JsonWriter(buffer))
+        {
+            writer.WriteStartObject();
+            var wroteModel = false;
+            foreach (var property in context.RequestRoot.EnumerateObject())
+            {
+                if (property.NameEquals("model"))
+                {
+                    writer.WriteString("model", upstreamModel);
+                    wroteModel = true;
+                    continue;
+                }
+
+                property.WriteTo(writer);
+            }
+
+            if (!wroteModel)
+                writer.WriteString("model", upstreamModel);
+            writer.WriteEndObject();
+        }
+
+        return buffer.ToArray();
+    }
+
+    private static string ResolveDirectMessagesModel(ProviderRequestContext context, string requestModel)
+    {
+        if (!string.IsNullOrWhiteSpace(context.Model?.UpstreamModel))
+            return context.Model.UpstreamModel;
+
+        if (context.Provider.OverrideRequestModel && !string.IsNullOrWhiteSpace(context.Provider.DefaultModel))
+            return context.Provider.DefaultModel;
+
+        if (!string.IsNullOrWhiteSpace(context.Model?.Id))
+            return ClaudeCodeConfigWriter.StripOneMillionSuffix(context.Model.Id);
+
+        if (!string.IsNullOrWhiteSpace(requestModel))
+            return ClaudeCodeConfigWriter.StripOneMillionSuffix(requestModel);
+
+        return context.Provider.DefaultModel;
+    }
+
+    private static HttpRequestMessage CreateDirectMessagesRequest(
+        ProviderRequestContext context,
+        byte[] payload,
+        string requestModel)
+    {
+        var provider = context.Provider;
+        var request = new HttpRequestMessage(HttpMethod.Post, BuildMessagesUri(provider.BaseUrl))
+        {
+            Content = new ByteArrayContent(payload)
+        };
+        request.Content.Headers.ContentType = new MediaTypeHeaderValue("application/json");
+        request.Headers.Accept.ParseAdd("application/json");
+        if (context.RequestRoot.TryGetProperty("stream", out var streamValue) && streamValue.ValueKind == JsonValueKind.True)
+            request.Headers.Accept.ParseAdd("text/event-stream");
+
+        var inbound = context.HttpContext.Request.Headers;
+        inbound.TryGetValue("anthropic-version", out var anthropicVersionValues);
+        var anthropicVersion = anthropicVersionValues.FirstOrDefault();
+        request.Headers.TryAddWithoutValidation(
+            "anthropic-version",
+            string.IsNullOrWhiteSpace(anthropicVersion) ? "2023-06-01" : anthropicVersion);
+
+        inbound.TryGetValue("anthropic-beta", out var inboundBetaValues);
+        var betaValues = inboundBetaValues.ToList();
+        var upstreamModel = ResolveDirectMessagesModel(context, requestModel);
+        if (provider.ClaudeCode.EnableOneMillionContext &&
+            ClaudeCodeConfigWriter.IsOneMillionContextModel(upstreamModel) &&
+            !betaValues.Any(value =>
+                !string.IsNullOrWhiteSpace(value) &&
+                value.Contains("context-1m-2025-08-07", StringComparison.OrdinalIgnoreCase)))
+        {
+            betaValues.Add("context-1m-2025-08-07");
+        }
+
+        if (betaValues.Count > 0)
+            request.Headers.TryAddWithoutValidation("anthropic-beta", betaValues);
+
+        if (provider.AuthMode == ProviderAuthMode.OAuth && !string.IsNullOrWhiteSpace(context.AccessToken))
+            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", context.AccessToken);
+        else if (!string.IsNullOrWhiteSpace(provider.ApiKey))
+            request.Headers.TryAddWithoutValidation("x-api-key", provider.ApiKey);
+
+        return request;
+    }
+
+    private static async Task ProxyDirectMessagesStreamAsync(
+        ProviderRequestContext context,
+        HttpResponseMessage upstreamResponse,
+        string requestModel,
+        Stopwatch stopwatch,
+        CancellationToken cancellationToken)
+    {
+        UsageTokens usage = default;
+        string? responseModel = null;
+        string? error = null;
+
+        try
+        {
+            await using var stream = await upstreamResponse.Content.ReadAsStreamAsync(cancellationToken);
+            using var reader = new StreamReader(stream);
+            while (await reader.ReadLineAsync(cancellationToken) is { } line)
+            {
+                await context.HttpContext.Response.WriteAsync(line + "\n", cancellationToken);
+                await context.HttpContext.Response.Body.FlushAsync(cancellationToken);
+
+                if (!line.StartsWith("data:", StringComparison.Ordinal))
+                    continue;
+
+                var data = line[5..].Trim();
+                if (string.IsNullOrWhiteSpace(data) || string.Equals(data, "[DONE]", StringComparison.Ordinal))
+                    continue;
+
+                try
+                {
+                    using var document = JsonDocument.Parse(data);
+                    MergeDirectMessagesStreamEvent(document.RootElement, ref usage, ref responseModel);
+                }
+                catch (JsonException ex)
+                {
+                    error = ex.Message;
+                }
+            }
+        }
+        finally
+        {
+            stopwatch.Stop();
+            var record = ProtocolAdapterCommon.CreateRecord(
+                context,
+                requestModel,
+                stream: true,
+                (int)upstreamResponse.StatusCode,
+                stopwatch.ElapsedMilliseconds,
+                usage,
+                responseModel,
+                error);
+            ProtocolAdapterCommon.Record(context, record);
+        }
+    }
+
+    private static void MergeDirectMessagesStreamEvent(JsonElement root, ref UsageTokens usage, ref string? responseModel)
+    {
+        var type = TryGetString(root, "type");
+        if (string.Equals(type, "message_start", StringComparison.Ordinal) &&
+            root.TryGetProperty("message", out var message) &&
+            message.ValueKind == JsonValueKind.Object)
+        {
+            responseModel = TryGetString(message, "model") ?? responseModel;
+            if (message.TryGetProperty("usage", out var messageUsage) && messageUsage.ValueKind == JsonValueKind.Object)
+                usage = MergeUsage(usage, messageUsage);
+            return;
+        }
+
+        if (root.TryGetProperty("usage", out var eventUsage) && eventUsage.ValueKind == JsonValueKind.Object)
+            usage = MergeUsage(usage, eventUsage);
+    }
+
+    private static UsageTokens MergeUsage(UsageTokens current, JsonElement usageElement)
+    {
+        return new UsageTokens(
+            TryGetInt64(usageElement, "input_tokens") ?? current.InputTokens,
+            TryGetInt64(usageElement, "cache_read_input_tokens") ?? current.CachedInputTokens,
+            TryGetInt64(usageElement, "cache_creation_input_tokens") ?? current.CacheCreationInputTokens,
+            TryGetInt64(usageElement, "output_tokens") ?? current.OutputTokens,
+            current.ReasoningOutputTokens);
     }
 
     private static Uri BuildMessagesUri(string baseUrl)
