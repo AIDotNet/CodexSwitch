@@ -15,6 +15,8 @@ namespace CodexSwitch.ViewModels;
 
 public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
 {
+    private const string UsageFilterAllValue = "__all__";
+
     private readonly AppPaths _paths;
     private readonly ConfigurationStore _store;
     private readonly PriceCalculator _priceCalculator;
@@ -32,6 +34,7 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
     private readonly ProxyHostService _proxyHostService;
     private readonly UpdateCheckService _updateCheckService;
     private readonly DispatcherTimer _usageQueryTimer;
+    private readonly DispatcherTimer _miniStatusTimer;
     private readonly Dictionary<string, ProviderUsageQueryResult> _providerUsageResults = new(StringComparer.OrdinalIgnoreCase);
     private readonly HashSet<string> _refreshingUsageProviders = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, ProviderUsageFailureState> _providerUsageFailures = new(StringComparer.OrdinalIgnoreCase);
@@ -46,6 +49,7 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
     private string? _providerPendingDeleteId;
     private bool _isRefreshingSettingsFields;
     private bool _isLoadingProviderFields;
+    private bool _isUpdatingUsageFilterOptions;
     private bool _hasUsageDashboardSnapshot;
     private UsageTimeRange _lastUsageDashboardRange;
     private DateTimeOffset _lastUsageWindowAnchor;
@@ -65,6 +69,12 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
 
     [ObservableProperty]
     private bool _isUsageRefreshing;
+
+    [ObservableProperty]
+    private string _selectedUsageFilterProvider = UsageFilterAllValue;
+
+    [ObservableProperty]
+    private string _selectedUsageFilterModel = UsageFilterAllValue;
 
     [ObservableProperty]
     private ClientAppKind _selectedClientApp = ClientAppKind.Codex;
@@ -241,6 +251,51 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
     private bool _startWithWindows;
 
     [ObservableProperty]
+    private bool _miniStatusEnabled = true;
+
+    [ObservableProperty]
+    private bool _isMiniStatusExpanded;
+
+    [ObservableProperty]
+    private string _miniStatusProviderName = "";
+
+    [ObservableProperty]
+    private string _miniStatusProviderIconPath = "";
+
+    [ObservableProperty]
+    private string _miniStatusRpmText = "0";
+
+    [ObservableProperty]
+    private string _miniStatusInputTokensText = "0";
+
+    [ObservableProperty]
+    private string _miniStatusOutputTokensText = "0";
+
+    [ObservableProperty]
+    private string _miniStatusDailyQuotaText = "--";
+
+    [ObservableProperty]
+    private string _miniStatusWeeklyQuotaText = "--";
+
+    [ObservableProperty]
+    private string _miniStatusPackageQuotaText = "--";
+
+    [ObservableProperty]
+    private bool _miniStatusHasDailyQuota;
+
+    [ObservableProperty]
+    private bool _miniStatusHasWeeklyQuota;
+
+    [ObservableProperty]
+    private bool _miniStatusHasPackageQuota;
+
+    [ObservableProperty]
+    private bool _miniStatusHasQuotaRow;
+
+    [ObservableProperty]
+    private bool _miniStatusHasDetails;
+
+    [ObservableProperty]
     private bool _defaultClientAppIsCodex = true;
 
     [ObservableProperty]
@@ -354,6 +409,8 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
         _updateCheckService = new UpdateCheckService(_sharedHttpClient);
         _usageQueryTimer = new DispatcherTimer { Interval = TimeSpan.FromMinutes(10) };
         _usageQueryTimer.Tick += (_, _) => _ = RefreshProviderUsageQueriesAsync();
+        _miniStatusTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
+        _miniStatusTimer.Tick += (_, _) => RefreshMiniStatus();
         ProxyStatus = T("proxy.starting");
         LatestVersionTag = T("update.noReleaseYet");
         LatestReleasePublishedAtText = T("update.notPublished");
@@ -383,6 +440,11 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
         ProviderUsageRows = [];
         ModelUsageRows = [];
         TrendPoints = [];
+        UsageFilterProviderOptions = [];
+        UsageFilterModelOptions = [];
+        MiniStatusDetails = [];
+        MiniStatusMetricCards = [];
+        MiniStatusQuotaCards = [];
         ProtocolOptions = Enum.GetValues<ProviderProtocol>();
         UsageQueryMethods = ["GET", "POST"];
 
@@ -395,6 +457,8 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
         SelectSettingsTabCommand = new RelayCommand<string>(tab => SettingsTab = tab ?? "General");
         SelectUsageTabCommand = new RelayCommand<string>(tab => UsageTab = tab ?? "Requests");
         SelectUsageRangeCommand = new RelayCommand<string>(SelectUsageRange);
+        SelectUsageFilterProviderCommand = new RelayCommand<string>(filter => SelectedUsageFilterProvider = NormalizeUsageFilterValue(filter));
+        SelectUsageFilterModelCommand = new RelayCommand<string>(filter => SelectedUsageFilterModel = NormalizeUsageFilterValue(filter));
         SelectThemeCommand = new RelayCommand<string>(SelectTheme);
         ToggleProxyCommand = new AsyncRelayCommand(ToggleProxyAsync);
         RestartProxyCommand = new AsyncRelayCommand(RestartProxyAsync);
@@ -431,7 +495,7 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
         CheckForUpdatesCommand = new AsyncRelayCommand(() => CheckForUpdatesAsync(false));
         OpenLatestReleaseCommand = new RelayCommand(OpenLatestRelease);
 
-        _usageMeter.Changed += (_, snapshot) => ApplySnapshot(snapshot);
+        _usageMeter.Changed += (_, snapshot) => Dispatcher.UIThread.Post(() => ApplySnapshot(snapshot));
         _proxyHostService.StateChanged += (_, state) => ApplyProxyState(state);
 
         RefreshProviderTemplates();
@@ -445,6 +509,8 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
         _ = EnsureIconsAsync();
         _ = CheckForUpdatesAsync(true);
         _usageQueryTimer.Start();
+        _miniStatusTimer.Start();
+        RefreshMiniStatus();
         _ = RefreshProviderUsageQueriesAsync();
         _ = _config.Proxy.Enabled
             ? RestartProxyAsync()
@@ -477,6 +543,16 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
 
     public ObservableCollection<UsageTrendPoint> TrendPoints { get; }
 
+    public ObservableCollection<UsageFilterOption> UsageFilterProviderOptions { get; }
+
+    public ObservableCollection<UsageFilterOption> UsageFilterModelOptions { get; }
+
+    public ObservableCollection<MiniStatusDetailItem> MiniStatusDetails { get; }
+
+    public ObservableCollection<MiniStatusMetricCardItem> MiniStatusMetricCards { get; }
+
+    public ObservableCollection<MiniStatusQuotaCardItem> MiniStatusQuotaCards { get; }
+
     public ProviderProtocol[] ProtocolOptions { get; }
 
     public string[] UsageQueryMethods { get; }
@@ -500,6 +576,10 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
     public IRelayCommand<string> SelectUsageTabCommand { get; }
 
     public IRelayCommand<string> SelectUsageRangeCommand { get; }
+
+    public IRelayCommand<string> SelectUsageFilterProviderCommand { get; }
+
+    public IRelayCommand<string> SelectUsageFilterModelCommand { get; }
 
     public IRelayCommand<string> SelectThemeCommand { get; }
 
@@ -574,6 +654,7 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
     public async ValueTask DisposeAsync()
     {
         _usageQueryTimer.Stop();
+        _miniStatusTimer.Stop();
         await _proxyHostService.DisposeAsync();
         _sharedHttpClient.Dispose();
     }
@@ -714,6 +795,7 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
         UiTheme = _config.Ui.Theme;
         var startupStatusMessage = ApplyStartupRegistrationSetting();
         _config.Ui.StartWithWindows = StartWithWindows;
+        _config.Ui.MiniStatusEnabled = MiniStatusEnabled;
         _config.Ui.DefaultApp = DefaultClientAppIsCodex ? ClientAppKind.Codex : ClientAppKind.ClaudeCode;
 
         _pricing.BillingUnitTokens = BillingUnitTokens <= 0 ? 1_000_000 : BillingUnitTokens;
@@ -840,6 +922,47 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
             return;
 
         LoadProviderFields(provider);
+    }
+
+    public bool MoveProvider(string providerId, int targetIndex)
+    {
+        if (string.IsNullOrWhiteSpace(providerId) || _config.Providers.Count < 2)
+            return false;
+
+        var currentIndex = IndexOfProvider(providerId);
+        if (currentIndex < 0)
+            return false;
+
+        targetIndex = Math.Clamp(targetIndex, 0, _config.Providers.Count - 1);
+        if (targetIndex == currentIndex)
+            return false;
+
+        var provider = _config.Providers[currentIndex];
+        var selectedProviderId = SelectedProviderId;
+        _config.Providers.RemoveAt(currentIndex);
+        if (targetIndex > _config.Providers.Count)
+            targetIndex = _config.Providers.Count;
+
+        _config.Providers.Insert(targetIndex, provider);
+        _store.SaveConfig(_config);
+        _proxyHostService.UpdateConfig(_config);
+        RefreshProviderRows();
+        SelectProvider(
+            ProviderRows.FirstOrDefault(row => string.Equals(row.Id, selectedProviderId, StringComparison.OrdinalIgnoreCase)) ??
+            ProviderRows.FirstOrDefault(row => string.Equals(row.Id, _config.ActiveProviderId, StringComparison.OrdinalIgnoreCase)) ??
+            ProviderRows.FirstOrDefault());
+        return true;
+    }
+
+    private int IndexOfProvider(string providerId)
+    {
+        for (var index = 0; index < _config.Providers.Count; index++)
+        {
+            if (string.Equals(_config.Providers[index].Id, providerId, StringComparison.OrdinalIgnoreCase))
+                return index;
+        }
+
+        return -1;
     }
 
     private void OpenAddProvider()
@@ -1240,6 +1363,7 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
         if (result.IsSuccess)
         {
             _providerUsageFailures.Remove(providerId);
+            RefreshMiniStatus();
             return;
         }
 
@@ -1253,6 +1377,7 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
         }
 
         failure.RecordFailure(result.CheckedAt);
+        RefreshMiniStatus();
     }
 
     private static bool HasUsageQueryCredential(ProviderConfig provider)
@@ -1766,6 +1891,7 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
         }
 
         ActiveProviderId = _config.ActiveProviderId;
+        RefreshMiniStatus();
     }
 
     private ProviderUsageDisplay CreateProviderUsageDisplay(ProviderConfig provider)
@@ -1878,6 +2004,233 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
         return F("usageQuery.status.backoff", next, failure.ConsecutiveFailures);
     }
 
+    private void RefreshMiniStatus()
+    {
+        var activeProvider = _config.Providers.FirstOrDefault(provider =>
+            string.Equals(provider.Id, _config.ActiveProviderId, StringComparison.OrdinalIgnoreCase));
+        var iconSlug = activeProvider?.IconSlug ??
+            (activeProvider?.Protocol == ProviderProtocol.AnthropicMessages ? "claude" : "openai");
+        MiniStatusProviderName = activeProvider is null
+            ? "CodexSwitch"
+            : string.IsNullOrWhiteSpace(activeProvider.DisplayName) ? activeProvider.Id : activeProvider.DisplayName;
+        MiniStatusProviderIconPath = _iconCacheService.GetIconPath(iconSlug);
+
+        var realtime = _usageMeter.GetRecentSnapshot(TimeSpan.FromMinutes(1));
+        MiniStatusRpmText = realtime.Requests.ToString("N0", CultureInfo.InvariantCulture);
+        MiniStatusInputTokensText = DisplayFormatters.FormatTokenCount(realtime.TotalInputTokens);
+        MiniStatusOutputTokensText = DisplayFormatters.FormatTokenCount(realtime.TotalOutputTokens);
+
+        var result = activeProvider is null
+            ? null
+            : _providerUsageResults.GetValueOrDefault(activeProvider.Id);
+        var dailyQuota = result?.DailyQuota;
+        var weeklyQuota = result?.WeeklyQuota;
+        var packageQuota = result?.ResourcePackageQuota;
+        MiniStatusHasDailyQuota = HasQuotaDisplay(dailyQuota);
+        MiniStatusHasWeeklyQuota = HasQuotaDisplay(weeklyQuota);
+        MiniStatusHasPackageQuota = HasQuotaDisplay(packageQuota);
+        MiniStatusHasQuotaRow = MiniStatusHasDailyQuota || MiniStatusHasWeeklyQuota || MiniStatusHasPackageQuota;
+        MiniStatusDailyQuotaText = dailyQuota is not null && MiniStatusHasDailyQuota ? FormatQuotaCompact(dailyQuota) : "";
+        MiniStatusWeeklyQuotaText = weeklyQuota is not null && MiniStatusHasWeeklyQuota ? FormatQuotaCompact(weeklyQuota) : "";
+        MiniStatusPackageQuotaText = packageQuota is not null && MiniStatusHasPackageQuota ? FormatQuotaCompact(packageQuota) : "";
+
+        UpdateMiniStatusItems(MiniStatusMetricCards, new[]
+        {
+            new MiniStatusMetricCardItem("RPM", MiniStatusRpmText, "\u6700\u8fd1 1 \u5206\u949f"),
+            new MiniStatusMetricCardItem("\u8f93\u5165", DisplayFormatters.FormatTokenCount(realtime.TotalInputTokens), "Input tokens"),
+            new MiniStatusMetricCardItem("\u8f93\u51fa", DisplayFormatters.FormatTokenCount(realtime.TotalOutputTokens), "Output tokens")
+        });
+
+        var quotaCards = new List<MiniStatusQuotaCardItem>(3);
+        if (dailyQuota is not null && MiniStatusHasDailyQuota)
+            quotaCards.Add(CreateQuotaCard("\u4eca\u65e5\u989d\u5ea6", dailyQuota));
+        if (weeklyQuota is not null && MiniStatusHasWeeklyQuota)
+            quotaCards.Add(CreateQuotaCard("\u672c\u5468\u989d\u5ea6", weeklyQuota));
+        if (packageQuota is not null && MiniStatusHasPackageQuota)
+            quotaCards.Add(CreateQuotaCard("\u8d44\u6e90\u5305 / Token", packageQuota));
+        UpdateMiniStatusItems(MiniStatusQuotaCards, quotaCards);
+
+        var details = new List<MiniStatusDetailItem>(6);
+        if (!string.IsNullOrWhiteSpace(result?.PlanName))
+            details.Add(new MiniStatusDetailItem("\u5957\u9910", result.PlanName!));
+
+        if (MiniStatusHasDailyQuota && !string.IsNullOrWhiteSpace(result?.DailyReset))
+            details.Add(new MiniStatusDetailItem("\u65e5\u91cd\u7f6e", FormatExternalTimeText(result.DailyReset!)));
+        if (MiniStatusHasWeeklyQuota && !string.IsNullOrWhiteSpace(result?.WeeklyReset))
+            details.Add(new MiniStatusDetailItem("\u5468\u91cd\u7f6e", FormatExternalTimeText(result.WeeklyReset!)));
+        if (activeProvider?.Models.Count > 0)
+            details.Add(new MiniStatusDetailItem("\u53ef\u7528\u6a21\u578b", FormatMiniStatusModels(activeProvider)));
+        if (result?.IsSuccess == true && MiniStatusHasQuotaRow)
+            details.Add(new MiniStatusDetailItem("\u66f4\u65b0", FormatFullTime(result.CheckedAt)));
+        if (result is { IsSuccess: false } && !string.IsNullOrWhiteSpace(result.Message))
+            details.Add(new MiniStatusDetailItem("\u9519\u8bef\u8be6\u60c5", result.Message!));
+
+        UpdateMiniStatusItems(MiniStatusDetails, details);
+        MiniStatusHasDetails = details.Count > 0;
+    }
+
+    private static void UpdateMiniStatusItems<T>(ObservableCollection<T> collection, IReadOnlyList<T> items)
+    {
+        var commonCount = Math.Min(collection.Count, items.Count);
+        for (var i = 0; i < commonCount; i++)
+        {
+            if (!EqualityComparer<T>.Default.Equals(collection[i], items[i]))
+                collection[i] = items[i];
+        }
+
+        while (collection.Count > items.Count)
+            collection.RemoveAt(collection.Count - 1);
+
+        for (var i = collection.Count; i < items.Count; i++)
+            collection.Add(items[i]);
+    }
+
+    public void SaveMiniStatusPosition(double left, double top)
+    {
+        if (double.IsNaN(left) || double.IsInfinity(left) ||
+            double.IsNaN(top) || double.IsInfinity(top))
+        {
+            return;
+        }
+
+        if (_config.Ui.MiniStatusLeft == left && _config.Ui.MiniStatusTop == top)
+            return;
+
+        _config.Ui.MiniStatusLeft = left;
+        _config.Ui.MiniStatusTop = top;
+        _store.SaveConfig(_config);
+    }
+
+    public (double? Left, double? Top) GetMiniStatusPosition()
+    {
+        return (_config.Ui.MiniStatusLeft, _config.Ui.MiniStatusTop);
+    }
+
+    private static string FormatQuotaCompact(UsageQuotaSnapshot quota)
+    {
+        if (quota.IsUnlimited)
+            return "\u221e";
+
+        return IsUsd(quota.Unit)
+            ? quota.Remaining!.Value.ToString("0.00", CultureInfo.InvariantCulture)
+            : FormatCompactAmount(quota.Remaining!.Value);
+    }
+
+    private static string FormatQuotaDetail(UsageQuotaSnapshot quota)
+    {
+        if (quota.IsUnlimited)
+            return "\u4e0d\u9650\u91cf";
+
+        var remaining = quota.Remaining is null ? "--" : FormatQuotaAmount(quota.Remaining.Value, quota.Unit);
+        var total = quota.Total is null ? "--" : FormatQuotaAmount(quota.Total.Value, quota.Unit);
+        var used = quota.Used is null ? null : FormatQuotaAmount(quota.Used.Value, quota.Unit);
+        return string.IsNullOrWhiteSpace(used)
+            ? $"{remaining} / {total}"
+            : $"{remaining} / {total} (\u5df2\u7528 {used})";
+    }
+
+    private static bool HasQuotaDisplay(UsageQuotaSnapshot? quota)
+    {
+        return quota is not null && (quota.IsUnlimited || quota.Remaining is not null);
+    }
+
+    private static MiniStatusQuotaCardItem CreateQuotaCard(string title, UsageQuotaSnapshot quota)
+    {
+        var total = quota.Total;
+        var used = quota.Used ?? (quota.Total is not null && quota.Remaining is not null
+            ? Math.Max(0m, quota.Total.Value - quota.Remaining.Value)
+            : null);
+        var percent = total is > 0m && used is not null
+            ? (double)Math.Clamp(used.Value / total.Value * 100m, 0m, 100m)
+            : 0d;
+
+        return new MiniStatusQuotaCardItem(
+            title,
+            FormatQuotaCardValue(quota),
+            total is null || quota.IsUnlimited ? "" : "/ " + FormatQuotaCardAmount(total.Value, quota.Unit),
+            quota.IsUnlimited ? "\u221e" : percent.ToString("0.#", CultureInfo.InvariantCulture) + "%",
+            quota.IsUnlimited ? 100d : percent,
+            quota.IsUnlimited);
+    }
+
+    private static string FormatQuotaCardValue(UsageQuotaSnapshot quota)
+    {
+        if (quota.IsUnlimited)
+            return "\u221e";
+
+        return quota.Remaining is null
+            ? "--"
+            : FormatQuotaCardAmount(quota.Remaining.Value, quota.Unit);
+    }
+
+    private static string FormatQuotaCardAmount(decimal value, string? unit)
+    {
+        return IsUsd(unit) || IsTokenUnit(unit)
+            ? value.ToString(value == decimal.Truncate(value) ? "0.0" : "0.##", CultureInfo.InvariantCulture)
+            : FormatQuotaAmount(value, unit);
+    }
+
+    private static string FormatMiniStatusModels(ProviderConfig provider)
+    {
+        var models = provider.Models
+            .Select(model => string.IsNullOrWhiteSpace(model.DisplayName) ? model.Id : model.DisplayName!)
+            .Where(model => !string.IsNullOrWhiteSpace(model))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Take(4)
+            .ToArray();
+
+        return models.Length == 0
+            ? provider.DefaultModel
+            : string.Join(", ", models);
+    }
+
+    private static string FormatQuotaAmount(decimal value, string? unit)
+    {
+        return IsUsd(unit)
+            ? value.ToString("0.00", CultureInfo.InvariantCulture)
+            : DisplayFormatters.FormatUsageAmount(value, unit);
+    }
+
+    private static string FormatCompactAmount(decimal value)
+    {
+        var absolute = Math.Abs(value);
+        if (absolute < 1_000m)
+            return value == decimal.Truncate(value)
+                ? value.ToString("0", CultureInfo.InvariantCulture)
+                : value.ToString("0.#", CultureInfo.InvariantCulture);
+
+        if (absolute < 1_000_000m)
+            return (value / 1_000m).ToString(Math.Abs(value / 1_000m) >= 100m ? "0" : "0.0", CultureInfo.InvariantCulture) + "K";
+
+        if (absolute < 1_000_000_000m)
+            return (value / 1_000_000m).ToString(Math.Abs(value / 1_000_000m) >= 100m ? "0" : "0.0", CultureInfo.InvariantCulture) + "M";
+
+        return (value / 1_000_000_000m).ToString(Math.Abs(value / 1_000_000_000m) >= 100m ? "0" : "0.0", CultureInfo.InvariantCulture) + "B";
+    }
+
+    private static bool IsUsd(string? unit)
+    {
+        return string.Equals(unit, "USD", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool IsTokenUnit(string? unit)
+    {
+        return string.Equals(unit, "tokens", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(unit, "token", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string FormatExternalTimeText(string value)
+    {
+        return DateTimeOffset.TryParse(value, CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal, out var parsed)
+            ? FormatFullTime(parsed)
+            : value;
+    }
+
+    private static string FormatFullTime(DateTimeOffset value)
+    {
+        return value.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture);
+    }
+
     private static string FormatCheckedAt(DateTimeOffset checkedAt)
     {
         return checkedAt.ToLocalTime().ToString("MM/dd HH:mm", CultureInfo.InvariantCulture);
@@ -1923,6 +2276,7 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
             _config.Ui.Theme = UiTheme;
             StartWithWindows = ReadStartupRegistrationSetting();
             _config.Ui.StartWithWindows = StartWithWindows;
+            MiniStatusEnabled = _config.Ui.MiniStatusEnabled;
             SelectedClientApp = _config.Ui.DefaultApp;
             DefaultClientAppIsCodex = _config.Ui.DefaultApp == ClientAppKind.Codex;
             BillingUnitTokens = _pricing.BillingUnitTokens;
@@ -2018,27 +2372,36 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
         _lastUsageDashboardRange = UsageTimeRange;
         _lastUsageWindowAnchor = windowAnchor;
         _lastUsageSourceSnapshot = dashboard.SourceSnapshot;
-        var totalTokens = dashboard.InputTokens +
-            dashboard.CachedInputTokens +
-            dashboard.CacheCreationInputTokens +
-            dashboard.OutputTokens +
-            dashboard.ReasoningOutputTokens;
-        var cachedTokens = dashboard.CachedInputTokens + dashboard.CacheCreationInputTokens;
+
+        PopulateUsageFilterOptions(dashboard);
+
+        var providerFilter = IsAllUsageFilter(SelectedUsageFilterProvider) ? null : SelectedUsageFilterProvider;
+        var modelFilter = IsAllUsageFilter(SelectedUsageFilterModel) ? null : SelectedUsageFilterModel;
+        var filteredDashboard = providerFilter is null && modelFilter is null
+            ? dashboard
+            : _usageLogReader.Read(UsageTimeRange, now, providerFilter, modelFilter);
+
+        var totalTokens = filteredDashboard.InputTokens +
+            filteredDashboard.CachedInputTokens +
+            filteredDashboard.CacheCreationInputTokens +
+            filteredDashboard.OutputTokens +
+            filteredDashboard.ReasoningOutputTokens;
+        var cachedTokens = filteredDashboard.CachedInputTokens + filteredDashboard.CacheCreationInputTokens;
         var cacheHitRate = DisplayFormatters.CalculateCacheHitRate(
-            dashboard.InputTokens,
-            dashboard.CachedInputTokens,
-            dashboard.CacheCreationInputTokens);
+            filteredDashboard.InputTokens,
+            filteredDashboard.CachedInputTokens,
+            filteredDashboard.CacheCreationInputTokens);
 
         UsageMetrics.Clear();
         UsageMetrics.Add(CreateUsageMetric(
             T("usage.metric.requests"),
-            dashboard.Requests.ToString("N0", CultureInfo.InvariantCulture),
+            filteredDashboard.Requests.ToString("N0", CultureInfo.InvariantCulture),
             LucideIconKind.ChartNoAxesColumnIncreasing,
             "#60A5FA",
             "#1D3B5F"));
         UsageMetrics.Add(CreateUsageMetric(
             T("usage.metric.cost"),
-            DisplayFormatters.FormatCost(dashboard.EstimatedCost),
+            DisplayFormatters.FormatCost(filteredDashboard.EstimatedCost),
             LucideIconKind.BadgeDollarSign,
             "#34D399",
             "#153B2D"));
@@ -2062,26 +2425,25 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
             "#123C46"));
 
         UsageLogRows.Clear();
-        foreach (var record in dashboard.Logs)
+        foreach (var record in filteredDashboard.Logs)
             UsageLogRows.Add(UsageLogItem.From(record));
 
         ProviderUsageRows.Clear();
-        foreach (var summary in dashboard.ProviderSummaries)
+        foreach (var summary in filteredDashboard.ProviderSummaries)
             ProviderUsageRows.Add(ProviderUsageItem.From(summary));
 
         ModelUsageRows.Clear();
-        foreach (var summary in dashboard.ModelSummaries)
+        foreach (var summary in filteredDashboard.ModelSummaries)
             ModelUsageRows.Add(ModelUsageItem.From(summary));
 
         TrendPoints.Clear();
-        foreach (var point in dashboard.TrendPoints)
+        foreach (var point in filteredDashboard.TrendPoints)
             TrendPoints.Add(point);
 
         OnPropertyChanged(nameof(UsageRangeCaption));
         OnPropertyChanged(nameof(UsageTrendGranularity));
         ApplySnapshot(_usageMeter.Snapshot);
     }
-
     private void UnloadUsageDashboard()
     {
         if (!_hasUsageDashboardSnapshot &&
@@ -2103,6 +2465,84 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
         _lastUsageDashboardRange = default;
         _lastUsageWindowAnchor = default;
         _lastUsageSourceSnapshot = default;
+    }
+
+    private void PopulateUsageFilterOptions(UsageDashboard dashboard)
+    {
+        var providerOptions = new List<UsageFilterOption> { CreateAllUsageFilterOption() };
+        providerOptions.AddRange(dashboard.ProviderSummaries
+            .Select(summary => summary.ProviderId)
+            .Where(providerId => !string.IsNullOrWhiteSpace(providerId))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(providerId => providerId, StringComparer.OrdinalIgnoreCase)
+            .Select(value => new UsageFilterOption(value, value)));
+
+        var modelOptions = new List<UsageFilterOption> { CreateAllUsageFilterOption() };
+        modelOptions.AddRange(dashboard.ModelSummaries
+            .Select(summary => summary.Model)
+            .Where(model => !string.IsNullOrWhiteSpace(model))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(model => model, StringComparer.OrdinalIgnoreCase)
+            .Select(value => new UsageFilterOption(value, value)));
+
+        _isUpdatingUsageFilterOptions = true;
+        try
+        {
+            SyncCollection(UsageFilterProviderOptions, providerOptions);
+            SyncCollection(UsageFilterModelOptions, modelOptions);
+
+            if (!ContainsUsageFilterValue(providerOptions, SelectedUsageFilterProvider))
+                SelectedUsageFilterProvider = UsageFilterAllValue;
+            if (!ContainsUsageFilterValue(modelOptions, SelectedUsageFilterModel))
+                SelectedUsageFilterModel = UsageFilterAllValue;
+        }
+        finally
+        {
+            _isUpdatingUsageFilterOptions = false;
+        }
+    }
+
+    private UsageFilterOption CreateAllUsageFilterOption()
+    {
+        return new UsageFilterOption(UsageFilterAllValue, T("usage.filter.all"));
+    }
+
+    private static bool ContainsUsageFilterValue(IEnumerable<UsageFilterOption> options, string? value)
+    {
+        var normalized = NormalizeUsageFilterValue(value);
+        return options.Any(option => string.Equals(option.Value, normalized, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static bool IsAllUsageFilter(string? value)
+    {
+        return string.IsNullOrWhiteSpace(value) ||
+            string.Equals(value, UsageFilterAllValue, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string NormalizeUsageFilterValue(string? value)
+    {
+        return string.IsNullOrWhiteSpace(value) ? UsageFilterAllValue : value;
+    }
+
+    private static void SyncCollection<T>(ObservableCollection<T> collection, IReadOnlyList<T> desired)
+    {
+        if (collection.SequenceEqual(desired))
+            return;
+
+        collection.Clear();
+        foreach (var item in desired)
+            collection.Add(item);
+    }
+
+    private void RefreshUsageDashboardAfterFilterChange()
+    {
+        if (_isUpdatingUsageFilterOptions)
+            return;
+
+        if (IsUsagePageVisible)
+            RefreshUsageDashboard(force: true);
+        else
+            _hasUsageDashboardSnapshot = false;
     }
 
     private static UsageMetricItem CreateUsageMetric(
@@ -2354,6 +2794,7 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
         OnPropertyChanged(nameof(OutputTokensText));
         OnPropertyChanged(nameof(TotalTokensText));
         OnPropertyChanged(nameof(EstimatedCostText));
+        RefreshMiniStatus();
     }
 
     private void OnProxyStateDisplayChanged()
@@ -2425,6 +2866,16 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
             _hasUsageDashboardSnapshot = false;
     }
 
+    partial void OnSelectedUsageFilterProviderChanged(string value)
+    {
+        RefreshUsageDashboardAfterFilterChange();
+    }
+
+    partial void OnSelectedUsageFilterModelChanged(string value)
+    {
+        RefreshUsageDashboardAfterFilterChange();
+    }
+
     partial void OnIsUsageRefreshingChanged(bool value)
     {
         OnPropertyChanged(nameof(IsUsageRefreshIdle));
@@ -2451,6 +2902,8 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
         UiLanguage = value.Code;
         _config.Ui.Language = value.Code;
         _i18n.SetLanguage(value.Code);
+        if (IsUsagePageVisible)
+            RefreshUsageDashboard(force: true);
         if (!_isRefreshingSettingsFields)
             _store.SaveConfig(_config);
     }
@@ -2482,6 +2935,15 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
     {
         if (!_isRefreshingSettingsFields && value)
             PreserveCodexAppAuth = false;
+    }
+
+    partial void OnMiniStatusEnabledChanged(bool value)
+    {
+        if (_isRefreshingSettingsFields)
+            return;
+
+        _config.Ui.MiniStatusEnabled = value;
+        _store.SaveConfig(_config);
     }
 
     public bool IsProvidersPageVisible => CurrentPage == "Providers";
@@ -2594,6 +3056,8 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
 
     public string ModelCatalogCountText => F("models.catalogCount", ModelCatalogRows.Count);
 }
+
+public sealed record UsageFilterOption(string Value, string DisplayName);
 
 public sealed partial class ClientAppItem : ObservableObject
 {
@@ -2891,6 +3355,18 @@ public sealed record UsageMetricItem(
     LucideIconKind Icon,
     IBrush IconForeground,
     IBrush IconBackground);
+
+public sealed record MiniStatusDetailItem(string Label, string Value);
+
+public sealed record MiniStatusMetricCardItem(string Label, string Value, string Caption);
+
+public sealed record MiniStatusQuotaCardItem(
+    string Title,
+    string Remaining,
+    string Total,
+    string PercentText,
+    double Percent,
+    bool IsUnlimited);
 
 public sealed class UsageLogItem
 {

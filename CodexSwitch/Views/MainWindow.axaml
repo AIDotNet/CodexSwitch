@@ -16,7 +16,7 @@
         MinHeight="560"
         x:Class="CodexSwitch.Views.MainWindow"
         x:DataType="vm:MainWindowViewModel"
-        Icon="/Assets/avalonia-logo.ico"
+        Icon="/Assets/favicon.ico"
         Title="{i18n:Tr app.name}">
 
     <Design.DataContext>

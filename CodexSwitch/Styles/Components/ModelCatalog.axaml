@@ -1,14 +1,14 @@
 <Styles xmlns="https://github.com/avaloniaui"
         xmlns:ui="using:CodexSwitch.Controls">
     <Style Selector="ui|CsModelCard">
-        <Setter Property="Padding" Value="14"/>
+        <Setter Property="Padding" Value="0"/>
         <Setter Property="Template">
             <ControlTemplate>
                 <Border Name="ModelCardRoot"
-                        Background="{StaticResource CsModelCardBrush}"
+                        Background="{StaticResource CsCardBrush}"
                         BorderBrush="{StaticResource CsBorderBrush}"
                         BorderThickness="1"
-                        CornerRadius="{StaticResource CsRadiusLg}"
+                        CornerRadius="{StaticResource CsRadiusXl}"
                         Padding="{TemplateBinding Padding}">
                     <Border.Transitions>
                         <Transitions>
@@ -23,17 +23,18 @@
         </Setter>
     </Style>
     <Style Selector="ui|CsModelCard:pointerover /template/ Border#ModelCardRoot">
-        <Setter Property="Background" Value="{StaticResource CsModelCardHoverBrush}"/>
+        <Setter Property="Background" Value="{StaticResource CsProviderCardHoverBrush}"/>
         <Setter Property="BorderBrush" Value="{StaticResource CsHoverBorderBrush}"/>
     </Style>
 
     <Style Selector="ui|CsPriceChip">
-        <Setter Property="Padding" Value="10,8"/>
+        <Setter Property="Padding" Value="8,6"/>
+        <Setter Property="HorizontalAlignment" Value="Stretch"/>
         <Setter Property="Template">
             <ControlTemplate>
                 <Border Name="PriceChipRoot"
-                        Background="{StaticResource CsPriceChipBrush}"
-                        BorderBrush="{StaticResource CsBorderBrush}"
+                        Background="Transparent"
+                        BorderBrush="Transparent"
                         BorderThickness="1"
                         CornerRadius="{StaticResource CsRadiusMd}"
                         Padding="{TemplateBinding Padding}">
@@ -43,37 +44,55 @@
                             <BrushTransition Property="BorderBrush" Duration="0:0:0.14"/>
                         </Transitions>
                     </Border.Transitions>
-                    <ContentPresenter Content="{TemplateBinding Content}"/>
+                    <ContentPresenter Content="{TemplateBinding Content}"
+                                      HorizontalAlignment="Stretch"/>
                 </Border>
             </ControlTemplate>
         </Setter>
     </Style>
     <Style Selector="ui|CsPriceChip:pointerover /template/ Border#PriceChipRoot">
-        <Setter Property="Background" Value="{StaticResource CsPriceChipHoverBrush}"/>
-        <Setter Property="BorderBrush" Value="{StaticResource CsHoverBorderBrush}"/>
+        <Setter Property="Background" Value="#0FFFFFFF"/>
+        <Setter Property="BorderBrush" Value="{StaticResource CsBorderBrush}"/>
     </Style>
     <Style Selector="ui|CsPriceChip.input /template/ Border#PriceChipRoot">
-        <Setter Property="BorderBrush" Value="#334EA8FF"/>
+        <Setter Property="BorderBrush" Value="{StaticResource CsBorderBrush}"/>
     </Style>
     <Style Selector="ui|CsPriceChip.cache /template/ Border#PriceChipRoot">
-        <Setter Property="BorderBrush" Value="#33A855F7"/>
+        <Setter Property="BorderBrush" Value="{StaticResource CsBorderBrush}"/>
     </Style>
     <Style Selector="ui|CsPriceChip.create /template/ Border#PriceChipRoot">
-        <Setter Property="BorderBrush" Value="#44F59E0B"/>
+        <Setter Property="BorderBrush" Value="{StaticResource CsBorderBrush}"/>
     </Style>
     <Style Selector="ui|CsPriceChip.output /template/ Border#PriceChipRoot">
-        <Setter Property="BorderBrush" Value="#3334D399"/>
+        <Setter Property="BorderBrush" Value="{StaticResource CsBorderBrush}"/>
     </Style>
     <Style Selector="ui|CsPriceChip.fast /template/ Border#PriceChipRoot">
-        <Setter Property="BorderBrush" Value="#44E5E5E5"/>
+        <Setter Property="BorderBrush" Value="{StaticResource CsBorderBrush}"/>
     </Style>
 
     <Style Selector="Border.model-icon-shell">
-        <Setter Property="Width" Value="42"/>
-        <Setter Property="Height" Value="42"/>
-        <Setter Property="CornerRadius" Value="12"/>
-        <Setter Property="Background" Value="{StaticResource CsAccentBrush}"/>
+        <Setter Property="Width" Value="36"/>
+        <Setter Property="Height" Value="36"/>
+        <Setter Property="CornerRadius" Value="{StaticResource CsRadiusLg}"/>
+        <Setter Property="Background" Value="#14FFFFFF"/>
         <Setter Property="BorderBrush" Value="{StaticResource CsBorderBrush}"/>
         <Setter Property="BorderThickness" Value="1"/>
+    </Style>
+    <Style Selector="Border.model-icon-shell:pointerover">
+        <Setter Property="Background" Value="#1FFFFFFF"/>
+        <Setter Property="BorderBrush" Value="{StaticResource CsHoverBorderBrush}"/>
+    </Style>
+
+    <Style Selector="ui|CsBadge.model-provider-badge /template/ Border#BadgeRoot">
+        <Setter Property="Background" Value="Transparent"/>
+        <Setter Property="BorderBrush" Value="{StaticResource CsBorderBrush}"/>
+    </Style>
+
+    <Style Selector="ui|CsTableRow.model-row /template/ Border#TableRowRoot">
+        <Setter Property="MinHeight" Value="82"/>
+    </Style>
+    <Style Selector="ui|CsTableRow.model-row:pointerover /template/ Border#TableRowRoot">
+        <Setter Property="Background" Value="#0FFFFFFF"/>
+        <Setter Property="BorderBrush" Value="{StaticResource CsHoverBorderBrush}"/>
     </Style>
 </Styles>

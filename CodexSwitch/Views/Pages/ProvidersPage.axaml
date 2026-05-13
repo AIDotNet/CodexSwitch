@@ -24,18 +24,31 @@
             <ItemsControl Grid.Row="1" ItemsSource="{Binding ProviderRows}">
                 <ItemsControl.ItemTemplate>
                     <DataTemplate x:DataType="vm:ProviderListItem">
-                        <Grid ColumnDefinitions="*,Auto"
+                        <Grid Classes="provider-list-row"
+                              ColumnDefinitions="*,Auto"
                               ColumnSpacing="10"
-                              Margin="0,0,0,12">
+                              Margin="0,0,0,10">
                             <ui:CsProviderCard Command="{Binding SelectCommand}"
                                                CommandParameter="{Binding}"
                                                Classes.active="{Binding IsActive}">
-                                <Grid ColumnDefinitions="Auto,*,Auto"
+                                <Grid ColumnDefinitions="Auto,Auto,*,Auto"
                                       RowDefinitions="Auto,Auto"
-                                      ColumnSpacing="14"
-                                      RowSpacing="8">
+                                      ColumnSpacing="12"
+                                      RowSpacing="6">
+                                    <Border Grid.RowSpan="2"
+                                            Classes="provider-drag-handle"
+                                            PointerPressed="ProviderDragHandle_OnPointerPressed"
+                                            PointerMoved="ProviderDragHandle_OnPointerMoved"
+                                            PointerReleased="ProviderDragHandle_OnPointerReleased"
+                                            PointerCaptureLost="ProviderDragHandle_OnPointerCaptureLost"
+                                            VerticalAlignment="Stretch">
+                                        <lucide:LucideIcon Kind="GripVertical"
+                                                           Size="18"
+                                                           StrokeWidth="2"/>
+                                    </Border>
                                     <Border Width="40"
                                             Height="40"
+                                            Grid.Column="1"
                                             Grid.RowSpan="2"
                                             CornerRadius="10"
                                             Background="#26FFFFFF">
@@ -45,7 +58,7 @@
                                                         HorizontalAlignment="Center"
                                                         VerticalAlignment="Center"/>
                                     </Border>
-                                    <StackPanel Grid.Column="1"
+                                    <StackPanel Grid.Column="2"
                                                 Grid.RowSpan="2"
                                                 Spacing="5"
                                                 VerticalAlignment="Center">
@@ -59,7 +72,7 @@
                                                    Classes="muted"
                                                    TextTrimming="CharacterEllipsis"/>
                                     </StackPanel>
-                                    <ui:CsBadge Grid.Column="2"
+                                    <ui:CsBadge Grid.Column="3"
                                                 Classes="success"
                                                 IsVisible="{Binding IsActive}"
                                                 VerticalAlignment="Top">
@@ -69,7 +82,7 @@
                                                    FontWeight="SemiBold"/>
                                     </ui:CsBadge>
                                     <Border Grid.Row="1"
-                                            Grid.Column="2"
+                                            Grid.Column="3"
                                             Classes="provider-usage"
                                             Classes.success="{Binding IsUsageValid}"
                                             Classes.error="{Binding IsUsageError}"

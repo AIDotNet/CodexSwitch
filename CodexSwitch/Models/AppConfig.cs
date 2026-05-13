@@ -24,6 +24,12 @@ public sealed class AppUiSettings
     public string Theme { get; set; } = "system";
 
     public bool StartWithWindows { get; set; }
+
+    public bool MiniStatusEnabled { get; set; } = true;
+
+    public double? MiniStatusLeft { get; set; }
+
+    public double? MiniStatusTop { get; set; }
 }
 
 public enum ClientAppKind

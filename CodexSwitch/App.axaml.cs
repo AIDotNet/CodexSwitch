@@ -10,6 +10,7 @@ namespace CodexSwitch;
 public partial class App : Application
 {
     private TrayMenuController? _trayMenuController;
+    private MiniStatusWindowController? _miniStatusWindowController;
 
     public override void Initialize()
     {
@@ -40,8 +41,11 @@ public partial class App : Application
 
             desktop.MainWindow = mainWindow;
             _trayMenuController = new TrayMenuController(this, desktop, mainWindow, viewModel);
+            _miniStatusWindowController = new MiniStatusWindowController(mainWindow, viewModel);
             desktop.ShutdownRequested += async (_, _) =>
             {
+                _miniStatusWindowController?.Dispose();
+                _miniStatusWindowController = null;
                 _trayMenuController?.Dispose();
                 _trayMenuController = null;
                 await viewModel.DisposeAsync();

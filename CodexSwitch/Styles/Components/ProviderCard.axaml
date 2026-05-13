@@ -1,8 +1,9 @@
 <Styles xmlns="https://github.com/avaloniaui"
-        xmlns:ui="using:CodexSwitch.Controls">
+        xmlns:ui="using:CodexSwitch.Controls"
+        xmlns:lucide="using:Lucide.Avalonia">
     <Style Selector="ui|CsProviderCard">
-        <Setter Property="MinHeight" Value="104"/>
-        <Setter Property="Padding" Value="16"/>
+        <Setter Property="MinHeight" Value="88"/>
+        <Setter Property="Padding" Value="12,11"/>
         <Setter Property="Background" Value="{StaticResource CsCardBrush}"/>
         <Setter Property="Foreground" Value="{StaticResource CsForegroundBrush}"/>
         <Setter Property="BorderBrush" Value="{StaticResource CsBorderBrush}"/>
@@ -47,6 +48,60 @@
     <Style Selector="ui|CsProviderCard.active:pressed">
         <Setter Property="Background" Value="{StaticResource CsProviderCardActivePressedBrush}"/>
         <Setter Property="BorderBrush" Value="#0A84FF"/>
+    </Style>
+    <Style Selector="Grid.provider-list-row.dragging ui|CsProviderCard:pointerover">
+        <Setter Property="Background" Value="{StaticResource CsCardBrush}"/>
+        <Setter Property="BorderBrush" Value="{StaticResource CsBorderBrush}"/>
+    </Style>
+    <Style Selector="Grid.provider-list-row.dragging ui|CsProviderCard:pressed">
+        <Setter Property="Background" Value="{StaticResource CsCardBrush}"/>
+        <Setter Property="BorderBrush" Value="{StaticResource CsBorderBrush}"/>
+    </Style>
+    <Style Selector="Grid.provider-list-row.dragging ui|CsProviderCard.active:pointerover">
+        <Setter Property="Background" Value="{StaticResource CsProviderCardActiveBrush}"/>
+        <Setter Property="BorderBrush" Value="#0A84FF"/>
+    </Style>
+    <Style Selector="Grid.provider-list-row.dragging ui|CsProviderCard.active:pressed">
+        <Setter Property="Background" Value="{StaticResource CsProviderCardActiveBrush}"/>
+        <Setter Property="BorderBrush" Value="#0A84FF"/>
+    </Style>
+
+    <Style Selector="Grid.provider-list-row">
+        <Setter Property="RenderTransformOrigin" Value="0.5,0.5"/>
+        <Setter Property="Transitions">
+            <Transitions>
+                <DoubleTransition Property="Opacity" Duration="0:0:0.12"/>
+            </Transitions>
+        </Setter>
+    </Style>
+    <Style Selector="Grid.provider-list-row.dragging">
+        <Setter Property="Opacity" Value="0.92"/>
+    </Style>
+
+    <Style Selector="Border.provider-drag-handle">
+        <Setter Property="Width" Value="22"/>
+        <Setter Property="MinHeight" Value="46"/>
+        <Setter Property="Background" Value="Transparent"/>
+        <Setter Property="BorderBrush" Value="Transparent"/>
+        <Setter Property="BorderThickness" Value="0"/>
+        <Setter Property="HorizontalAlignment" Value="Stretch"/>
+        <Setter Property="VerticalAlignment" Value="Stretch"/>
+    </Style>
+    <Style Selector="Border.provider-drag-handle:pointerover">
+        <Setter Property="Background" Value="Transparent"/>
+        <Setter Property="BorderBrush" Value="Transparent"/>
+    </Style>
+    <Style Selector="Grid.provider-list-row.dragging Border.provider-drag-handle">
+        <Setter Property="Background" Value="Transparent"/>
+        <Setter Property="BorderBrush" Value="Transparent"/>
+    </Style>
+    <Style Selector="Border.provider-drag-handle lucide|LucideIcon">
+        <Setter Property="Foreground" Value="{StaticResource CsMutedForegroundBrush}"/>
+        <Setter Property="HorizontalAlignment" Value="Center"/>
+        <Setter Property="VerticalAlignment" Value="Center"/>
+    </Style>
+    <Style Selector="Border.provider-drag-handle:pointerover lucide|LucideIcon">
+        <Setter Property="Foreground" Value="{StaticResource CsForegroundBrush}"/>
     </Style>
 
     <Style Selector="Border.provider-usage">

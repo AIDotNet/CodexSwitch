@@ -74,6 +74,36 @@ public sealed class UiV2InfrastructureTests : IDisposable
     }
 
     [Fact]
+    public void LoadConfig_EnablesMiniStatusForOlderConfigFiles()
+    {
+        var paths = CreatePaths("mini-status-default");
+        Directory.CreateDirectory(Path.GetDirectoryName(paths.ConfigPath)!);
+        File.WriteAllText(
+            paths.ConfigPath,
+            """
+            {
+              "proxy": { "enabled": true, "host": "127.0.0.1", "port": 12785 },
+              "ui": { "defaultApp": "Codex", "language": "zh-CN", "theme": "system", "startWithWindows": false },
+              "activeProviderId": "first",
+              "providers": [
+                {
+                  "id": "first",
+                  "displayName": "First",
+                  "baseUrl": "https://example.com/v1",
+                  "defaultModel": "gpt-5.5"
+                }
+              ]
+            }
+            """);
+
+        var config = new ConfigurationStore(paths).LoadConfig();
+
+        Assert.True(config.Ui.MiniStatusEnabled);
+        Assert.Null(config.Ui.MiniStatusLeft);
+        Assert.Null(config.Ui.MiniStatusTop);
+    }
+
+    [Fact]
     public async Task ProxyHostService_StartAsync_StaysStopped_WhenProxyIsDisabled()
     {
         var paths = CreatePaths("disabled-proxy");
@@ -208,6 +238,61 @@ public sealed class UiV2InfrastructureTests : IDisposable
         Assert.Equal(350, trend.OutputTokens);
         Assert.Equal(50, trend.ReasoningOutputTokens);
         Assert.Equal(2, trend.Requests);
+    }
+
+    [Fact]
+    public void UsageMeter_TracksRecentMinuteUsage()
+    {
+        var meter = new UsageMeter(new PriceCalculator(new ModelPricingCatalog()));
+        var now = DateTimeOffset.UtcNow;
+        meter.Record(new UsageLogRecord
+        {
+            Timestamp = now.AddSeconds(-30),
+            RequestModel = "gpt-5.5",
+            BilledModel = "gpt-5.5",
+            Usage = new UsageTokens(100, 20, 5, 40, 3),
+            StatusCode = 200
+        });
+        meter.Record(new UsageLogRecord
+        {
+            Timestamp = now.AddSeconds(-70),
+            RequestModel = "gpt-5.5",
+            BilledModel = "gpt-5.5",
+            Usage = new UsageTokens(900, 0, 0, 200, 0),
+            StatusCode = 500
+        });
+
+        var snapshot = meter.GetRecentSnapshot(TimeSpan.FromMinutes(1), now);
+
+        Assert.Equal(1, snapshot.Requests);
+        Assert.Equal(0, snapshot.Errors);
+        Assert.Equal(125, snapshot.TotalInputTokens);
+        Assert.Equal(43, snapshot.TotalOutputTokens);
+
+        var expired = meter.GetRecentSnapshot(TimeSpan.FromMinutes(1), now.AddSeconds(61));
+        Assert.Equal(0, expired.Requests);
+        Assert.Equal(0, expired.TotalInputTokens);
+        Assert.Equal(0, expired.TotalOutputTokens);
+    }
+
+    [Fact]
+    public void UsageMeter_RecentMinuteCountsErrors()
+    {
+        var meter = new UsageMeter(new PriceCalculator(new ModelPricingCatalog()));
+        var now = DateTimeOffset.UtcNow;
+        meter.Record(new UsageLogRecord
+        {
+            Timestamp = now.AddSeconds(-5),
+            RequestModel = "gpt-5.5",
+            BilledModel = "gpt-5.5",
+            Usage = default,
+            StatusCode = 502
+        });
+
+        var snapshot = meter.GetRecentSnapshot(TimeSpan.FromMinutes(1), now);
+
+        Assert.Equal(1, snapshot.Requests);
+        Assert.Equal(1, snapshot.Errors);
     }
 
     [Fact]
@@ -366,6 +451,63 @@ public sealed class UiV2InfrastructureTests : IDisposable
         Assert.Equal(80, dashboard.Logs.Count);
         Assert.Equal(now, dashboard.Logs.First().Timestamp);
         Assert.Equal(now.AddMinutes(-79), dashboard.Logs.Last().Timestamp);
+    }
+
+    [Fact]
+    public void UsageLogReader_FiltersBeforeRecentRowLimit()
+    {
+        var paths = CreatePaths("usage-filter-limit");
+        var writer = new UsageLogWriter(paths);
+        var now = new DateTimeOffset(2026, 5, 13, 12, 0, 0, TimeSpan.Zero);
+
+        for (var i = 0; i < 80; i++)
+        {
+            writer.Append(new UsageLogRecord
+            {
+                Timestamp = now.AddMinutes(-i),
+                ProviderId = "openai",
+                RequestModel = "gpt-5.5",
+                BilledModel = "gpt-5.5",
+                Usage = new UsageTokens(10, 0, 0, 5, 0),
+                EstimatedCost = 0.01m,
+                DurationMs = 10,
+                StatusCode = 200
+            });
+        }
+
+        for (var i = 80; i < 100; i++)
+        {
+            writer.Append(new UsageLogRecord
+            {
+                Timestamp = now.AddMinutes(-i),
+                ProviderId = "anthropic",
+                RequestModel = "claude-sonnet-4-5",
+                BilledModel = "claude-sonnet-4-5",
+                Usage = new UsageTokens(20, 0, 0, 8, 0),
+                EstimatedCost = 0.02m,
+                DurationMs = 20,
+                StatusCode = 200
+            });
+        }
+
+        var dashboard = new UsageLogReader(paths).Read(
+            UsageTimeRange.Last24Hours,
+            now,
+            providerId: "anthropic",
+            model: "claude-sonnet-4-5");
+
+        Assert.Equal(20, dashboard.Requests);
+        Assert.Equal(400, dashboard.InputTokens);
+        Assert.Equal(160, dashboard.OutputTokens);
+        Assert.Equal(20, dashboard.Logs.Count);
+        Assert.All(dashboard.Logs, record => Assert.Equal("anthropic", record.ProviderId));
+        var provider = Assert.Single(dashboard.ProviderSummaries);
+        Assert.Equal("anthropic", provider.ProviderId);
+        Assert.Equal(20, provider.Requests);
+        var model = Assert.Single(dashboard.ModelSummaries);
+        Assert.Equal("claude-sonnet-4-5", model.Model);
+        Assert.Equal(20, model.Requests);
+        Assert.Equal(20, dashboard.TrendPoints.Sum(point => point.Requests));
     }
 
     [Fact]

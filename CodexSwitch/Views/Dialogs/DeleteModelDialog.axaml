@@ -22,7 +22,7 @@
                     <ui:CsButton Classes="outline compact"
                                  Command="{Binding CancelRemovePricingModelCommand}"
                                  Content="{i18n:Tr common.cancel}"/>
-                    <ui:CsButton Classes="compact"
+                    <ui:CsButton Classes="destructive compact"
                                  Command="{Binding ConfirmRemovePricingModelCommand}"
                                  Content="{i18n:Tr common.delete}"/>
                 </StackPanel>

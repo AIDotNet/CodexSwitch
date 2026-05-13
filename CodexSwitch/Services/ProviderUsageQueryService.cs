@@ -187,10 +187,25 @@ public sealed class ProviderUsageQueryService
             var planName = ReadString(root, "planName");
             var dailyReset = ReadString(root, "dayWindowEndAt");
             var weeklyReset = ReadString(root, "weekWindowEndAt");
+            var dailyRemaining = ReadDecimal(root, "dailyRemainingUsd");
+            var dailyUsed = ReadDecimal(root, "dailyUsedUsd");
+            var dailyLimit = ReadDecimal(root, "dailyLimitUsd");
+            var weeklyRemaining = ReadDecimal(root, "weeklyRemainingUsd");
+            var weeklyUsed = ReadDecimal(root, "weeklyUsedUsd");
+            var weeklyLimit = ReadDecimal(root, "weeklyLimitUsd");
+            var dailyQuota = CreateQuota(dailyRemaining, dailyUsed, dailyLimit, false, "USD", dailyReset);
+            var weeklyQuota = CreateQuota(weeklyRemaining, weeklyUsed, weeklyLimit, false, "USD", weeklyReset);
+
             var totalTokens = ReadDecimal(root, "totalTokens");
             var consumedTokens = ReadDecimal(root, "consumedTokens");
             var remainingTokens = ReadDecimal(root, "remainingTokens");
-            if ((totalTokens ?? 0m) > 0m || (remainingTokens ?? 0m) > 0m || (consumedTokens ?? 0m) > 0m)
+            var hasTokenPackage = (totalTokens ?? 0m) > 0m ||
+                (remainingTokens ?? 0m) > 0m ||
+                (consumedTokens ?? 0m) > 0m;
+            var tokenPackageQuota = hasTokenPackage
+                ? CreateQuota(remainingTokens, consumedTokens, totalTokens, false, "tokens", null)
+                : null;
+            if (tokenPackageQuota is not null)
             {
                 return ProviderUsageQueryResult.Valid(
                     checkedAt,
@@ -201,15 +216,12 @@ public sealed class ProviderUsageQueryService
                     "tokens",
                     planName,
                     dailyReset,
-                    weeklyReset);
+                    weeklyReset,
+                    dailyQuota: dailyQuota,
+                    weeklyQuota: weeklyQuota,
+                    resourcePackageQuota: tokenPackageQuota);
             }
 
-            var dailyRemaining = ReadDecimal(root, "dailyRemainingUsd");
-            var dailyUsed = ReadDecimal(root, "dailyUsedUsd");
-            var dailyLimit = ReadDecimal(root, "dailyLimitUsd");
-            var weeklyRemaining = ReadDecimal(root, "weeklyRemainingUsd");
-            var weeklyUsed = ReadDecimal(root, "weeklyUsedUsd");
-            var weeklyLimit = ReadDecimal(root, "weeklyLimitUsd");
             if (dailyRemaining is null && weeklyRemaining is null)
                 return ProviderUsageQueryResult.Invalid(checkedAt, "RoutinAI usage response did not include remaining usage.");
 
@@ -227,12 +239,28 @@ public sealed class ProviderUsageQueryService
                 planName,
                 dailyReset,
                 weeklyReset,
-                extra);
+                extra,
+                dailyQuota,
+                weeklyQuota);
         }
         catch (JsonException)
         {
             return ProviderUsageQueryResult.Invalid(checkedAt, "Response is not valid JSON.");
         }
+    }
+
+    private static UsageQuotaSnapshot? CreateQuota(
+        decimal? remaining,
+        decimal? used,
+        decimal? total,
+        bool isUnlimited,
+        string unit,
+        string? resetAt)
+    {
+        if (!isUnlimited && remaining is null && used is null && total is null)
+            return null;
+
+        return new UsageQuotaSnapshot(remaining, used, total, isUnlimited, unit, resetAt);
     }
 
     public static string ReplacePlaceholders(string value, ProviderConfig provider, string? apiKey)
@@ -480,6 +508,12 @@ public sealed record ProviderUsageQueryResult(
 {
     public bool IsSuccess => Status == ProviderUsageQueryStatus.Valid;
 
+    public UsageQuotaSnapshot? DailyQuota { get; init; }
+
+    public UsageQuotaSnapshot? WeeklyQuota { get; init; }
+
+    public UsageQuotaSnapshot? ResourcePackageQuota { get; init; }
+
     public static ProviderUsageQueryResult NotConfigured(DateTimeOffset checkedAt)
     {
         return new ProviderUsageQueryResult(
@@ -507,8 +541,12 @@ public sealed record ProviderUsageQueryResult(
         string? planName,
         string? dailyReset,
         string? weeklyReset,
-        string? extra = null)
+        string? extra = null,
+        UsageQuotaSnapshot? dailyQuota = null,
+        UsageQuotaSnapshot? weeklyQuota = null,
+        UsageQuotaSnapshot? resourcePackageQuota = null)
     {
+        var fallbackQuota = CreateFallbackQuota(remaining, used, total, isUnlimited, unit, dailyReset);
         return new ProviderUsageQueryResult(
             ProviderUsageQueryStatus.Valid,
             checkedAt,
@@ -521,7 +559,35 @@ public sealed record ProviderUsageQueryResult(
             dailyReset,
             weeklyReset,
             extra,
-            null);
+            null)
+        {
+            DailyQuota = dailyQuota,
+            WeeklyQuota = weeklyQuota,
+            ResourcePackageQuota = resourcePackageQuota ?? (
+                IsTokenUnit(unit)
+                    ? fallbackQuota
+                    : null)
+        };
+    }
+
+    private static UsageQuotaSnapshot? CreateFallbackQuota(
+        decimal? remaining,
+        decimal? used,
+        decimal? total,
+        bool isUnlimited,
+        string unit,
+        string? resetAt)
+    {
+        if (!isUnlimited && remaining is null && used is null && total is null)
+            return null;
+
+        return new UsageQuotaSnapshot(remaining, used, total, isUnlimited, unit, resetAt);
+    }
+
+    private static bool IsTokenUnit(string? unit)
+    {
+        return string.Equals(unit, "tokens", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(unit, "token", StringComparison.OrdinalIgnoreCase);
     }
 
     public static ProviderUsageQueryResult NoSubscription(DateTimeOffset checkedAt, string message)
@@ -575,3 +641,11 @@ public sealed record ProviderUsageQueryResult(
             message);
     }
 }
+
+public sealed record UsageQuotaSnapshot(
+    decimal? Remaining,
+    decimal? Used,
+    decimal? Total,
+    bool IsUnlimited,
+    string Unit,
+    string? ResetAt);

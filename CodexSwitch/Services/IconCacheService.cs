@@ -5,9 +5,15 @@ namespace CodexSwitch.Services;
 
 public sealed class IconCacheService
 {
+    public const string RoutinAiIconSlug = "routinai";
     private const string CdnBaseUrl = "https://unpkg.com/@lobehub/icons-static-png@latest/dark";
     private const string XiaomiSiteUrl = "https://platform.xiaomimimo.com/";
     private const string XiaomiFallbackIconUrl = "https://platform.xiaomimimo.com/static/favicon.874c9507.png";
+    private static readonly string[] RoutinAiLogoRelativePaths =
+    [
+        Path.Combine("Assets", "icons", "logo.png"),
+        Path.Combine("CodexSwitch", "Assets", "icons", "logo.png")
+    ];
     private static readonly Regex ShortcutIconHrefRegex = new(
         "<link[^>]*rel=\"shortcut icon\"[^>]*href=\"(?<href>[^\"]+)\"",
         RegexOptions.IgnoreCase | RegexOptions.Compiled);
@@ -23,6 +29,9 @@ public sealed class IconCacheService
     public string GetIconPath(string? slug)
     {
         var normalized = NormalizeSlug(slug);
+        if (string.Equals(normalized, RoutinAiIconSlug, StringComparison.OrdinalIgnoreCase))
+            return ResolveRoutinAiLogoPath() ?? Path.Combine(_paths.IconDirectory, normalized + ".png");
+
         return Path.Combine(_paths.IconDirectory, normalized + ".png");
     }
 
@@ -38,6 +47,9 @@ public sealed class IconCacheService
     public async Task EnsureIconAsync(string? slug, CancellationToken cancellationToken = default)
     {
         var normalized = NormalizeSlug(slug);
+        if (string.Equals(normalized, RoutinAiIconSlug, StringComparison.OrdinalIgnoreCase))
+            return;
+
         var path = GetIconPath(normalized);
         if (File.Exists(path))
             return;
@@ -75,7 +87,8 @@ public sealed class IconCacheService
             EnsureIconAsync("claude", cancellationToken),
             EnsureIconAsync("deepseek", cancellationToken),
             EnsureIconAsync("xiaomi", cancellationToken),
-            EnsureIconAsync("gemini", cancellationToken));
+            EnsureIconAsync("gemini", cancellationToken),
+            EnsureIconAsync(RoutinAiIconSlug, cancellationToken));
     }
 
     public static string ResolveModelIconSlug(string modelId, string? configuredSlug = null)
@@ -106,6 +119,23 @@ public sealed class IconCacheService
         return string.IsNullOrWhiteSpace(slug)
             ? "openai"
             : slug.Trim().ToLowerInvariant();
+    }
+
+    private static string? ResolveRoutinAiLogoPath()
+    {
+        for (var directory = new DirectoryInfo(AppContext.BaseDirectory);
+             directory is not null;
+             directory = directory.Parent)
+        {
+            foreach (var relativePath in RoutinAiLogoRelativePaths)
+            {
+                var candidate = Path.Combine(directory.FullName, relativePath);
+                if (File.Exists(candidate))
+                    return candidate;
+            }
+        }
+
+        return null;
     }
 
     private async Task<IReadOnlyList<string>> ResolveIconUrlsAsync(string normalized, CancellationToken cancellationToken)

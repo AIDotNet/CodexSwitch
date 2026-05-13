@@ -15,7 +15,12 @@ public static class BuiltInModelCatalog
         OpenAiResponsesRoute("gpt-5", "GPT-5", upstreamModel: "gpt-5.5", serviceTier: "priority", fastMode: true),
         OpenAiResponsesRoute("gpt-5.4", "GPT-5.4", serviceTier: "priority", fastMode: true),
         OpenAiResponsesRoute("gpt-5.4-mini", "GPT-5.4 Mini", serviceTier: "priority", fastMode: true),
-        OpenAiResponsesRoute("gpt-5.3-codex", "GPT-5.3 Codex", serviceTier: "priority", fastMode: true)
+        OpenAiResponsesRoute("gpt-5.3-codex", "GPT-5.3 Codex", serviceTier: "priority", fastMode: true),
+        OpenAiResponsesRoute("deepseek-v4-flash", "DeepSeek V4 Flash", serviceTier: "priority", fastMode: true),
+        OpenAiResponsesRoute("deepseek-v4-pro", "DeepSeek V4 Pro", serviceTier: "priority", fastMode: true),
+        OpenAiResponsesRoute("mimo-v2-flash", "MiMo V2 Flash", serviceTier: "priority", fastMode: true),
+        OpenAiResponsesRoute("mimo-v2-pro", "MiMo V2 Pro", serviceTier: "priority", fastMode: true),
+        OpenAiResponsesRoute("mimo-v2.5-pro", "MiMo V2.5 Pro", serviceTier: "priority", fastMode: true)
     ];
 
     public static IReadOnlyList<ProviderTemplateModel> OpenAiOfficialModels { get; } =

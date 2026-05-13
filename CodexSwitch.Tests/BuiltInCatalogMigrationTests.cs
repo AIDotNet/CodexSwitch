@@ -162,6 +162,41 @@ public sealed class BuiltInCatalogMigrationTests
     }
 
     [Fact]
+    public void RoutinAiTemplate_IncludesRequestedDeepSeekAndMimoRoutes()
+    {
+        var provider = ProviderTemplateCatalog.CreateProvider(ProviderTemplateCatalog.RoutinAiBuiltinId, []);
+
+        var deepSeekFlash = Assert.Single(provider.Models, model => model.Id == "deepseek-v4-flash");
+        var deepSeekPro = Assert.Single(provider.Models, model => model.Id == "deepseek-v4-pro");
+        var mimoFlash = Assert.Single(provider.Models, model => model.Id == "mimo-v2-flash");
+        var mimoV2Pro = Assert.Single(provider.Models, model => model.Id == "mimo-v2-pro");
+        var mimoV25Pro = Assert.Single(provider.Models, model => model.Id == "mimo-v2.5-pro");
+
+        Assert.Equal(ProviderProtocol.OpenAiResponses, deepSeekFlash.Protocol);
+        Assert.Equal(ProviderProtocol.OpenAiResponses, deepSeekPro.Protocol);
+        Assert.Equal(ProviderProtocol.OpenAiResponses, mimoFlash.Protocol);
+        Assert.Equal(ProviderProtocol.OpenAiResponses, mimoV2Pro.Protocol);
+        Assert.Equal(ProviderProtocol.OpenAiResponses, mimoV25Pro.Protocol);
+        Assert.Equal("priority", deepSeekFlash.ServiceTier);
+        Assert.Equal("priority", deepSeekPro.ServiceTier);
+        Assert.Equal("priority", mimoFlash.ServiceTier);
+        Assert.Equal("priority", mimoV2Pro.ServiceTier);
+        Assert.Equal("priority", mimoV25Pro.ServiceTier);
+        var deepSeekFlashCost = deepSeekFlash.Cost ?? throw new InvalidOperationException("DeepSeek V4 Flash cost settings should be seeded.");
+        var deepSeekProCost = deepSeekPro.Cost ?? throw new InvalidOperationException("DeepSeek V4 Pro cost settings should be seeded.");
+        var mimoFlashCost = mimoFlash.Cost ?? throw new InvalidOperationException("MiMo V2 Flash cost settings should be seeded.");
+        var mimoV2ProCost = mimoV2Pro.Cost ?? throw new InvalidOperationException("MiMo V2 Pro cost settings should be seeded.");
+        var mimoV25ProCost = mimoV25Pro.Cost ?? throw new InvalidOperationException("MiMo V2.5 Pro cost settings should be seeded.");
+        Assert.True(deepSeekFlashCost.FastMode);
+        Assert.True(deepSeekProCost.FastMode);
+        Assert.True(mimoFlashCost.FastMode);
+        Assert.True(mimoV2ProCost.FastMode);
+        Assert.True(mimoV25ProCost.FastMode);
+        Assert.DoesNotContain(provider.Models, model => model.Id == "deepseek-chat");
+        Assert.DoesNotContain(provider.Models, model => model.Id == "deepseek-reasoner");
+    }
+
+    [Fact]
     public void ProviderRoutingResolver_RoutesByRequestedModelAcrossProviders()
     {
         var config = new AppConfig

@@ -36,6 +36,7 @@
                                    Classes="muted"/>
                     </StackPanel>
                     <ui:CsIconButton Grid.Column="1"
+                                     Classes="dialog-close"
                                      Command="{Binding CloseProviderDialogCommand}"
                                      ToolTip.Tip="{i18n:Tr common.close}">
                         <lucide:LucideIcon Kind="X" Size="16" StrokeWidth="2"/>

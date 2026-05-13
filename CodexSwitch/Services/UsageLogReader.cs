@@ -30,7 +30,9 @@ public sealed class UsageLogReader
 
     public UsageDashboard Read(
         UsageTimeRange range = UsageTimeRange.Last24Hours,
-        DateTimeOffset? now = null)
+        DateTimeOffset? now = null,
+        string? providerId = null,
+        string? model = null)
     {
         var window = CreateWindow(range, now ?? DateTimeOffset.Now);
         var sourceSnapshot = GetSourceSnapshot(window);
@@ -39,6 +41,9 @@ public sealed class UsageLogReader
         foreach (var record in ReadRecordsFromFiles(EnumerateCandidateLogFiles(window)))
         {
             if (record.Timestamp < window.Start || record.Timestamp > window.End)
+                continue;
+
+            if (!MatchesFilter(record, providerId, model))
                 continue;
 
             accumulator.Add(record);
@@ -253,6 +258,29 @@ public sealed class UsageLogReader
             record.Usage.ReasoningOutputTokens;
     }
 
+    private static bool MatchesFilter(UsageLogRecord record, string? providerId, string? model)
+    {
+        if (!string.IsNullOrWhiteSpace(providerId) &&
+            !string.Equals(GetProviderKey(record), providerId, StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        return string.IsNullOrWhiteSpace(model) ||
+            string.Equals(GetModelKey(record), model, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string GetModelKey(UsageLogRecord record)
+    {
+        var key = string.IsNullOrWhiteSpace(record.BilledModel) ? record.RequestModel : record.BilledModel;
+        return string.IsNullOrWhiteSpace(key) ? "unknown" : key;
+    }
+
+    private static string GetProviderKey(UsageLogRecord record)
+    {
+        return string.IsNullOrWhiteSpace(record.ProviderId) ? "unknown" : record.ProviderId;
+    }
+
     private sealed class UsageAccumulator
     {
         private readonly UsageWindow _window;
@@ -345,7 +373,7 @@ public sealed class UsageLogReader
 
         private void AddProvider(UsageLogRecord record)
         {
-            var key = string.IsNullOrWhiteSpace(record.ProviderId) ? "unknown" : record.ProviderId;
+            var key = GetProviderKey(record);
             if (!_providers.TryGetValue(key, out var accumulator))
             {
                 accumulator = new ProviderUsageAccumulator();
@@ -357,10 +385,7 @@ public sealed class UsageLogReader
 
         private void AddModel(UsageLogRecord record)
         {
-            var key = string.IsNullOrWhiteSpace(record.BilledModel) ? record.RequestModel : record.BilledModel;
-            if (string.IsNullOrWhiteSpace(key))
-                key = "unknown";
-
+            var key = GetModelKey(record);
             if (!_models.TryGetValue(key, out var accumulator))
             {
                 accumulator = new ModelUsageAccumulator();

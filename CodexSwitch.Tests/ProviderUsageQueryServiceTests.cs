@@ -114,6 +114,13 @@ public sealed class ProviderUsageQueryServiceTests
         Assert.Equal("2026-05-14T00:00:00Z", result.DailyReset);
         Assert.Equal("2026-05-15T00:00:00Z", result.WeeklyReset);
         Assert.Equal("Weekly remaining $41.4", result.Extra);
+        Assert.Equal(8.75m, result.DailyQuota?.Remaining);
+        Assert.Equal(1.25m, result.DailyQuota?.Used);
+        Assert.Equal(10m, result.DailyQuota?.Total);
+        Assert.Equal("USD", result.DailyQuota?.Unit);
+        Assert.Equal(41.4m, result.WeeklyQuota?.Remaining);
+        Assert.Equal(8.6m, result.WeeklyQuota?.Used);
+        Assert.Equal(50m, result.WeeklyQuota?.Total);
     }
 
     [Fact]
@@ -126,8 +133,14 @@ public sealed class ProviderUsageQueryServiceTests
             """
             {
               "planName": "Token Pack",
-              "dailyRemainingUsd": 0,
-              "weeklyRemainingUsd": 0,
+              "dailyLimitUsd": 10,
+              "weeklyLimitUsd": 50,
+              "dailyUsedUsd": 2,
+              "weeklyUsedUsd": 7,
+              "dailyRemainingUsd": 8,
+              "weeklyRemainingUsd": 43,
+              "dayWindowEndAt": "2026-05-14T00:00:00Z",
+              "weekWindowEndAt": "2026-05-18T00:00:00Z",
               "totalTokens": 10000000,
               "consumedTokens": 120000,
               "remainingTokens": 9880000
@@ -141,6 +154,10 @@ public sealed class ProviderUsageQueryServiceTests
         Assert.Equal(10000000m, result.Total);
         Assert.Equal("tokens", result.Unit);
         Assert.Equal("Token Pack", result.PlanName);
+        Assert.Equal(8m, result.DailyQuota?.Remaining);
+        Assert.Equal(43m, result.WeeklyQuota?.Remaining);
+        Assert.Equal(9880000m, result.ResourcePackageQuota?.Remaining);
+        Assert.Equal(10000000m, result.ResourcePackageQuota?.Total);
     }
 
     [Fact]

@@ -42,7 +42,7 @@
                     <ui:CsButton Classes="outline compact"
                                  Command="{Binding CancelRemoveProviderCommand}"
                                  Content="{i18n:Tr common.cancel}"/>
-                    <ui:CsButton Classes="compact danger"
+                    <ui:CsButton Classes="destructive compact"
                                  Command="{Binding ConfirmRemoveProviderCommand}"
                                  Content="{i18n:Tr common.delete}"/>
                 </StackPanel>

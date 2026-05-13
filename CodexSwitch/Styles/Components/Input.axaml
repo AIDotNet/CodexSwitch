@@ -4,7 +4,7 @@
     <Styles.Resources>
         <ControlTheme x:Key="CsTextBoxInputTheme" TargetType="TextBox">
             <Setter Property="Foreground" Value="{StaticResource CsForegroundBrush}"/>
-            <Setter Property="Background" Value="{StaticResource CsInputBackgroundBrush}"/>
+            <Setter Property="Background" Value="#08FFFFFF"/>
             <Setter Property="CaretBrush" Value="{StaticResource CsForegroundBrush}"/>
             <Setter Property="BorderBrush" Value="{StaticResource CsInputBrush}"/>
             <Setter Property="SelectionBrush" Value="{StaticResource CsPrimaryBrush}"/>
@@ -121,10 +121,10 @@
 
             <Style Selector="^:focus">
                 <Style Selector="^ /template/ Border#PART_BorderElement">
-                    <Setter Property="Background" Value="{StaticResource CsInputFocusBackgroundBrush}"/>
+                    <Setter Property="Background" Value="#0FFFFFFF"/>
                     <Setter Property="BorderBrush" Value="{StaticResource CsRingBrush}"/>
                     <Setter Property="BorderThickness" Value="1"/>
-                    <Setter Property="BoxShadow" Value="0 0 0 3 #668E8E8E"/>
+                    <Setter Property="BoxShadow" Value="0 0 0 3 #338E8E8E"/>
                 </Style>
             </Style>
 
@@ -196,7 +196,7 @@
         <Setter Property="MinHeight" Value="36"/>
         <Setter Property="Padding" Value="12,4"/>
         <Setter Property="FontSize" Value="14"/>
-        <Setter Property="Background" Value="{StaticResource CsInputBackgroundBrush}"/>
+        <Setter Property="Background" Value="#08FFFFFF"/>
         <Setter Property="Foreground" Value="{StaticResource CsForegroundBrush}"/>
         <Setter Property="BorderBrush" Value="{StaticResource CsInputBrush}"/>
         <Setter Property="BorderThickness" Value="1"/>
@@ -213,7 +213,7 @@
     </Style>
     <Style Selector="TextBox.cs-input:focus">
         <Setter Property="BorderBrush" Value="{StaticResource CsRingBrush}"/>
-        <Setter Property="Background" Value="{StaticResource CsInputFocusBackgroundBrush}"/>
+        <Setter Property="Background" Value="#0FFFFFFF"/>
     </Style>
     <Style Selector="TextBox.cs-input:disabled">
         <Setter Property="Opacity" Value="0.5"/>
@@ -223,7 +223,7 @@
         <Setter Property="MinHeight" Value="36"/>
         <Setter Property="Padding" Value="12,4"/>
         <Setter Property="FontSize" Value="14"/>
-        <Setter Property="Background" Value="{StaticResource CsInputBackgroundBrush}"/>
+        <Setter Property="Background" Value="#08FFFFFF"/>
         <Setter Property="Foreground" Value="{StaticResource CsForegroundBrush}"/>
         <Setter Property="BorderBrush" Value="{StaticResource CsInputBrush}"/>
         <Setter Property="BorderThickness" Value="1"/>
@@ -240,7 +240,7 @@
     </Style>
     <Style Selector="ComboBox.cs-select:focus">
         <Setter Property="BorderBrush" Value="{StaticResource CsRingBrush}"/>
-        <Setter Property="Background" Value="{StaticResource CsInputFocusBackgroundBrush}"/>
+        <Setter Property="Background" Value="#0FFFFFFF"/>
     </Style>
     <Style Selector="ComboBox.cs-select:pointerover">
         <Setter Property="BorderBrush" Value="{StaticResource CsHoverBorderBrush}"/>
@@ -314,7 +314,7 @@
         <Setter Property="MinHeight" Value="80"/>
         <Setter Property="Padding" Value="12,8"/>
         <Setter Property="FontSize" Value="14"/>
-        <Setter Property="Background" Value="{StaticResource CsInputBackgroundBrush}"/>
+        <Setter Property="Background" Value="#08FFFFFF"/>
         <Setter Property="Foreground" Value="{StaticResource CsForegroundBrush}"/>
         <Setter Property="BorderBrush" Value="{StaticResource CsInputBrush}"/>
         <Setter Property="BorderThickness" Value="1"/>
@@ -331,7 +331,7 @@
     </Style>
     <Style Selector="TextBox.cs-textarea:focus">
         <Setter Property="BorderBrush" Value="{StaticResource CsRingBrush}"/>
-        <Setter Property="Background" Value="{StaticResource CsInputFocusBackgroundBrush}"/>
+        <Setter Property="Background" Value="#0FFFFFFF"/>
     </Style>
     <Style Selector="TextBox.cs-textarea:disabled">
         <Setter Property="Opacity" Value="0.5"/>

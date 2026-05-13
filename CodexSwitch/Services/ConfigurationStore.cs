@@ -194,7 +194,7 @@ public sealed class ConfigurationStore
                     ? "RoutinAI"
                     : provider.DisplayName;
                 provider.Website ??= "https://api.routin.ai";
-                provider.IconSlug ??= "openai";
+                provider.IconSlug = IconCacheService.RoutinAiIconSlug;
                 provider.AuthMode = ProviderAuthMode.ApiKey;
                 provider.Protocol = ProviderProtocol.OpenAiResponses;
                 provider.DefaultModel = string.IsNullOrWhiteSpace(provider.DefaultModel) ? CodexSwitchDefaults.ManagedCodexModel : provider.DefaultModel;
@@ -206,7 +206,7 @@ public sealed class ConfigurationStore
                 provider.BuiltinId = ProviderTemplateCatalog.RoutinAiPlanBuiltinId;
                 provider.DisplayName = string.IsNullOrWhiteSpace(provider.DisplayName) ? "RoutinAI 套餐" : provider.DisplayName;
                 provider.Website ??= "https://api.routin.ai";
-                provider.IconSlug ??= "openai";
+                provider.IconSlug = IconCacheService.RoutinAiIconSlug;
                 provider.AuthMode = ProviderAuthMode.ApiKey;
                 provider.Protocol = ProviderProtocol.OpenAiResponses;
                 provider.DefaultModel = string.IsNullOrWhiteSpace(provider.DefaultModel) ? CodexSwitchDefaults.ManagedCodexModel : provider.DefaultModel;

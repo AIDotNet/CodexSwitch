@@ -30,7 +30,7 @@
 
     <ScrollViewer>
         <Grid Margin="24,12,24,24"
-              RowDefinitions="Auto,Auto,Auto,Auto"
+              RowDefinitions="Auto,Auto,Auto,Auto,Auto"
               RowSpacing="18">
             <Grid ColumnDefinitions="*,Auto">
                 <StackPanel Spacing="4">
@@ -56,7 +56,42 @@
                 </ui:CsButton>
             </Grid>
 
-            <ItemsControl Grid.Row="1" ItemsSource="{Binding UsageMetrics}">
+            <WrapPanel Grid.Row="1">
+                <StackPanel Spacing="6" MinWidth="220" Margin="0,0,14,10">
+                    <ui:CsText Text="{i18n:Tr usage.filter.provider}"
+                               Classes="muted"
+                               FontSize="12"/>
+                    <ui:CsSelect ItemsSource="{Binding UsageFilterProviderOptions}"
+                                 SelectedValue="{Binding SelectedUsageFilterProvider, Mode=TwoWay}"
+                                 SelectedValueBinding="{Binding Value}"
+                                 MinWidth="220">
+                        <ui:CsSelect.ItemTemplate>
+                            <DataTemplate x:DataType="vm:UsageFilterOption">
+                                <TextBlock Text="{Binding DisplayName}"
+                                           TextTrimming="CharacterEllipsis"/>
+                            </DataTemplate>
+                        </ui:CsSelect.ItemTemplate>
+                    </ui:CsSelect>
+                </StackPanel>
+                <StackPanel Spacing="6" MinWidth="260" Margin="0,0,14,10">
+                    <ui:CsText Text="{i18n:Tr usage.filter.model}"
+                               Classes="muted"
+                               FontSize="12"/>
+                    <ui:CsSelect ItemsSource="{Binding UsageFilterModelOptions}"
+                                 SelectedValue="{Binding SelectedUsageFilterModel, Mode=TwoWay}"
+                                 SelectedValueBinding="{Binding Value}"
+                                 MinWidth="260">
+                        <ui:CsSelect.ItemTemplate>
+                            <DataTemplate x:DataType="vm:UsageFilterOption">
+                                <TextBlock Text="{Binding DisplayName}"
+                                           TextTrimming="CharacterEllipsis"/>
+                            </DataTemplate>
+                        </ui:CsSelect.ItemTemplate>
+                    </ui:CsSelect>
+                </StackPanel>
+            </WrapPanel>
+
+            <ItemsControl Grid.Row="2" ItemsSource="{Binding UsageMetrics}">
                 <ItemsControl.ItemsPanel>
                     <ItemsPanelTemplate>
                         <UniformGrid Columns="5"/>
@@ -97,7 +132,7 @@
                 </ItemsControl.ItemTemplate>
             </ItemsControl>
 
-            <ui:CsPanel Grid.Row="2" Padding="20">
+            <ui:CsPanel Grid.Row="3" Padding="20">
                 <Grid RowDefinitions="Auto,Auto,*" RowSpacing="14">
                     <Grid ColumnDefinitions="*,Auto">
                         <StackPanel Spacing="3">
@@ -169,7 +204,7 @@
                 </Grid>
             </ui:CsPanel>
 
-            <Grid Grid.Row="3"
+            <Grid Grid.Row="4"
                   RowDefinitions="Auto,Auto"
                   RowSpacing="14">
                 <ui:CsSegmentedControl HorizontalAlignment="Left">

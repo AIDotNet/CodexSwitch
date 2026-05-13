@@ -4,25 +4,26 @@
         <Setter Property="Opacity" Value="1"/>
         <Setter Property="Transitions">
             <Transitions>
-                <DoubleTransition Property="Opacity" Duration="0:0:0.14"/>
+                <DoubleTransition Property="Opacity" Duration="0:0:0.16"/>
             </Transitions>
         </Setter>
         <Setter Property="Template">
             <ControlTemplate>
-                <Grid Background="#B3000000">
-                    <ContentPresenter Content="{TemplateBinding Content}"/>
+                <Grid Background="#CC000000">
+                    <ContentPresenter Margin="24"
+                                      Content="{TemplateBinding Content}"/>
                 </Grid>
             </ControlTemplate>
         </Setter>
     </Style>
 
     <Style Selector="Border.dialog-card">
-        <Setter Property="Background" Value="{StaticResource CsDialogCardBrush}"/>
+        <Setter Property="Background" Value="{StaticResource CsCardBrush}"/>
         <Setter Property="BorderBrush" Value="{StaticResource CsBorderBrush}"/>
         <Setter Property="BorderThickness" Value="1"/>
-        <Setter Property="CornerRadius" Value="16"/>
+        <Setter Property="CornerRadius" Value="{StaticResource CsRadiusXl}"/>
         <Setter Property="Padding" Value="20"/>
-        <Setter Property="BoxShadow" Value="0 24 72 0 #99000000"/>
+        <Setter Property="BoxShadow" Value="0 24 64 0 #A6000000"/>
         <Setter Property="Transitions">
             <Transitions>
                 <BrushTransition Property="Background" Duration="0:0:0.14"/>
@@ -32,15 +33,45 @@
         </Setter>
     </Style>
     <Style Selector="Border.dialog-card:pointerover">
-        <Setter Property="BorderBrush" Value="{StaticResource CsHoverBorderBrush}"/>
+        <Setter Property="BorderBrush" Value="{StaticResource CsBorderBrush}"/>
+    </Style>
+    <Style Selector="Border.dialog-card.model-editor-card">
+        <Setter Property="Width" Value="640"/>
+        <Setter Property="MaxWidth" Value="720"/>
+        <Setter Property="MaxHeight" Value="620"/>
+        <Setter Property="Padding" Value="0"/>
+    </Style>
+
+    <Style Selector="Border.dialog-header">
+        <Setter Property="Padding" Value="22,20,18,16"/>
+        <Setter Property="BorderBrush" Value="{StaticResource CsBorderBrush}"/>
+        <Setter Property="BorderThickness" Value="0,0,0,1"/>
+    </Style>
+    <Style Selector="StackPanel.dialog-body-stack">
+        <Setter Property="Margin" Value="20,16"/>
+        <Setter Property="Spacing" Value="12"/>
+    </Style>
+    <Style Selector="Border.dialog-footer">
+        <Setter Property="Padding" Value="16,16,20,20"/>
+        <Setter Property="Background" Value="#08FFFFFF"/>
+        <Setter Property="BorderBrush" Value="{StaticResource CsBorderBrush}"/>
+        <Setter Property="BorderThickness" Value="0,1,0,0"/>
+    </Style>
+    <Style Selector="ui|CsIconButton.dialog-close">
+        <Setter Property="Background" Value="Transparent"/>
+        <Setter Property="BorderBrush" Value="Transparent"/>
+    </Style>
+    <Style Selector="ui|CsIconButton.dialog-close:pointerover">
+        <Setter Property="Background" Value="{StaticResource CsAccentBrush}"/>
+        <Setter Property="BorderBrush" Value="{StaticResource CsBorderBrush}"/>
     </Style>
 
     <Style Selector="Border.dialog-section">
-        <Setter Property="Background" Value="{StaticResource CsDialogSectionBrush}"/>
+        <Setter Property="Background" Value="#08FFFFFF"/>
         <Setter Property="BorderBrush" Value="{StaticResource CsBorderBrush}"/>
         <Setter Property="BorderThickness" Value="1"/>
-        <Setter Property="CornerRadius" Value="{StaticResource CsRadiusLg}"/>
-        <Setter Property="Padding" Value="14"/>
+        <Setter Property="CornerRadius" Value="{StaticResource CsRadiusXl}"/>
+        <Setter Property="Padding" Value="16"/>
         <Setter Property="Transitions">
             <Transitions>
                 <BrushTransition Property="Background" Duration="0:0:0.14"/>
@@ -49,12 +80,19 @@
         </Setter>
     </Style>
     <Style Selector="Border.dialog-section:pointerover">
-        <Setter Property="Background" Value="{StaticResource CsDialogSectionHoverBrush}"/>
-        <Setter Property="BorderBrush" Value="{StaticResource CsHoverBorderBrush}"/>
+        <Setter Property="Background" Value="#0FFFFFFF"/>
+        <Setter Property="BorderBrush" Value="{StaticResource CsBorderBrush}"/>
+    </Style>
+    <Style Selector="Border.dialog-note">
+        <Setter Property="Background" Value="#0FFFFFFF"/>
+        <Setter Property="BorderBrush" Value="{StaticResource CsBorderBrush}"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="CornerRadius" Value="{StaticResource CsRadiusMd}"/>
+        <Setter Property="Padding" Value="10"/>
     </Style>
 
     <Style Selector="Border.route-row">
-        <Setter Property="Background" Value="{StaticResource CsRouteRowBrush}"/>
+        <Setter Property="Background" Value="#08FFFFFF"/>
         <Setter Property="BorderBrush" Value="{StaticResource CsBorderBrush}"/>
         <Setter Property="BorderThickness" Value="1"/>
         <Setter Property="CornerRadius" Value="{StaticResource CsRadiusLg}"/>
@@ -67,7 +105,7 @@
         </Setter>
     </Style>
     <Style Selector="Border.route-row:pointerover">
-        <Setter Property="Background" Value="{StaticResource CsRouteRowHoverBrush}"/>
-        <Setter Property="BorderBrush" Value="#334EA8FF"/>
+        <Setter Property="Background" Value="#0FFFFFFF"/>
+        <Setter Property="BorderBrush" Value="{StaticResource CsHoverBorderBrush}"/>
     </Style>
 </Styles>

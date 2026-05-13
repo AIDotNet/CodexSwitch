@@ -10,7 +10,7 @@
     <ScrollViewer>
         <Grid Margin="24,12,24,24"
               RowDefinitions="Auto,Auto,*"
-              RowSpacing="14">
+              RowSpacing="18">
             <Grid ColumnDefinitions="*,Auto">
                 <StackPanel Spacing="4">
                     <ui:CsText Text="{i18n:Tr models.title}" Classes="title"/>
@@ -28,7 +28,7 @@
                 </ui:CsButton>
             </Grid>
 
-            <ui:CsPanel Grid.Row="1" Padding="14">
+            <ui:CsPanel Grid.Row="1" Padding="16">
                 <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
                     <StackPanel Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
                         <Border Width="34"
@@ -60,106 +60,187 @@
                 </Grid>
             </ui:CsPanel>
 
-            <ItemsControl Grid.Row="2" ItemsSource="{Binding ModelCatalogRows}">
-                <ItemsControl.ItemTemplate>
-                    <DataTemplate x:DataType="vm:ModelCatalogItem">
-                        <ui:CsModelCard Margin="0,0,0,10">
-                            <Grid ColumnDefinitions="2.1*,3.5*,Auto"
-                                  ColumnSpacing="14">
-                                <StackPanel Orientation="Horizontal"
-                                            Spacing="12"
-                                            VerticalAlignment="Center">
-                                    <Border Classes="model-icon-shell">
-                                        <ui:CsImageIcon Path="{Binding IconPath}"
-                                                        Width="24"
-                                                        Height="24"
-                                                        HorizontalAlignment="Center"
-                                                        VerticalAlignment="Center"/>
-                                    </Border>
-                                    <StackPanel Spacing="5" MinWidth="0">
-                                        <StackPanel Orientation="Horizontal" Spacing="8">
-                                            <ui:CsText Text="{Binding DisplayName}"
-                                                       FontWeight="SemiBold"
-                                                       TextTrimming="CharacterEllipsis"/>
-                                            <ui:CsBadge Padding="7,2">
-                                                <ui:CsText Text="{Binding IconSlug}" Classes="muted" FontSize="11"/>
-                                            </ui:CsBadge>
-                                        </StackPanel>
-                                        <ui:CsText Text="{Binding Id}"
-                                                   Classes="muted"
-                                                   TextTrimming="CharacterEllipsis"/>
-                                        <ui:CsText Text="{Binding AliasesText}"
-                                                   Classes="muted"
-                                                   TextTrimming="CharacterEllipsis"
-                                                   ToolTip.Tip="{Binding AliasesText}"/>
-                                        <ui:CsText Text="{Binding ProvidersText}"
-                                                   Classes="muted"
-                                                   TextTrimming="CharacterEllipsis"
-                                                   ToolTip.Tip="{Binding ProvidersText}"/>
-                                    </StackPanel>
-                                </StackPanel>
-
-                                <Grid Grid.Column="1"
-                                      ColumnDefinitions="*,*,*,*,*"
+            <ui:CsPanel Grid.Row="2" Padding="0">
+                <ScrollViewer HorizontalScrollBarVisibility="Auto"
+                              VerticalScrollBarVisibility="Disabled">
+                    <ui:CsTable MinWidth="860">
+                        <Grid RowDefinitions="Auto,*">
+                            <ui:CsTableHeader>
+                                <Grid ColumnDefinitions="1.45*,1.7*,0.7*,0.78*,0.86*,0.7*,0.62*,112"
                                       ColumnSpacing="8">
-                                    <ui:CsPriceChip Classes="input">
-                                        <Grid RowDefinitions="Auto,Auto,Auto" RowSpacing="2">
-                                            <ui:CsText Text="{i18n:Tr models.price.input}" Classes="muted" FontSize="11"/>
-                                            <ui:CsText Grid.Row="1" Text="{Binding InputPriceText}" FontWeight="SemiBold"/>
-                                            <ui:CsText Grid.Row="2" Text="{Binding InputTierText}" Classes="muted" FontSize="11"/>
-                                        </Grid>
-                                    </ui:CsPriceChip>
-                                    <ui:CsPriceChip Grid.Column="1" Classes="cache">
-                                        <Grid RowDefinitions="Auto,Auto,Auto" RowSpacing="2">
-                                            <ui:CsText Text="{i18n:Tr models.price.cacheRead}" Classes="muted" FontSize="11"/>
-                                            <ui:CsText Grid.Row="1" Text="{Binding CachedInputPriceText}" FontWeight="SemiBold"/>
-                                            <ui:CsText Grid.Row="2" Text="{i18n:Tr models.price.cacheHit}" Classes="muted" FontSize="11"/>
-                                        </Grid>
-                                    </ui:CsPriceChip>
-                                    <ui:CsPriceChip Grid.Column="2" Classes="create">
-                                        <Grid RowDefinitions="Auto,Auto,Auto" RowSpacing="2">
-                                            <ui:CsText Text="{i18n:Tr models.price.cacheCreate}" Classes="muted" FontSize="11"/>
-                                            <ui:CsText Grid.Row="1" Text="{Binding CacheCreationInputPriceText}" FontWeight="SemiBold"/>
-                                            <ui:CsText Grid.Row="2" Text="{i18n:Tr models.price.claudeWrite}" Classes="muted" FontSize="11"/>
-                                        </Grid>
-                                    </ui:CsPriceChip>
-                                    <ui:CsPriceChip Grid.Column="3" Classes="output">
-                                        <Grid RowDefinitions="Auto,Auto,Auto" RowSpacing="2">
-                                            <ui:CsText Text="{i18n:Tr models.price.output}" Classes="muted" FontSize="11"/>
-                                            <ui:CsText Grid.Row="1" Text="{Binding OutputPriceText}" FontWeight="SemiBold"/>
-                                            <ui:CsText Grid.Row="2" Text="{Binding OutputTierText}" Classes="muted" FontSize="11"/>
-                                        </Grid>
-                                    </ui:CsPriceChip>
-                                    <ui:CsPriceChip Grid.Column="4" Classes="fast">
-                                        <Grid RowDefinitions="Auto,Auto,Auto" RowSpacing="2">
-                                            <ui:CsText Text="{i18n:Tr models.price.fast}" Classes="muted" FontSize="11"/>
-                                            <ui:CsText Grid.Row="1" Text="{Binding FastMultiplierText}" FontWeight="SemiBold"/>
-                                            <ui:CsText Grid.Row="2" Text="{i18n:Tr models.price.multiplier}" Classes="muted" FontSize="11"/>
-                                        </Grid>
-                                    </ui:CsPriceChip>
+                                    <ui:CsTableHead Content="{i18n:Tr usage.table.model}"/>
+                                    <ui:CsTableHead Grid.Column="1" Content="{i18n:Tr settings.tab.route}"/>
+                                    <ui:CsTableHead Grid.Column="2" Content="{i18n:Tr models.price.input}"/>
+                                    <ui:CsTableHead Grid.Column="3" Content="{i18n:Tr models.price.cacheRead}"/>
+                                    <ui:CsTableHead Grid.Column="4" Content="{i18n:Tr models.price.cacheCreate}"/>
+                                    <ui:CsTableHead Grid.Column="5" Content="{i18n:Tr models.price.output}"/>
+                                    <ui:CsTableHead Grid.Column="6" Content="{i18n:Tr models.price.fast}"/>
+                                    <ui:CsTableHead Grid.Column="7" Content=""/>
                                 </Grid>
+                            </ui:CsTableHeader>
 
-                                <StackPanel Grid.Column="2"
-                                            Orientation="Horizontal"
-                                            Spacing="8"
-                                            VerticalAlignment="Center">
-                                    <ui:CsIconButton Command="{Binding #Root.DataContext.EditPricingModelCommand}"
-                                                     CommandParameter="{Binding}"
-                                                     ToolTip.Tip="{i18n:Tr models.edit}">
-                                        <lucide:LucideIcon Kind="Pencil" Size="15" StrokeWidth="2"/>
-                                    </ui:CsIconButton>
-                                    <ui:CsIconButton Classes="danger"
-                                                     Command="{Binding #Root.DataContext.RequestRemovePricingModelCommand}"
-                                                     CommandParameter="{Binding}"
-                                                     ToolTip.Tip="{i18n:Tr models.delete}">
-                                        <lucide:LucideIcon Kind="Trash2" Size="15" StrokeWidth="2"/>
-                                    </ui:CsIconButton>
-                                </StackPanel>
-                            </Grid>
-                        </ui:CsModelCard>
-                    </DataTemplate>
-                </ItemsControl.ItemTemplate>
-            </ItemsControl>
+                            <ItemsControl Grid.Row="1" ItemsSource="{Binding ModelCatalogRows}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate x:DataType="vm:ModelCatalogItem">
+                                        <ui:CsTableRow Classes="model-row">
+                                            <Grid ColumnDefinitions="1.45*,1.7*,0.7*,0.78*,0.86*,0.7*,0.62*,112"
+                                                  ColumnSpacing="8"
+                                                  MinHeight="82">
+                                                <ui:CsTableCell>
+                                                    <Grid ColumnDefinitions="Auto,*"
+                                                          ColumnSpacing="10">
+                                                        <Border Classes="model-icon-shell"
+                                                                VerticalAlignment="Center">
+                                                            <ui:CsImageIcon Path="{Binding IconPath}"
+                                                                            Width="21"
+                                                                            Height="21"
+                                                                            HorizontalAlignment="Center"
+                                                                            VerticalAlignment="Center"/>
+                                                        </Border>
+                                                        <StackPanel Grid.Column="1"
+                                                                    Spacing="4"
+                                                                    VerticalAlignment="Center"
+                                                                    MinWidth="0">
+                                                            <Grid ColumnDefinitions="*,Auto"
+                                                                  ColumnSpacing="8">
+                                                                <ui:CsText Text="{Binding DisplayName}"
+                                                                           FontWeight="SemiBold"
+                                                                           TextTrimming="CharacterEllipsis"
+                                                                           MinWidth="0"/>
+                                                                <ui:CsBadge Grid.Column="1"
+                                                                            Classes="model-provider-badge"
+                                                                            Padding="7,2">
+                                                                    <ui:CsText Text="{Binding IconSlug}"
+                                                                               Classes="muted"
+                                                                               FontSize="11"/>
+                                                                </ui:CsBadge>
+                                                            </Grid>
+                                                            <ui:CsText Text="{Binding Id}"
+                                                                       Classes="muted"
+                                                                       FontSize="12"
+                                                                       TextTrimming="CharacterEllipsis"
+                                                                       ToolTip.Tip="{Binding Id}"/>
+                                                        </StackPanel>
+                                                    </Grid>
+                                                </ui:CsTableCell>
+
+                                                <ui:CsTableCell Grid.Column="1">
+                                                    <StackPanel Spacing="3"
+                                                                VerticalAlignment="Center"
+                                                                MinWidth="0">
+                                                        <ui:CsText Text="{Binding AliasesText}"
+                                                                   Classes="muted"
+                                                                   TextTrimming="CharacterEllipsis"
+                                                                   ToolTip.Tip="{Binding AliasesText}"/>
+                                                        <ui:CsText Text="{Binding ProvidersText}"
+                                                                   Classes="muted"
+                                                                   TextTrimming="CharacterEllipsis"
+                                                                   ToolTip.Tip="{Binding ProvidersText}"/>
+                                                    </StackPanel>
+                                                </ui:CsTableCell>
+
+                                                <ui:CsTableCell Grid.Column="2">
+                                                    <ui:CsPriceChip>
+                                                        <Grid RowDefinitions="Auto,Auto" RowSpacing="2">
+                                                            <ui:CsText Text="{Binding InputPriceText}"
+                                                                       FontWeight="SemiBold"
+                                                                       TextTrimming="CharacterEllipsis"/>
+                                                            <ui:CsText Grid.Row="1"
+                                                                       Text="{Binding InputTierText}"
+                                                                       Classes="muted"
+                                                                       FontSize="11"
+                                                                       TextTrimming="CharacterEllipsis"/>
+                                                        </Grid>
+                                                    </ui:CsPriceChip>
+                                                </ui:CsTableCell>
+
+                                                <ui:CsTableCell Grid.Column="3">
+                                                    <ui:CsPriceChip>
+                                                        <Grid RowDefinitions="Auto,Auto" RowSpacing="2">
+                                                            <ui:CsText Text="{Binding CachedInputPriceText}"
+                                                                       FontWeight="SemiBold"
+                                                                       TextTrimming="CharacterEllipsis"/>
+                                                            <ui:CsText Grid.Row="1"
+                                                                       Text="{i18n:Tr models.price.cacheHit}"
+                                                                       Classes="muted"
+                                                                       FontSize="11"
+                                                                       TextTrimming="CharacterEllipsis"/>
+                                                        </Grid>
+                                                    </ui:CsPriceChip>
+                                                </ui:CsTableCell>
+
+                                                <ui:CsTableCell Grid.Column="4">
+                                                    <ui:CsPriceChip>
+                                                        <Grid RowDefinitions="Auto,Auto" RowSpacing="2">
+                                                            <ui:CsText Text="{Binding CacheCreationInputPriceText}"
+                                                                       FontWeight="SemiBold"
+                                                                       TextTrimming="CharacterEllipsis"/>
+                                                            <ui:CsText Grid.Row="1"
+                                                                       Text="{i18n:Tr models.price.claudeWrite}"
+                                                                       Classes="muted"
+                                                                       FontSize="11"
+                                                                       TextTrimming="CharacterEllipsis"/>
+                                                        </Grid>
+                                                    </ui:CsPriceChip>
+                                                </ui:CsTableCell>
+
+                                                <ui:CsTableCell Grid.Column="5">
+                                                    <ui:CsPriceChip>
+                                                        <Grid RowDefinitions="Auto,Auto" RowSpacing="2">
+                                                            <ui:CsText Text="{Binding OutputPriceText}"
+                                                                       FontWeight="SemiBold"
+                                                                       TextTrimming="CharacterEllipsis"/>
+                                                            <ui:CsText Grid.Row="1"
+                                                                       Text="{Binding OutputTierText}"
+                                                                       Classes="muted"
+                                                                       FontSize="11"
+                                                                       TextTrimming="CharacterEllipsis"/>
+                                                        </Grid>
+                                                    </ui:CsPriceChip>
+                                                </ui:CsTableCell>
+
+                                                <ui:CsTableCell Grid.Column="6">
+                                                    <ui:CsPriceChip>
+                                                        <Grid RowDefinitions="Auto,Auto" RowSpacing="2">
+                                                            <ui:CsText Text="{Binding FastMultiplierText}"
+                                                                       FontWeight="SemiBold"
+                                                                       TextTrimming="CharacterEllipsis"/>
+                                                            <ui:CsText Grid.Row="1"
+                                                                       Text="{i18n:Tr models.price.multiplier}"
+                                                                       Classes="muted"
+                                                                       FontSize="11"
+                                                                       TextTrimming="CharacterEllipsis"/>
+                                                        </Grid>
+                                                    </ui:CsPriceChip>
+                                                </ui:CsTableCell>
+
+                                                <ui:CsTableCell Grid.Column="7">
+                                                    <StackPanel Orientation="Horizontal"
+                                                                Spacing="8"
+                                                                HorizontalAlignment="Right"
+                                                                VerticalAlignment="Center">
+                                                        <ui:CsIconButton Command="{Binding #Root.DataContext.EditPricingModelCommand}"
+                                                                         CommandParameter="{Binding}"
+                                                                         ToolTip.Tip="{i18n:Tr models.edit}">
+                                                            <lucide:LucideIcon Kind="Pencil" Size="15" StrokeWidth="2"/>
+                                                        </ui:CsIconButton>
+                                                        <ui:CsIconButton Classes="danger"
+                                                                         Command="{Binding #Root.DataContext.RequestRemovePricingModelCommand}"
+                                                                         CommandParameter="{Binding}"
+                                                                         ToolTip.Tip="{i18n:Tr models.delete}">
+                                                            <lucide:LucideIcon Kind="Trash2" Size="15" StrokeWidth="2"/>
+                                                        </ui:CsIconButton>
+                                                    </StackPanel>
+                                                </ui:CsTableCell>
+                                            </Grid>
+                                        </ui:CsTableRow>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </Grid>
+                    </ui:CsTable>
+                </ScrollViewer>
+            </ui:CsPanel>
         </Grid>
     </ScrollViewer>
 </UserControl>

@@ -7,132 +7,138 @@
              x:Class="CodexSwitch.Views.Dialogs.ModelEditorDialog"
              x:DataType="vm:MainWindowViewModel">
     <ui:CsDialog IsVisible="{Binding IsModelDialogOpen}">
-        <Border Classes="dialog-card"
-                MaxWidth="900"
-                MaxHeight="620"
+        <Border Classes="dialog-card model-editor-card"
                 HorizontalAlignment="Center"
                 VerticalAlignment="Center">
-            <ScrollViewer MaxHeight="620">
-                <Grid RowDefinitions="Auto,Auto,Auto,Auto"
-                      RowSpacing="14">
-                    <Grid ColumnDefinitions="*,Auto">
+            <Grid RowDefinitions="Auto,*,Auto">
+                <Border Classes="dialog-header">
+                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="14">
                         <StackPanel Spacing="4">
                             <ui:CsText Text="{Binding ModelDialogTitle}" Classes="title"/>
                             <ui:CsText Text="{i18n:Tr modelDialog.description}"
-                                       Classes="muted"/>
+                                       Classes="muted"
+                                       TextWrapping="Wrap"/>
                         </StackPanel>
                         <ui:CsIconButton Grid.Column="1"
+                                         Classes="dialog-close"
                                          Command="{Binding CloseModelDialogCommand}"
                                          ToolTip.Tip="{i18n:Tr common.close}">
                             <lucide:LucideIcon Kind="X" Size="16" StrokeWidth="2"/>
                         </ui:CsIconButton>
                     </Grid>
+                </Border>
 
-                    <ui:CsPanel Grid.Row="1" Padding="16">
-                        <Grid RowDefinitions="Auto,Auto,Auto"
-                              ColumnDefinitions="*,*,*"
-                              ColumnSpacing="12"
-                              RowSpacing="12">
-                            <ui:CsText Text="{i18n:Tr modelDialog.basic}" Classes="heading"/>
-                            <ui:CsField Grid.Row="1" Label="{i18n:Tr modelDialog.modelId}">
-                                <ui:CsInput Text="{Binding ModelEditorId}" PlaceholderText="claude-sonnet-4-5"/>
-                            </ui:CsField>
-                            <ui:CsField Grid.Row="1" Grid.Column="1" Label="{i18n:Tr modelDialog.displayName}">
-                                <ui:CsInput Text="{Binding ModelEditorDisplayName}" PlaceholderText="Claude Sonnet 4.5"/>
-                            </ui:CsField>
-                            <ui:CsField Grid.Row="1" Grid.Column="2" Label="{i18n:Tr modelDialog.iconSlug}">
-                                <ui:CsInput Text="{Binding ModelEditorIconSlug}" PlaceholderText="claude"/>
-                            </ui:CsField>
-                            <ui:CsField Grid.Row="2" Grid.ColumnSpan="3" Label="{i18n:Tr modelDialog.aliases}">
-                                <ui:CsInput Text="{Binding ModelEditorAliases}" PlaceholderText="claude-sonnet*, claude-4*"/>
-                            </ui:CsField>
-                        </Grid>
-                    </ui:CsPanel>
-
-                    <ui:CsPanel Grid.Row="2" Padding="16">
-                        <Grid RowDefinitions="Auto,Auto,Auto"
-                              ColumnDefinitions="*,*,*"
-                              ColumnSpacing="12"
-                              RowSpacing="12">
-                            <Grid Grid.ColumnSpan="3" ColumnDefinitions="*,Auto">
-                                <ui:CsText Text="{i18n:Tr modelDialog.inputCachePricing}" Classes="heading"/>
-                                <ui:CsBadge Grid.Column="1">
-                                    <ui:CsText Text="{Binding PricingUnitText}" Classes="muted"/>
-                                </ui:CsBadge>
+                <ScrollViewer Grid.Row="1"
+                              VerticalScrollBarVisibility="Auto"
+                              HorizontalScrollBarVisibility="Disabled">
+                    <StackPanel Classes="dialog-body-stack">
+                        <Border Classes="dialog-section">
+                            <Grid RowDefinitions="Auto,Auto,Auto"
+                                  ColumnDefinitions="*,*,*"
+                                  ColumnSpacing="12"
+                                  RowSpacing="12">
+                                <ui:CsText Text="{i18n:Tr modelDialog.basic}"
+                                           Classes="heading"
+                                           Grid.ColumnSpan="3"/>
+                                <ui:CsField Grid.Row="1" Label="{i18n:Tr modelDialog.modelId}">
+                                    <ui:CsInput Text="{Binding ModelEditorId}" PlaceholderText="claude-sonnet-4-5"/>
+                                </ui:CsField>
+                                <ui:CsField Grid.Row="1" Grid.Column="1" Label="{i18n:Tr modelDialog.displayName}">
+                                    <ui:CsInput Text="{Binding ModelEditorDisplayName}" PlaceholderText="Claude Sonnet 4.5"/>
+                                </ui:CsField>
+                                <ui:CsField Grid.Row="1" Grid.Column="2" Label="{i18n:Tr modelDialog.iconSlug}">
+                                    <ui:CsInput Text="{Binding ModelEditorIconSlug}" PlaceholderText="claude"/>
+                                </ui:CsField>
+                                <ui:CsField Grid.Row="2" Grid.ColumnSpan="3" Label="{i18n:Tr modelDialog.aliases}">
+                                    <ui:CsInput Text="{Binding ModelEditorAliases}" PlaceholderText="claude-sonnet*, claude-4*"/>
+                                </ui:CsField>
                             </Grid>
-                            <ui:CsField Grid.Row="1" Label="{i18n:Tr modelDialog.inputTierLimit}">
-                                <ui:CsInput Text="{Binding ModelEditorInputTierLimit}" PlaceholderText="{i18n:Tr modelDialog.placeholderFlat}"/>
-                            </ui:CsField>
-                            <ui:CsField Grid.Row="1" Grid.Column="1" Label="{i18n:Tr modelDialog.inputPrice}">
-                                <ui:CsInput Text="{Binding ModelEditorInputPrice}"/>
-                            </ui:CsField>
-                            <ui:CsField Grid.Row="1" Grid.Column="2" Label="{i18n:Tr modelDialog.inputOverCap}">
-                                <ui:CsInput Text="{Binding ModelEditorInputOverflowPrice}"/>
-                            </ui:CsField>
-                            <ui:CsField Grid.Row="2" Label="{i18n:Tr modelDialog.cacheReadPrice}">
-                                <ui:CsInput Text="{Binding ModelEditorCachedInputPrice}"/>
-                            </ui:CsField>
-                            <ui:CsField Grid.Row="2" Grid.Column="1" Label="{i18n:Tr modelDialog.cacheCreationPrice}">
-                                <ui:CsInput Text="{Binding ModelEditorCacheCreationInputPrice}"/>
-                            </ui:CsField>
-                            <Border Grid.Row="2"
-                                    Grid.Column="2"
-                                    Background="#12F59E0B"
-                                    BorderBrush="#33F59E0B"
-                                    BorderThickness="1"
-                                    CornerRadius="8"
-                                    Padding="10"
-                                    VerticalAlignment="Bottom">
-                                <StackPanel Spacing="3">
-                                    <ui:CsText Text="{i18n:Tr modelDialog.claudeCacheWrite}" FontWeight="SemiBold" FontSize="12"/>
-                                    <ui:CsText Text="{i18n:Tr modelDialog.claudeCacheDescription}"
-                                               Classes="muted"
-                                               TextWrapping="Wrap"/>
-                                </StackPanel>
-                            </Border>
-                        </Grid>
-                    </ui:CsPanel>
+                        </Border>
 
-                    <ui:CsPanel Grid.Row="3" Padding="16">
-                        <Grid RowDefinitions="Auto,Auto,Auto"
-                              ColumnDefinitions="*,*,*"
-                              ColumnSpacing="12"
-                              RowSpacing="12">
-                            <ui:CsText Text="{i18n:Tr modelDialog.outputMultiplier}" Classes="heading"/>
-                            <ui:CsField Grid.Row="1" Label="{i18n:Tr modelDialog.outputTierLimit}">
-                                <ui:CsInput Text="{Binding ModelEditorOutputTierLimit}" PlaceholderText="{i18n:Tr modelDialog.placeholderFlat}"/>
-                            </ui:CsField>
-                            <ui:CsField Grid.Row="1" Grid.Column="1" Label="{i18n:Tr modelDialog.outputPrice}">
-                                <ui:CsInput Text="{Binding ModelEditorOutputPrice}"/>
-                            </ui:CsField>
-                            <ui:CsField Grid.Row="1" Grid.Column="2" Label="{i18n:Tr modelDialog.outputOverCap}">
-                                <ui:CsInput Text="{Binding ModelEditorOutputOverflowPrice}"/>
-                            </ui:CsField>
-                            <ui:CsField Grid.Row="2" Label="{i18n:Tr modelDialog.fastMultiplierOverride}">
-                                <ui:CsInput Text="{Binding ModelEditorFastMultiplierOverride}" PlaceholderText="{i18n:Tr modelDialog.placeholderGlobal}"/>
-                            </ui:CsField>
-                            <StackPanel Grid.Row="2"
-                                        Grid.Column="1"
-                                        Grid.ColumnSpan="2"
-                                        Orientation="Horizontal"
-                                        HorizontalAlignment="Right"
-                                        VerticalAlignment="Bottom"
-                                        Spacing="10">
-                                <ui:CsButton Classes="outline compact"
-                                             Command="{Binding CloseModelDialogCommand}"
-                                             Content="{i18n:Tr common.cancel}"/>
-                                <ui:CsButton Classes="compact"
-                                             Command="{Binding SaveModelCommand}">
-                                    <StackPanel Orientation="Horizontal" Spacing="7">
-                                        <lucide:LucideIcon Kind="Save" Size="14" StrokeWidth="2"/>
-                                        <TextBlock Text="{i18n:Tr modelDialog.save}"/>
+                        <Border Classes="dialog-section">
+                            <Grid RowDefinitions="Auto,Auto,Auto"
+                                  ColumnDefinitions="*,*,*"
+                                  ColumnSpacing="12"
+                                  RowSpacing="12">
+                                <Grid Grid.ColumnSpan="3" ColumnDefinitions="*,Auto">
+                                    <ui:CsText Text="{i18n:Tr modelDialog.inputCachePricing}" Classes="heading"/>
+                                    <ui:CsBadge Grid.Column="1">
+                                        <ui:CsText Text="{Binding PricingUnitText}" Classes="muted"/>
+                                    </ui:CsBadge>
+                                </Grid>
+                                <ui:CsField Grid.Row="1" Label="{i18n:Tr modelDialog.inputTierLimit}">
+                                    <ui:CsInput Text="{Binding ModelEditorInputTierLimit}" PlaceholderText="{i18n:Tr modelDialog.placeholderFlat}"/>
+                                </ui:CsField>
+                                <ui:CsField Grid.Row="1" Grid.Column="1" Label="{i18n:Tr modelDialog.inputPrice}">
+                                    <ui:CsInput Text="{Binding ModelEditorInputPrice}"/>
+                                </ui:CsField>
+                                <ui:CsField Grid.Row="1" Grid.Column="2" Label="{i18n:Tr modelDialog.inputOverCap}">
+                                    <ui:CsInput Text="{Binding ModelEditorInputOverflowPrice}"/>
+                                </ui:CsField>
+                                <ui:CsField Grid.Row="2" Label="{i18n:Tr modelDialog.cacheReadPrice}">
+                                    <ui:CsInput Text="{Binding ModelEditorCachedInputPrice}"/>
+                                </ui:CsField>
+                                <ui:CsField Grid.Row="2" Grid.Column="1" Label="{i18n:Tr modelDialog.cacheCreationPrice}">
+                                    <ui:CsInput Text="{Binding ModelEditorCacheCreationInputPrice}"/>
+                                </ui:CsField>
+                                <Border Grid.Row="2"
+                                        Grid.Column="2"
+                                        Classes="dialog-note"
+                                        VerticalAlignment="Bottom">
+                                    <StackPanel Spacing="3">
+                                        <ui:CsText Text="{i18n:Tr modelDialog.claudeCacheWrite}"
+                                                   FontWeight="SemiBold"
+                                                   FontSize="12"/>
+                                        <ui:CsText Text="{i18n:Tr modelDialog.claudeCacheDescription}"
+                                                   Classes="muted"
+                                                   TextWrapping="Wrap"/>
                                     </StackPanel>
-                                </ui:CsButton>
+                                </Border>
+                            </Grid>
+                        </Border>
+
+                        <Border Classes="dialog-section">
+                            <Grid RowDefinitions="Auto,Auto,Auto"
+                                  ColumnDefinitions="*,*,*"
+                                  ColumnSpacing="12"
+                                  RowSpacing="12">
+                                <ui:CsText Text="{i18n:Tr modelDialog.outputMultiplier}"
+                                           Classes="heading"
+                                           Grid.ColumnSpan="3"/>
+                                <ui:CsField Grid.Row="1" Label="{i18n:Tr modelDialog.outputTierLimit}">
+                                    <ui:CsInput Text="{Binding ModelEditorOutputTierLimit}" PlaceholderText="{i18n:Tr modelDialog.placeholderFlat}"/>
+                                </ui:CsField>
+                                <ui:CsField Grid.Row="1" Grid.Column="1" Label="{i18n:Tr modelDialog.outputPrice}">
+                                    <ui:CsInput Text="{Binding ModelEditorOutputPrice}"/>
+                                </ui:CsField>
+                                <ui:CsField Grid.Row="1" Grid.Column="2" Label="{i18n:Tr modelDialog.outputOverCap}">
+                                    <ui:CsInput Text="{Binding ModelEditorOutputOverflowPrice}"/>
+                                </ui:CsField>
+                                <ui:CsField Grid.Row="2" Label="{i18n:Tr modelDialog.fastMultiplierOverride}">
+                                    <ui:CsInput Text="{Binding ModelEditorFastMultiplierOverride}" PlaceholderText="{i18n:Tr modelDialog.placeholderGlobal}"/>
+                                </ui:CsField>
+                            </Grid>
+                        </Border>
+                    </StackPanel>
+                </ScrollViewer>
+
+                <Border Grid.Row="2" Classes="dialog-footer">
+                    <StackPanel Orientation="Horizontal"
+                                HorizontalAlignment="Right"
+                                Spacing="10">
+                        <ui:CsButton Classes="outline compact"
+                                     Command="{Binding CloseModelDialogCommand}"
+                                     Content="{i18n:Tr common.cancel}"/>
+                        <ui:CsButton Classes="compact"
+                                     Command="{Binding SaveModelCommand}">
+                            <StackPanel Orientation="Horizontal" Spacing="7">
+                                <lucide:LucideIcon Kind="Save" Size="14" StrokeWidth="2"/>
+                                <TextBlock Text="{i18n:Tr modelDialog.save}"/>
                             </StackPanel>
-                        </Grid>
-                    </ui:CsPanel>
-                </Grid>
-            </ScrollViewer>
+                        </ui:CsButton>
+                    </StackPanel>
+                </Border>
+            </Grid>
         </Border>
     </ui:CsDialog>
 </UserControl>

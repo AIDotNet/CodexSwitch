@@ -114,6 +114,8 @@
                         <ui:CsSwitch Content="{i18n:Tr settings.desktop.startWithWindows}"
                                      IsEnabled="{Binding IsStartWithWindowsSupported}"
                                      IsChecked="{Binding StartWithWindows}"/>
+                        <ui:CsSwitch Content="{i18n:Tr settings.desktop.miniStatus}"
+                                     IsChecked="{Binding MiniStatusEnabled}"/>
                         <ui:CsSwitch Content="{i18n:Tr settings.desktop.openCodexDefault}"
                                      IsChecked="{Binding DefaultClientAppIsCodex}"/>
                     </StackPanel>

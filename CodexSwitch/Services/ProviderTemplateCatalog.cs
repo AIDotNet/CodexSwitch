@@ -31,7 +31,7 @@ public static class ProviderTemplateCatalog
             BaseUrl = "https://api.routin.ai/v1",
             Protocol = ProviderProtocol.OpenAiResponses,
             DefaultModel = CodexSwitchDefaults.ManagedCodexModel,
-            IconSlug = "openai",
+            IconSlug = IconCacheService.RoutinAiIconSlug,
             FastMode = true,
             ServiceTier = "priority",
             Models = BuiltInModelCatalog.RoutinAiModels
@@ -46,7 +46,7 @@ public static class ProviderTemplateCatalog
             BaseUrl = "https://api.routin.ai/plan/v1",
             Protocol = ProviderProtocol.OpenAiResponses,
             DefaultModel = CodexSwitchDefaults.ManagedCodexModel,
-            IconSlug = "openai",
+            IconSlug = IconCacheService.RoutinAiIconSlug,
             FastMode = true,
             ServiceTier = "priority",
             Models = BuiltInModelCatalog.RoutinAiModels

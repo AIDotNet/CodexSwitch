@@ -4,6 +4,7 @@ public sealed class UsageMeter
 {
     private readonly PriceCalculator _priceCalculator;
     private readonly object _sync = new();
+    private readonly Queue<UsageLogRecord> _recentRecords = new();
     private long _requests;
     private long _errors;
     private long _inputTokens;
@@ -28,6 +29,52 @@ public sealed class UsageMeter
             {
                 return CreateSnapshot();
             }
+        }
+    }
+
+    public RealtimeUsageSnapshot GetRecentSnapshot(TimeSpan window, DateTimeOffset? now = null)
+    {
+        var anchor = now ?? DateTimeOffset.UtcNow;
+
+        lock (_sync)
+        {
+            PruneRecentRecords(anchor, window);
+            var cutoff = anchor - window;
+
+            var requests = 0L;
+            var errors = 0L;
+            var inputTokens = 0L;
+            var cachedInputTokens = 0L;
+            var cacheCreationInputTokens = 0L;
+            var outputTokens = 0L;
+            var reasoningOutputTokens = 0L;
+
+            foreach (var record in _recentRecords)
+            {
+                if (record.Timestamp < cutoff || record.Timestamp > anchor)
+                    continue;
+
+                requests++;
+                if (record.StatusCode >= 400)
+                    errors++;
+
+                inputTokens += record.Usage.InputTokens;
+                cachedInputTokens += record.Usage.CachedInputTokens;
+                cacheCreationInputTokens += record.Usage.CacheCreationInputTokens;
+                outputTokens += record.Usage.OutputTokens;
+                reasoningOutputTokens += record.Usage.ReasoningOutputTokens;
+            }
+
+            return new RealtimeUsageSnapshot
+            {
+                Requests = requests,
+                Errors = errors,
+                InputTokens = inputTokens,
+                CachedInputTokens = cachedInputTokens,
+                CacheCreationInputTokens = cacheCreationInputTokens,
+                OutputTokens = outputTokens,
+                ReasoningOutputTokens = reasoningOutputTokens
+            };
         }
     }
 
@@ -60,6 +107,8 @@ public sealed class UsageMeter
             _outputTokens += record.Usage.OutputTokens;
             _reasoningOutputTokens += record.Usage.ReasoningOutputTokens;
             _estimatedCost += record.EstimatedCost;
+            _recentRecords.Enqueue(record);
+            PruneRecentRecords(DateTimeOffset.UtcNow, TimeSpan.FromMinutes(1));
             snapshot = CreateSnapshot();
         }
 
@@ -80,6 +129,7 @@ public sealed class UsageMeter
             _outputTokens = 0;
             _reasoningOutputTokens = 0;
             _estimatedCost = 0m;
+            _recentRecords.Clear();
             snapshot = CreateSnapshot();
         }
 
@@ -99,5 +149,12 @@ public sealed class UsageMeter
             ReasoningOutputTokens = _reasoningOutputTokens,
             EstimatedCost = _estimatedCost
         };
+    }
+
+    private void PruneRecentRecords(DateTimeOffset now, TimeSpan window)
+    {
+        var cutoff = now - window;
+        while (_recentRecords.Count > 0 && _recentRecords.Peek().Timestamp < cutoff)
+            _recentRecords.Dequeue();
     }
 }
