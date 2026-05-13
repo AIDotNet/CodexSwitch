@@ -1,0 +1,20 @@
+{
+  "defaultLanguage": "zh-CN",
+  "languages": [
+    {
+      "code": "zh-CN",
+      "displayName": "Chinese",
+      "nativeName": "中文"
+    },
+    {
+      "code": "en-US",
+      "displayName": "English",
+      "nativeName": "English"
+    },
+    {
+      "code": "ja-JP",
+      "displayName": "Japanese",
+      "nativeName": "日本語"
+    }
+  ]
+}

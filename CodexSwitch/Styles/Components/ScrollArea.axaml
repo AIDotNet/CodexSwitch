@@ -1,0 +1,10 @@
+<Styles xmlns="https://github.com/avaloniaui">
+    <Style Selector="ScrollViewer.cs-scroll-area">
+        <Setter Property="Background" Value="Transparent"/>
+        <Setter Property="Transitions">
+            <Transitions>
+                <DoubleTransition Property="Opacity" Duration="0:0:0.12"/>
+            </Transitions>
+        </Setter>
+    </Style>
+</Styles>

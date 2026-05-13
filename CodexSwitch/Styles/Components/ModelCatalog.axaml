@@ -1,0 +1,79 @@
+<Styles xmlns="https://github.com/avaloniaui"
+        xmlns:ui="using:CodexSwitch.Controls">
+    <Style Selector="ui|CsModelCard">
+        <Setter Property="Padding" Value="14"/>
+        <Setter Property="Template">
+            <ControlTemplate>
+                <Border Name="ModelCardRoot"
+                        Background="{StaticResource CsModelCardBrush}"
+                        BorderBrush="{StaticResource CsBorderBrush}"
+                        BorderThickness="1"
+                        CornerRadius="{StaticResource CsRadiusLg}"
+                        Padding="{TemplateBinding Padding}">
+                    <Border.Transitions>
+                        <Transitions>
+                            <BrushTransition Property="Background" Duration="0:0:0.14"/>
+                            <BrushTransition Property="BorderBrush" Duration="0:0:0.14"/>
+                            <DoubleTransition Property="Opacity" Duration="0:0:0.10"/>
+                        </Transitions>
+                    </Border.Transitions>
+                    <ContentPresenter Content="{TemplateBinding Content}"/>
+                </Border>
+            </ControlTemplate>
+        </Setter>
+    </Style>
+    <Style Selector="ui|CsModelCard:pointerover /template/ Border#ModelCardRoot">
+        <Setter Property="Background" Value="{StaticResource CsModelCardHoverBrush}"/>
+        <Setter Property="BorderBrush" Value="{StaticResource CsHoverBorderBrush}"/>
+    </Style>
+
+    <Style Selector="ui|CsPriceChip">
+        <Setter Property="Padding" Value="10,8"/>
+        <Setter Property="Template">
+            <ControlTemplate>
+                <Border Name="PriceChipRoot"
+                        Background="{StaticResource CsPriceChipBrush}"
+                        BorderBrush="{StaticResource CsBorderBrush}"
+                        BorderThickness="1"
+                        CornerRadius="{StaticResource CsRadiusMd}"
+                        Padding="{TemplateBinding Padding}">
+                    <Border.Transitions>
+                        <Transitions>
+                            <BrushTransition Property="Background" Duration="0:0:0.14"/>
+                            <BrushTransition Property="BorderBrush" Duration="0:0:0.14"/>
+                        </Transitions>
+                    </Border.Transitions>
+                    <ContentPresenter Content="{TemplateBinding Content}"/>
+                </Border>
+            </ControlTemplate>
+        </Setter>
+    </Style>
+    <Style Selector="ui|CsPriceChip:pointerover /template/ Border#PriceChipRoot">
+        <Setter Property="Background" Value="{StaticResource CsPriceChipHoverBrush}"/>
+        <Setter Property="BorderBrush" Value="{StaticResource CsHoverBorderBrush}"/>
+    </Style>
+    <Style Selector="ui|CsPriceChip.input /template/ Border#PriceChipRoot">
+        <Setter Property="BorderBrush" Value="#334EA8FF"/>
+    </Style>
+    <Style Selector="ui|CsPriceChip.cache /template/ Border#PriceChipRoot">
+        <Setter Property="BorderBrush" Value="#33A855F7"/>
+    </Style>
+    <Style Selector="ui|CsPriceChip.create /template/ Border#PriceChipRoot">
+        <Setter Property="BorderBrush" Value="#44F59E0B"/>
+    </Style>
+    <Style Selector="ui|CsPriceChip.output /template/ Border#PriceChipRoot">
+        <Setter Property="BorderBrush" Value="#3334D399"/>
+    </Style>
+    <Style Selector="ui|CsPriceChip.fast /template/ Border#PriceChipRoot">
+        <Setter Property="BorderBrush" Value="#44E5E5E5"/>
+    </Style>
+
+    <Style Selector="Border.model-icon-shell">
+        <Setter Property="Width" Value="42"/>
+        <Setter Property="Height" Value="42"/>
+        <Setter Property="CornerRadius" Value="12"/>
+        <Setter Property="Background" Value="{StaticResource CsAccentBrush}"/>
+        <Setter Property="BorderBrush" Value="{StaticResource CsBorderBrush}"/>
+        <Setter Property="BorderThickness" Value="1"/>
+    </Style>
+</Styles>

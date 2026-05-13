@@ -1,0 +1,215 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:CodexSwitch.ViewModels"
+             xmlns:ui="using:CodexSwitch.Controls"
+             xmlns:i18n="using:CodexSwitch.I18n"
+             xmlns:lucide="using:Lucide.Avalonia"
+             x:Class="CodexSwitch.Views.Pages.AddProviderPage"
+             x:Name="Root"
+             x:DataType="vm:MainWindowViewModel">
+    <ScrollViewer>
+        <Grid Margin="24,12,24,24"
+              ColumnDefinitions="1.35*,0.9*"
+              RowDefinitions="Auto,*"
+              ColumnSpacing="18"
+              RowSpacing="18">
+            <Grid ColumnDefinitions="Auto,*,Auto">
+                <ui:CsIconButton Command="{Binding ShowProvidersCommand}">
+                    <lucide:LucideIcon Kind="ArrowLeft" Size="17" StrokeWidth="2"/>
+                </ui:CsIconButton>
+                <StackPanel Grid.Column="1" Spacing="4" Margin="12,0,0,0">
+                    <ui:CsText Text="{i18n:Tr addProvider.title}" Classes="title"/>
+                    <ui:CsText Text="{i18n:Tr addProvider.description}"
+                               Classes="muted"/>
+                </StackPanel>
+                <ui:CsButton Grid.Column="2"
+                             Classes="outline compact"
+                             Command="{Binding LoginCodexOAuthCommand}">
+                    <StackPanel Orientation="Horizontal" Spacing="7">
+                        <lucide:LucideIcon Kind="KeyRound" Size="14" StrokeWidth="2"/>
+                        <TextBlock Text="{i18n:Tr addProvider.codexOAuthLogin}"/>
+                    </StackPanel>
+                </ui:CsButton>
+            </Grid>
+
+            <Border Grid.Row="1" Classes="dialog-section">
+                <StackPanel Spacing="16">
+                    <StackPanel Spacing="8">
+                        <ui:CsText Text="{i18n:Tr addProvider.templates}" Classes="heading"/>
+                        <ItemsControl ItemsSource="{Binding ProviderTemplates}">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <WrapPanel/>
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="vm:ProviderTemplateItem">
+                                    <ui:CsButton Margin="0,0,8,8"
+                                                 Classes="outline compact"
+                                                 Classes.active="{Binding IsSelected}"
+                                                 Command="{Binding SelectCommand}"
+                                                 CommandParameter="{Binding}">
+                                        <StackPanel Orientation="Horizontal" Spacing="7">
+                                            <ui:CsImageIcon Path="{Binding IconPath}" Width="16" Height="16"/>
+                                            <TextBlock Text="{Binding DisplayName}"/>
+                                        </StackPanel>
+                                    </ui:CsButton>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                        <ui:CsText Text="{i18n:Tr addProvider.oauthTemplateHint}"
+                                   Classes="muted"/>
+                    </StackPanel>
+
+                    <Grid ColumnDefinitions="*,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto"
+                          ColumnSpacing="12"
+                          RowSpacing="12">
+                        <ui:CsField Label="{i18n:Tr addProvider.providerName}">
+                            <ui:CsInput Text="{Binding SelectedProviderName}"/>
+                        </ui:CsField>
+                        <ui:CsField Grid.Column="1" Label="{i18n:Tr addProvider.note}">
+                            <ui:CsInput Text="{Binding SelectedProviderNote}"/>
+                        </ui:CsField>
+                        <ui:CsField Grid.Row="1" Grid.ColumnSpan="2" Label="{i18n:Tr addProvider.website}">
+                            <ui:CsInput Text="{Binding SelectedProviderWebsite}"
+                                        PlaceholderText="{i18n:Tr addProvider.websitePlaceholder}"/>
+                        </ui:CsField>
+                        <ui:CsField Grid.Row="2" Grid.ColumnSpan="2" Label="{i18n:Tr providerDialog.apiKey}">
+                            <ui:CsInput Text="{Binding SelectedApiKey, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                        PasswordChar="*"
+                                        PlaceholderText="{i18n:Tr addProvider.apiKeyPlaceholder}"/>
+                        </ui:CsField>
+                        <ui:CsField Grid.Row="3" Grid.ColumnSpan="2" Label="{i18n:Tr addProvider.baseUrl}">
+                            <ui:CsInput Text="{Binding SelectedBaseUrl}"
+                                        PlaceholderText="https://your-api-endpoint.com/v1"/>
+                        </ui:CsField>
+                        <ui:CsField Grid.Row="4" Label="{i18n:Tr addProvider.modelName}">
+                            <ui:CsInput Text="{Binding SelectedDefaultModel}"/>
+                        </ui:CsField>
+                        <ui:CsField Grid.Row="4" Grid.Column="1" Label="{i18n:Tr providerDialog.protocol}">
+                            <ui:CsSelect ItemsSource="{Binding ProtocolOptions}"
+                                         SelectedItem="{Binding SelectedProtocol}"/>
+                        </ui:CsField>
+                    </Grid>
+
+                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
+                        <StackPanel Orientation="Horizontal" Spacing="18">
+                            <ui:CsSwitch Content="{i18n:Tr providerDialog.overrideRequestModel}"
+                                         IsChecked="{Binding SelectedOverrideModel}"/>
+                            <ui:CsSwitch Content="{i18n:Tr providerDialog.fastModePricing}"
+                                         IsChecked="{Binding SelectedFastMode}"/>
+                        </StackPanel>
+                        <ui:CsButton Grid.Column="1"
+                                     Classes="compact"
+                                     Command="{Binding SaveProviderCommand}">
+                            <StackPanel Orientation="Horizontal" Spacing="7">
+                                <lucide:LucideIcon Kind="Plus" Size="14" StrokeWidth="2"/>
+                                <TextBlock Text="{i18n:Tr common.add}"/>
+                            </StackPanel>
+                        </ui:CsButton>
+                    </Grid>
+                </StackPanel>
+            </Border>
+
+            <Border Grid.Row="1"
+                    Grid.Column="1"
+                    Classes="dialog-section">
+                <Grid RowDefinitions="Auto,*" RowSpacing="12">
+                    <StackPanel Spacing="4">
+                        <ui:CsText Text="{i18n:Tr addProvider.addedProviders}" Classes="heading"/>
+                        <ui:CsText Text="{i18n:Tr addProvider.addedProvidersDescription}"
+                                   Classes="muted"/>
+                    </StackPanel>
+
+                    <ItemsControl Grid.Row="1" ItemsSource="{Binding ProviderRows}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="vm:ProviderListItem">
+                                <Border Classes="route-row" Margin="0,0,0,12">
+                                    <StackPanel Spacing="10">
+                                        <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10">
+                                            <Border Width="36"
+                                                    Height="36"
+                                                    CornerRadius="10"
+                                                    Background="#26FFFFFF">
+                                                <ui:CsImageIcon Path="{Binding IconPath}"
+                                                                Width="20"
+                                                                Height="20"
+                                                                HorizontalAlignment="Center"
+                                                                VerticalAlignment="Center"/>
+                                            </Border>
+                                            <StackPanel Grid.Column="1" Spacing="3">
+                                                <StackPanel Orientation="Horizontal" Spacing="7">
+                                                    <ui:CsText Text="{Binding DisplayName}" FontWeight="SemiBold"/>
+                                                    <ui:CsBadge Padding="7,2">
+                                                        <ui:CsText Text="{Binding AuthMode}" Classes="muted" FontSize="11"/>
+                                                    </ui:CsBadge>
+                                                </StackPanel>
+                                                <ui:CsText Text="{Binding BaseUrl}"
+                                                           Classes="muted"
+                                                           TextTrimming="CharacterEllipsis"/>
+                                                <ui:CsText Text="{Binding AccountSummary}"
+                                                           Classes="muted"
+                                                           TextTrimming="CharacterEllipsis"/>
+                                            </StackPanel>
+                                            <ui:CsBadge Grid.Column="2"
+                                                        Classes="success"
+                                                        IsVisible="{Binding IsActive}">
+                                                <ui:CsText Text="{i18n:Tr providers.active}"
+                                                           Foreground="{StaticResource CsSuccessBrush}"
+                                                           FontSize="11"
+                                                           FontWeight="SemiBold"/>
+                                            </ui:CsBadge>
+                                        </Grid>
+
+                                        <StackPanel Orientation="Horizontal" Spacing="8">
+                                            <ui:CsButton Classes="outline compact"
+                                                         Command="{Binding SelectCommand}"
+                                                         CommandParameter="{Binding}"
+                                                         Content="{i18n:Tr addProvider.setActive}"/>
+                                            <ui:CsButton Classes="outline compact"
+                                                         Command="{Binding EditCommand}"
+                                                         CommandParameter="{Binding}"
+                                                         Content="{i18n:Tr common.edit}"/>
+                                            <ui:CsButton Classes="outline compact danger"
+                                                         Command="{Binding DeleteCommand}"
+                                                         CommandParameter="{Binding}"
+                                                         Content="{i18n:Tr common.delete}"/>
+                                        </StackPanel>
+
+                                        <ItemsControl ItemsSource="{Binding OAuthAccounts}"
+                                                      IsVisible="{Binding IsOAuth}">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate x:DataType="vm:OAuthAccountListItem">
+                                                    <Grid ColumnDefinitions="*,Auto,Auto,Auto"
+                                                          ColumnSpacing="8"
+                                                          Margin="0,6,0,0">
+                                                        <ui:CsInput Text="{Binding DisplayName}"/>
+                                                        <ui:CsButton Grid.Column="1"
+                                                                     Classes="outline compact"
+                                                                     Command="{Binding SaveNameCommand}"
+                                                                     CommandParameter="{Binding}"
+                                                                     Content="{i18n:Tr addProvider.saveName}"/>
+                                                        <ui:CsButton Grid.Column="2"
+                                                                     Classes="outline compact"
+                                                                     Command="{Binding SelectCommand}"
+                                                                     CommandParameter="{Binding}"
+                                                                     Content="{i18n:Tr addProvider.switchAccount}"/>
+                                                        <ui:CsButton Grid.Column="3"
+                                                                     Classes="outline compact danger"
+                                                                     Command="{Binding RemoveCommand}"
+                                                                     CommandParameter="{Binding}"
+                                                                     Content="{i18n:Tr addProvider.logout}"/>
+                                                    </Grid>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </StackPanel>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </Grid>
+            </Border>
+        </Grid>
+    </ScrollViewer>
+</UserControl>

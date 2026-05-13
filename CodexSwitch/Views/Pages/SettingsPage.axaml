@@ -1,0 +1,225 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:CodexSwitch.ViewModels"
+             xmlns:ui="using:CodexSwitch.Controls"
+             xmlns:i18n="using:CodexSwitch.I18n"
+             xmlns:lucide="using:Lucide.Avalonia"
+             x:Class="CodexSwitch.Views.Pages.SettingsPage"
+             x:Name="Root"
+             x:DataType="vm:MainWindowViewModel">
+    <ScrollViewer>
+        <Grid Margin="24,12,24,24"
+              RowDefinitions="Auto,Auto,Auto"
+              RowSpacing="18">
+            <Grid ColumnDefinitions="Auto,*,Auto,Auto"
+                  ColumnSpacing="10">
+                <ui:CsIconButton Command="{Binding BackFromSettingsCommand}">
+                    <lucide:LucideIcon Kind="ArrowLeft" Size="17" StrokeWidth="2"/>
+                </ui:CsIconButton>
+                <ui:CsText Grid.Column="1"
+                           Text="{i18n:Tr settings.title}"
+                           Classes="title"
+                           VerticalAlignment="Center"/>
+                <ui:CsButton Grid.Column="2"
+                             Classes="outline compact"
+                             Command="{Binding ApplyCommand}"
+                             Content="{i18n:Tr common.apply}"/>
+                <ui:CsButton Grid.Column="3"
+                             Classes="compact"
+                             Command="{Binding SaveCommand}"
+                             Content="{i18n:Tr common.save}"/>
+            </Grid>
+
+            <ui:CsSegmentedControl Grid.Row="1">
+                <Grid ColumnDefinitions="*,*,*,*,*,*" ColumnSpacing="4">
+                    <ui:CsSegmentedButton IsSelected="{Binding IsGeneralSettingsVisible}"
+                                          Command="{Binding SelectSettingsTabCommand}"
+                                          CommandParameter="General"
+                                          Content="{i18n:Tr settings.tab.general}"/>
+                    <ui:CsSegmentedButton Grid.Column="1"
+                                          IsSelected="{Binding IsRouteSettingsVisible}"
+                                          Command="{Binding SelectSettingsTabCommand}"
+                                          CommandParameter="Route"
+                                          Content="{i18n:Tr settings.tab.route}"/>
+                    <ui:CsSegmentedButton Grid.Column="2"
+                                          IsSelected="{Binding IsAuthSettingsVisible}"
+                                          Command="{Binding SelectSettingsTabCommand}"
+                                          CommandParameter="Auth"
+                                          Content="{i18n:Tr settings.tab.auth}"/>
+                    <ui:CsSegmentedButton Grid.Column="3"
+                                          IsSelected="{Binding IsAdvancedSettingsVisible}"
+                                          Command="{Binding SelectSettingsTabCommand}"
+                                          CommandParameter="Advanced"
+                                          Content="{i18n:Tr settings.tab.advanced}"/>
+                    <ui:CsSegmentedButton Grid.Column="4"
+                                          IsSelected="{Binding IsUsageSettingsVisible}"
+                                          Command="{Binding SelectSettingsTabCommand}"
+                                          CommandParameter="Usage"
+                                          Content="{i18n:Tr settings.tab.usage}"/>
+                    <ui:CsSegmentedButton Grid.Column="5"
+                                          IsSelected="{Binding IsAboutSettingsVisible}"
+                                          Command="{Binding SelectSettingsTabCommand}"
+                                          CommandParameter="About"
+                                          Content="{i18n:Tr settings.tab.about}"/>
+                </Grid>
+            </ui:CsSegmentedControl>
+
+            <Grid Grid.Row="2"
+                  RowDefinitions="Auto,Auto,Auto,Auto"
+                  RowSpacing="16">
+                <ui:CsSection Title="{i18n:Tr settings.language.title}"
+                              Description="{i18n:Tr settings.language.description}"
+                              IsVisible="{Binding IsGeneralSettingsVisible}">
+                    <ui:CsSelect ItemsSource="{Binding SupportedLanguages}"
+                                 SelectedItem="{Binding SelectedLanguage, Mode=TwoWay}"
+                                 HorizontalAlignment="Left"
+                                 MinWidth="220">
+                        <ui:CsSelect.ItemTemplate>
+                            <DataTemplate x:DataType="i18n:I18nLanguageOption">
+                                <TextBlock Text="{Binding NativeName}"/>
+                            </DataTemplate>
+                        </ui:CsSelect.ItemTemplate>
+                    </ui:CsSelect>
+                </ui:CsSection>
+
+                <ui:CsSection Grid.Row="1"
+                              Title="{i18n:Tr settings.theme.title}"
+                              Description="{i18n:Tr settings.theme.description}"
+                              IsVisible="{Binding IsGeneralSettingsVisible}">
+                    <ui:CsSegmentedControl>
+                        <Grid ColumnDefinitions="*,*,*" ColumnSpacing="4">
+                            <ui:CsSegmentedButton IsSelected="{Binding IsLightThemeSelected}"
+                                                  Command="{Binding SelectThemeCommand}"
+                                                  CommandParameter="light"
+                                                  Content="{i18n:Tr settings.theme.light}"/>
+                            <ui:CsSegmentedButton Grid.Column="1"
+                                                  IsSelected="{Binding IsDarkThemeSelected}"
+                                                  Command="{Binding SelectThemeCommand}"
+                                                  CommandParameter="dark"
+                                                  Content="{i18n:Tr settings.theme.dark}"/>
+                            <ui:CsSegmentedButton Grid.Column="2"
+                                                  IsSelected="{Binding IsSystemThemeSelected}"
+                                                  Command="{Binding SelectThemeCommand}"
+                                                  CommandParameter="system"
+                                                  Content="{i18n:Tr settings.theme.system}"/>
+                        </Grid>
+                    </ui:CsSegmentedControl>
+                </ui:CsSection>
+
+                <ui:CsSection Grid.Row="2"
+                              Title="{i18n:Tr settings.desktop.title}"
+                              Description="{i18n:Tr settings.desktop.description}"
+                              IsVisible="{Binding IsGeneralSettingsVisible}">
+                    <StackPanel Spacing="12">
+                        <ui:CsSwitch Content="{i18n:Tr settings.desktop.startWithWindows}"
+                                     IsChecked="{Binding StartWithWindows}"/>
+                        <ui:CsSwitch Content="{i18n:Tr settings.desktop.openCodexDefault}"
+                                     IsChecked="{Binding DefaultClientAppIsCodex}"/>
+                    </StackPanel>
+                </ui:CsSection>
+
+                <ui:CsSection Title="{i18n:Tr settings.proxy.title}"
+                              Description="{i18n:Tr settings.proxy.description}"
+                              IsVisible="{Binding IsRouteSettingsVisible}">
+                    <Grid ColumnDefinitions="*,140"
+                          RowDefinitions="Auto,Auto"
+                          ColumnSpacing="12"
+                          RowSpacing="12">
+                        <ui:CsField Label="{i18n:Tr settings.proxy.host}">
+                            <ui:CsInput Text="{Binding ProxyListenHost}"/>
+                        </ui:CsField>
+                        <ui:CsField Grid.Column="1" Label="{i18n:Tr settings.proxy.port}">
+                            <ui:CsInput Text="{Binding ProxyPort}"/>
+                        </ui:CsField>
+                        <ui:CsSwitch Grid.Row="1"
+                                     Content="{i18n:Tr settings.proxy.enabled}"
+                                     IsChecked="{Binding ProxyEnabled}"/>
+                    </Grid>
+                </ui:CsSection>
+
+                <ui:CsSection Title="{i18n:Tr settings.auth.title}"
+                              Description="{i18n:Tr settings.auth.description}"
+                              IsVisible="{Binding IsAuthSettingsVisible}">
+                    <ui:CsField Label="{i18n:Tr settings.auth.inboundApiKey}">
+                        <ui:CsInput Text="{Binding InboundApiKey}"/>
+                    </ui:CsField>
+                </ui:CsSection>
+
+                <StackPanel IsVisible="{Binding IsAdvancedSettingsVisible}"
+                            Spacing="14">
+                    <ui:CsSection Title="{i18n:Tr settings.paths.title}"
+                                  Description="{i18n:Tr settings.paths.description}">
+                        <StackPanel Spacing="6">
+                            <ui:CsText Text="{Binding AppDataRootPath}" Classes="muted"/>
+                            <ui:CsText Text="{Binding CodexConfigFilePath}" Classes="muted"/>
+                            <ui:CsText Text="{Binding CodexAuthFilePath}" Classes="muted"/>
+                            <ui:CsText Text="{Binding UsageLogFilePath}" Classes="muted"/>
+                        </StackPanel>
+                    </ui:CsSection>
+                    <ui:CsSection Title="{i18n:Tr settings.notes.title}"
+                                  Description="{i18n:Tr settings.notes.description}">
+                        <ui:CsText Text="{i18n:Tr settings.notes.releaseWorkflow}"
+                                   Classes="muted"/>
+                    </ui:CsSection>
+                </StackPanel>
+
+                <ui:CsSection Title="{i18n:Tr settings.usagePricing.title}"
+                              Description="{i18n:Tr settings.usagePricing.description}"
+                              IsVisible="{Binding IsUsageSettingsVisible}">
+                    <Grid ColumnDefinitions="0.8*,1*,1*,1*"
+                          ColumnSpacing="12">
+                        <ui:CsField Label="{i18n:Tr settings.usagePricing.currency}">
+                            <ui:CsInput Text="{Binding PricingCurrency}"/>
+                        </ui:CsField>
+                        <ui:CsField Grid.Column="1" Label="{i18n:Tr settings.usagePricing.billingUnit}">
+                            <ui:CsInput Text="{Binding BillingUnitTokens}"/>
+                        </ui:CsField>
+                        <ui:CsField Grid.Column="2" Label="{i18n:Tr settings.usagePricing.defaultFast}">
+                            <ui:CsInput Text="{Binding DefaultFastMultiplier}"/>
+                        </ui:CsField>
+                        <ui:CsField Grid.Column="3" Label="{i18n:Tr settings.usagePricing.gpt55Fast}">
+                            <ui:CsInput Text="{Binding Gpt55FastMultiplier}"/>
+                        </ui:CsField>
+                    </Grid>
+                </ui:CsSection>
+
+                <ui:CsSection Title="{i18n:Tr settings.version.title}"
+                              Description="{i18n:Tr settings.version.description}"
+                              IsVisible="{Binding IsAboutSettingsVisible}">
+                    <StackPanel Spacing="16">
+                        <Grid RowDefinitions="Auto,Auto,Auto,Auto,Auto"
+                              ColumnDefinitions="180,*"
+                              RowSpacing="10"
+                              ColumnSpacing="12">
+                            <ui:CsText Text="{i18n:Tr settings.version.current}" Classes="muted"/>
+                            <ui:CsText Grid.Column="1" Text="{Binding CurrentVersionTag}" FontWeight="SemiBold"/>
+
+                            <ui:CsText Grid.Row="1" Text="{i18n:Tr settings.version.latest}" Classes="muted"/>
+                            <ui:CsText Grid.Row="1" Grid.Column="1" Text="{Binding LatestVersionTag}" FontWeight="SemiBold"/>
+
+                            <ui:CsText Grid.Row="2" Text="{i18n:Tr settings.version.publishedAt}" Classes="muted"/>
+                            <ui:CsText Grid.Row="2" Grid.Column="1" Text="{Binding LatestReleasePublishedAtText}" Classes="muted"/>
+
+                            <ui:CsText Grid.Row="3" Text="{i18n:Tr settings.version.repository}" Classes="muted"/>
+                            <ui:CsText Grid.Row="3" Grid.Column="1" Text="{Binding RepositoryUrl}" Classes="muted"/>
+
+                            <ui:CsText Grid.Row="4" Text="{i18n:Tr settings.version.status}" Classes="muted"/>
+                            <ui:CsText Grid.Row="4" Grid.Column="1" Text="{Binding UpdateStatusDetails}" TextWrapping="Wrap"/>
+                        </Grid>
+
+                        <StackPanel Orientation="Horizontal"
+                                    Spacing="10">
+                            <ui:CsButton Classes="outline compact"
+                                         Command="{Binding CheckForUpdatesCommand}"
+                                         Content="{Binding UpdateCheckButtonText}"/>
+                            <ui:CsButton Classes="compact"
+                                         Command="{Binding OpenLatestReleaseCommand}"
+                                         IsEnabled="{Binding CanOpenLatestRelease}"
+                                         Content="{i18n:Tr settings.version.openReleases}"/>
+                        </StackPanel>
+                    </StackPanel>
+                </ui:CsSection>
+            </Grid>
+        </Grid>
+    </ScrollViewer>
+</UserControl>

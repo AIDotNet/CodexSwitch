@@ -1,0 +1,84 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:CodexSwitch.ViewModels"
+             xmlns:ui="using:CodexSwitch.Controls"
+             xmlns:i18n="using:CodexSwitch.I18n"
+             xmlns:lucide="using:Lucide.Avalonia"
+             x:Class="CodexSwitch.Views.Pages.ProvidersPage"
+             x:DataType="vm:MainWindowViewModel">
+    <ScrollViewer>
+        <Grid Margin="24,12,24,24"
+              RowDefinitions="Auto,*"
+              RowSpacing="18"
+              PointerPressed="ProviderContextHost_OnPointerPressed">
+            <Grid ColumnDefinitions="*,Auto">
+                <StackPanel Spacing="4">
+                    <ui:CsText Text="{i18n:Tr providers.title}" Classes="title"/>
+                    <ui:CsText Text="{Binding ProxyStatus}" Classes="muted"/>
+                </StackPanel>
+                <ui:CsBadge Grid.Column="1" VerticalAlignment="Top">
+                    <ui:CsText Text="{Binding Endpoint}" Classes="muted"/>
+                </ui:CsBadge>
+            </Grid>
+
+            <ItemsControl Grid.Row="1" ItemsSource="{Binding ProviderRows}">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="vm:ProviderListItem">
+                        <Grid ColumnDefinitions="*,Auto"
+                              ColumnSpacing="10"
+                              Margin="0,0,0,12">
+                            <ui:CsProviderCard Command="{Binding SelectCommand}"
+                                               CommandParameter="{Binding}"
+                                               Classes.active="{Binding IsActive}">
+                                <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="14">
+                                    <Border Width="40"
+                                            Height="40"
+                                            CornerRadius="10"
+                                            Background="#26FFFFFF">
+                                        <ui:CsImageIcon Path="{Binding IconPath}"
+                                                        Width="22"
+                                                        Height="22"
+                                                        HorizontalAlignment="Center"
+                                                        VerticalAlignment="Center"/>
+                                    </Border>
+                                    <StackPanel Grid.Column="1"
+                                                Spacing="5"
+                                                VerticalAlignment="Center">
+                                        <StackPanel Orientation="Horizontal" Spacing="8">
+                                            <ui:CsText Text="{Binding DisplayName}" FontWeight="SemiBold"/>
+                                            <ui:CsBadge Padding="7,2">
+                                                <ui:CsText Text="{Binding Protocol}" Classes="muted" FontSize="11"/>
+                                            </ui:CsBadge>
+                                        </StackPanel>
+                                        <ui:CsText Text="{Binding BaseUrl}"
+                                                   Classes="muted"
+                                                   TextTrimming="CharacterEllipsis"/>
+                                        <ui:CsText Text="{Binding ModelsText}"
+                                                   Classes="muted"
+                                                   TextTrimming="CharacterEllipsis"/>
+                                    </StackPanel>
+                                    <ui:CsBadge Grid.Column="2"
+                                                Classes="success"
+                                                IsVisible="{Binding IsActive}"
+                                                VerticalAlignment="Top">
+                                        <ui:CsText Text="{i18n:Tr providers.active}"
+                                                   Foreground="{StaticResource CsSuccessBrush}"
+                                                   FontSize="11"
+                                                   FontWeight="SemiBold"/>
+                                    </ui:CsBadge>
+                                </Grid>
+                            </ui:CsProviderCard>
+                            <ui:CsIconButton Grid.Column="1"
+                                             Command="{Binding EditCommand}"
+                                             CommandParameter="{Binding}"
+                                             ToolTip.Tip="{i18n:Tr providers.edit}"
+                                             VerticalAlignment="Center">
+                                <lucide:LucideIcon Kind="Pencil" Size="16" StrokeWidth="2"/>
+                            </ui:CsIconButton>
+                        </Grid>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </Grid>
+    </ScrollViewer>
+</UserControl>

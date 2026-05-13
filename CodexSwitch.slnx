@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="CodexSwitch/CodexSwitch.csproj" />
+  <Project Path="CodexSwitch.Tests/CodexSwitch.Tests.csproj" />
+</Solution>

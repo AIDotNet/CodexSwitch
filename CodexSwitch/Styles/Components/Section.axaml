@@ -1,0 +1,43 @@
+<Styles xmlns="https://github.com/avaloniaui"
+        xmlns:ui="using:CodexSwitch.Controls">
+    <Style Selector="ui|CsSection">
+        <Setter Property="Template">
+            <ControlTemplate>
+                <Border Name="SectionRoot"
+                        Background="{StaticResource CsCardBrush}"
+                        BorderBrush="{StaticResource CsBorderBrush}"
+                        BorderThickness="1"
+                        CornerRadius="{StaticResource CsRadiusXl}"
+                        Padding="18">
+                    <Border.Transitions>
+                        <Transitions>
+                            <BrushTransition Property="Background" Duration="0:0:0.14"/>
+                            <BrushTransition Property="BorderBrush" Duration="0:0:0.14"/>
+                        </Transitions>
+                    </Border.Transitions>
+                    <Grid RowDefinitions="Auto,Auto" RowSpacing="16">
+                        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
+                            <StackPanel Spacing="3">
+                                <TextBlock Text="{TemplateBinding Title}"
+                                           Foreground="{StaticResource CsForegroundBrush}"
+                                           FontSize="16"
+                                           FontWeight="SemiBold"/>
+                                <TextBlock Text="{TemplateBinding Description}"
+                                           Foreground="{StaticResource CsMutedForegroundBrush}"
+                                           FontSize="12"
+                                           TextWrapping="Wrap"/>
+                            </StackPanel>
+                            <ContentControl Grid.Column="1"
+                                            Content="{TemplateBinding Action}"
+                                            VerticalAlignment="Top"/>
+                        </Grid>
+                        <ContentPresenter Grid.Row="1" Content="{TemplateBinding Content}"/>
+                    </Grid>
+                </Border>
+            </ControlTemplate>
+        </Setter>
+    </Style>
+    <Style Selector="ui|CsSection:pointerover /template/ Border#SectionRoot">
+        <Setter Property="BorderBrush" Value="{StaticResource CsHoverBorderBrush}"/>
+    </Style>
+</Styles>

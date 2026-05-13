@@ -1,0 +1,6 @@
+<Styles xmlns="https://github.com/avaloniaui"
+        xmlns:ui="using:CodexSwitch.Controls">
+    <Style Selector="ui|CsUsageTrendChart">
+        <Setter Property="MinHeight" Value="300"/>
+    </Style>
+</Styles>

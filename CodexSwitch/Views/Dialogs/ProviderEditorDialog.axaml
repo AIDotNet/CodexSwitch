@@ -1,0 +1,183 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:CodexSwitch.ViewModels"
+             xmlns:ui="using:CodexSwitch.Controls"
+             xmlns:i18n="using:CodexSwitch.I18n"
+             xmlns:lucide="using:Lucide.Avalonia"
+             x:Class="CodexSwitch.Views.Dialogs.ProviderEditorDialog"
+             x:Name="Root"
+             x:DataType="vm:MainWindowViewModel">
+    <ui:CsDialog IsVisible="{Binding IsProviderDialogOpen}">
+        <Border Classes="dialog-card"
+                Width="720"
+                MaxHeight="600"
+                HorizontalAlignment="Center"
+                VerticalAlignment="Center">
+            <Grid RowDefinitions="Auto,*,Auto" RowSpacing="16">
+                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
+                    <StackPanel Spacing="4">
+                        <StackPanel Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
+                            <Border Width="34"
+                                    Height="34"
+                                    CornerRadius="10"
+                                    Background="#173B82F6"
+                                    BorderBrush="#333B82F6"
+                                    BorderThickness="1">
+                                <lucide:LucideIcon Kind="Router"
+                                                   Size="17"
+                                                   StrokeWidth="2"
+                                                   Foreground="#60A5FA"
+                                                   HorizontalAlignment="Center"
+                                                   VerticalAlignment="Center"/>
+                            </Border>
+                            <ui:CsText Text="{Binding ProviderDialogTitle}" Classes="title"/>
+                        </StackPanel>
+                        <ui:CsText Text="{i18n:Tr providerDialog.description}"
+                                   Classes="muted"/>
+                    </StackPanel>
+                    <ui:CsIconButton Grid.Column="1"
+                                     Command="{Binding CloseProviderDialogCommand}"
+                                     ToolTip.Tip="{i18n:Tr common.close}">
+                        <lucide:LucideIcon Kind="X" Size="16" StrokeWidth="2"/>
+                    </ui:CsIconButton>
+                </Grid>
+
+                <ScrollViewer Grid.Row="1"
+                              VerticalScrollBarVisibility="Auto"
+                              HorizontalScrollBarVisibility="Disabled">
+                    <StackPanel Spacing="12">
+                        <Border Classes="dialog-section">
+                            <Grid RowDefinitions="Auto,Auto,Auto"
+                                  ColumnDefinitions="*,*"
+                                  ColumnSpacing="12"
+                                  RowSpacing="12">
+                                <ui:CsText Text="{i18n:Tr providerDialog.connection}" Classes="heading"/>
+                                <ui:CsField Grid.Row="1" Label="{i18n:Tr providerDialog.name}">
+                                    <ui:CsInput Text="{Binding SelectedProviderName}"/>
+                                </ui:CsField>
+                                <ui:CsField Grid.Row="1" Grid.Column="1" Label="{i18n:Tr providerDialog.defaultModel}">
+                                    <ui:CsInput Text="{Binding SelectedDefaultModel}"/>
+                                </ui:CsField>
+                                <ui:CsField Grid.Row="2" Label="{i18n:Tr providerDialog.baseUrl}">
+                                    <ui:CsInput Text="{Binding SelectedBaseUrl}"/>
+                                </ui:CsField>
+                                <ui:CsField Grid.Row="2" Grid.Column="1" Label="{i18n:Tr providerDialog.apiKey}">
+                                    <ui:CsInput Text="{Binding SelectedApiKey, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" PasswordChar="*"/>
+                                </ui:CsField>
+                            </Grid>
+                        </Border>
+
+                        <Border Classes="dialog-section">
+                            <Grid RowDefinitions="Auto,Auto,Auto"
+                                  ColumnDefinitions="*,*"
+                                  ColumnSpacing="12"
+                                  RowSpacing="12">
+                                <ui:CsText Text="{i18n:Tr providerDialog.protocolRouting}" Classes="heading"/>
+                                <ui:CsField Grid.Row="1" Label="{i18n:Tr providerDialog.protocol}">
+                                    <ui:CsSelect ItemsSource="{Binding ProtocolOptions}"
+                                                 SelectedItem="{Binding SelectedProtocol}"/>
+                                </ui:CsField>
+                                <ui:CsField Grid.Row="1" Grid.Column="1" Label="{i18n:Tr providerDialog.serviceTier}">
+                                    <ui:CsInput Text="{Binding SelectedServiceTier}" PlaceholderText="{i18n:Tr providerDialog.serviceTierPlaceholder}"/>
+                                </ui:CsField>
+
+                                <StackPanel Grid.Row="2"
+                                            Grid.ColumnSpan="2"
+                                            Orientation="Horizontal"
+                                            Spacing="22">
+                                    <ui:CsSwitch Content="{i18n:Tr providerDialog.overrideRequestModel}"
+                                                 IsChecked="{Binding SelectedOverrideModel}"/>
+                                    <ui:CsSwitch Content="{i18n:Tr providerDialog.fastModePricing}"
+                                                 IsChecked="{Binding SelectedFastMode}"/>
+                                </StackPanel>
+                            </Grid>
+                        </Border>
+
+                        <Border Classes="dialog-section">
+                            <Grid RowDefinitions="Auto,Auto"
+                                  RowSpacing="12">
+                                <Grid ColumnDefinitions="*,Auto">
+                                    <StackPanel Spacing="3">
+                                        <ui:CsText Text="{i18n:Tr providerDialog.modelRoutes}" Classes="heading"/>
+                                        <ui:CsText Text="{i18n:Tr providerDialog.routesDescription}"
+                                                   Classes="muted"/>
+                                    </StackPanel>
+                                    <ui:CsButton Grid.Column="1"
+                                                 Classes="outline compact"
+                                                 Command="{Binding AddProviderModelCommand}">
+                                        <StackPanel Orientation="Horizontal" Spacing="7">
+                                            <lucide:LucideIcon Kind="Plus" Size="14" StrokeWidth="2"/>
+                                            <TextBlock Text="{i18n:Tr providerDialog.addRoute}"/>
+                                        </StackPanel>
+                                    </ui:CsButton>
+                                </Grid>
+
+                                <ItemsControl Grid.Row="1" ItemsSource="{Binding ModelRows}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate x:DataType="vm:ModelEditorItem">
+                                            <Border Classes="route-row" Margin="0,0,0,10">
+                                                <Grid RowDefinitions="Auto,Auto"
+                                                      ColumnDefinitions="1.1*,1.1*,1.1*,Auto"
+                                                      ColumnSpacing="10"
+                                                      RowSpacing="10">
+                                                    <ui:CsField Label="{i18n:Tr providerDialog.modelId}">
+                                                        <ui:CsInput Text="{Binding Id}"/>
+                                                    </ui:CsField>
+                                                    <ui:CsField Grid.Column="1" Label="{i18n:Tr providerDialog.upstreamModel}">
+                                                        <ui:CsInput Text="{Binding UpstreamModel}"/>
+                                                    </ui:CsField>
+                                                    <ui:CsField Grid.Column="2" Label="{i18n:Tr providerDialog.protocol}">
+                                                        <ui:CsSelect ItemsSource="{Binding ProtocolOptions}"
+                                                                     SelectedItem="{Binding Protocol}"/>
+                                                    </ui:CsField>
+                                                    <ui:CsIconButton Grid.Column="3"
+                                                                     Classes="danger"
+                                                                     Command="{Binding #Root.DataContext.RemoveProviderModelCommand}"
+                                                                     CommandParameter="{Binding}"
+                                                                     VerticalAlignment="Bottom"
+                                                                     ToolTip.Tip="{i18n:Tr providerDialog.removeRoute}">
+                                                        <lucide:LucideIcon Kind="Trash2" Size="15" StrokeWidth="2"/>
+                                                    </ui:CsIconButton>
+
+                                                    <ui:CsField Grid.Row="1" Label="{i18n:Tr providerDialog.displayName}">
+                                                        <ui:CsInput Text="{Binding DisplayName}"/>
+                                                    </ui:CsField>
+                                                    <ui:CsField Grid.Row="1" Grid.Column="1" Label="{i18n:Tr providerDialog.serviceTier}">
+                                                        <ui:CsInput Text="{Binding ServiceTier}" PlaceholderText="{i18n:Tr providerDialog.serviceTierPlaceholder}"/>
+                                                    </ui:CsField>
+                                                    <ui:CsSwitch Grid.Row="1"
+                                                                 Grid.Column="2"
+                                                                 Content="{i18n:Tr providerDialog.fastMode}"
+                                                                 IsChecked="{Binding FastMode}"
+                                                                 VerticalAlignment="Bottom"/>
+                                                </Grid>
+                                            </Border>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </Grid>
+                        </Border>
+                    </StackPanel>
+                </ScrollViewer>
+
+                <Grid Grid.Row="2" ColumnDefinitions="*,Auto,Auto" ColumnSpacing="10">
+                    <ui:CsText Text="{i18n:Tr providerDialog.footer}"
+                               Classes="muted"
+                               VerticalAlignment="Center"/>
+                    <ui:CsButton Grid.Column="1"
+                                 Classes="outline compact"
+                                 Command="{Binding CloseProviderDialogCommand}"
+                                 Content="{i18n:Tr common.cancel}"/>
+                    <ui:CsButton Grid.Column="2"
+                                 Classes="compact"
+                                 Command="{Binding SaveProviderCommand}">
+                        <StackPanel Orientation="Horizontal" Spacing="7">
+                            <lucide:LucideIcon Kind="Save" Size="14" StrokeWidth="2"/>
+                            <TextBlock Text="{i18n:Tr providerDialog.save}"/>
+                        </StackPanel>
+                    </ui:CsButton>
+                </Grid>
+            </Grid>
+        </Border>
+    </ui:CsDialog>
+</UserControl>

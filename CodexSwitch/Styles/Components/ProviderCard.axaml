@@ -1,0 +1,51 @@
+<Styles xmlns="https://github.com/avaloniaui"
+        xmlns:ui="using:CodexSwitch.Controls">
+    <Style Selector="ui|CsProviderCard">
+        <Setter Property="MinHeight" Value="86"/>
+        <Setter Property="Padding" Value="16"/>
+        <Setter Property="Background" Value="{StaticResource CsCardBrush}"/>
+        <Setter Property="Foreground" Value="{StaticResource CsForegroundBrush}"/>
+        <Setter Property="BorderBrush" Value="{StaticResource CsBorderBrush}"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+        <Setter Property="Transitions">
+            <Transitions>
+                <BrushTransition Property="Background" Duration="0:0:0.14"/>
+                <BrushTransition Property="BorderBrush" Duration="0:0:0.14"/>
+                <DoubleTransition Property="Opacity" Duration="0:0:0.10"/>
+            </Transitions>
+        </Setter>
+        <Setter Property="Template">
+            <ControlTemplate>
+                <Border CornerRadius="{StaticResource CsRadiusXl}"
+                        Background="{TemplateBinding Background}"
+                        BorderBrush="{TemplateBinding BorderBrush}"
+                        BorderThickness="{TemplateBinding BorderThickness}">
+                    <ContentPresenter Margin="{TemplateBinding Padding}"
+                                      Content="{TemplateBinding Content}"
+                                      HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"/>
+                </Border>
+            </ControlTemplate>
+        </Setter>
+    </Style>
+    <Style Selector="ui|CsProviderCard:pointerover">
+        <Setter Property="Background" Value="{StaticResource CsProviderCardHoverBrush}"/>
+        <Setter Property="BorderBrush" Value="{StaticResource CsHoverBorderBrush}"/>
+    </Style>
+    <Style Selector="ui|CsProviderCard:pressed">
+        <Setter Property="Background" Value="{StaticResource CsPressedBrush}"/>
+        <Setter Property="BorderBrush" Value="{StaticResource CsRingBrush}"/>
+    </Style>
+    <Style Selector="ui|CsProviderCard.active">
+        <Setter Property="Background" Value="{StaticResource CsProviderCardActiveBrush}"/>
+        <Setter Property="BorderBrush" Value="#0A84FF"/>
+    </Style>
+    <Style Selector="ui|CsProviderCard.active:pointerover">
+        <Setter Property="Background" Value="{StaticResource CsProviderCardActiveHoverBrush}"/>
+        <Setter Property="BorderBrush" Value="#2B95FF"/>
+    </Style>
+    <Style Selector="ui|CsProviderCard.active:pressed">
+        <Setter Property="Background" Value="{StaticResource CsProviderCardActivePressedBrush}"/>
+        <Setter Property="BorderBrush" Value="#0A84FF"/>
+    </Style>
+</Styles>

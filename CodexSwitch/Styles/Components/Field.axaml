@@ -1,0 +1,25 @@
+<Styles xmlns="https://github.com/avaloniaui"
+        xmlns:ui="using:CodexSwitch.Controls">
+    <Style Selector="ui|CsField">
+        <Setter Property="Transitions">
+            <Transitions>
+                <DoubleTransition Property="Opacity" Duration="0:0:0.10"/>
+            </Transitions>
+        </Setter>
+        <Setter Property="Template">
+            <ControlTemplate>
+                <StackPanel Spacing="6">
+                    <TextBlock Text="{TemplateBinding Label}"
+                               Foreground="{StaticResource CsForegroundBrush}"
+                               FontSize="12"
+                               FontWeight="SemiBold"/>
+                    <ContentPresenter Content="{TemplateBinding Content}"/>
+                    <TextBlock Text="{TemplateBinding Description}"
+                               Foreground="{StaticResource CsMutedForegroundBrush}"
+                               FontSize="12"
+                               TextWrapping="Wrap"/>
+                </StackPanel>
+            </ControlTemplate>
+        </Setter>
+    </Style>
+</Styles>

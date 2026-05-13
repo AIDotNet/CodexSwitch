@@ -1,0 +1,22 @@
+<Styles xmlns="https://github.com/avaloniaui"
+        xmlns:ui="using:CodexSwitch.Controls">
+    <Style Selector="ui|CsSeparator">
+        <Setter Property="Height" Value="1"/>
+        <Setter Property="Template">
+            <ControlTemplate>
+                <Border Name="SeparatorRoot"
+                        Height="1"
+                        Background="{StaticResource CsBorderBrush}">
+                    <Border.Transitions>
+                        <Transitions>
+                            <BrushTransition Property="Background" Duration="0:0:0.12"/>
+                        </Transitions>
+                    </Border.Transitions>
+                </Border>
+            </ControlTemplate>
+        </Setter>
+    </Style>
+    <Style Selector="ui|CsSeparator:pointerover /template/ Border#SeparatorRoot">
+        <Setter Property="Background" Value="{StaticResource CsHoverBorderBrush}"/>
+    </Style>
+</Styles>

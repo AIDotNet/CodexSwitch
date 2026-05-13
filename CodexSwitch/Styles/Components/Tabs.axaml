@@ -1,0 +1,42 @@
+<Styles xmlns="https://github.com/avaloniaui"
+        xmlns:ui="using:CodexSwitch.Controls">
+    <Style Selector="TabControl.cs-tabs">
+        <Setter Property="Background" Value="Transparent"/>
+    </Style>
+
+    <Style Selector="TabItem.cs-tab">
+        <Setter Property="MinHeight" Value="32"/>
+        <Setter Property="Padding" Value="12,6"/>
+        <Setter Property="FontSize" Value="14"/>
+        <Setter Property="Foreground" Value="{StaticResource CsMutedForegroundBrush}"/>
+        <Setter Property="Background" Value="Transparent"/>
+        <Setter Property="Transitions">
+            <Transitions>
+                <BrushTransition Property="Background" Duration="0:0:0.12"/>
+                <BrushTransition Property="Foreground" Duration="0:0:0.12"/>
+                <DoubleTransition Property="Opacity" Duration="0:0:0.10"/>
+            </Transitions>
+        </Setter>
+        <Setter Property="Template">
+            <ControlTemplate>
+                <Border Background="{TemplateBinding Background}"
+                        CornerRadius="{StaticResource CsRadiusMd}">
+                    <ContentPresenter Margin="{TemplateBinding Padding}"
+                                      Content="{TemplateBinding Header}"
+                                      HorizontalAlignment="Center"
+                                      VerticalAlignment="Center"/>
+                </Border>
+            </ControlTemplate>
+        </Setter>
+    </Style>
+    <Style Selector="TabItem.cs-tab:selected">
+        <Setter Property="Background" Value="{StaticResource CsBackgroundBrush}"/>
+        <Setter Property="Foreground" Value="{StaticResource CsForegroundBrush}"/>
+    </Style>
+    <Style Selector="TabItem.cs-tab:pointerover">
+        <Setter Property="Foreground" Value="{StaticResource CsForegroundBrush}"/>
+    </Style>
+    <Style Selector="TabItem.cs-tab:pressed">
+        <Setter Property="Opacity" Value="0.88"/>
+    </Style>
+</Styles>

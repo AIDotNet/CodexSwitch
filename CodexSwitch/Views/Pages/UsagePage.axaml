@@ -1,0 +1,342 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:CodexSwitch.ViewModels"
+             xmlns:ui="using:CodexSwitch.Controls"
+             xmlns:i18n="using:CodexSwitch.I18n"
+             xmlns:lucide="using:Lucide.Avalonia"
+             x:Class="CodexSwitch.Views.Pages.UsagePage"
+             x:DataType="vm:MainWindowViewModel">
+    <ScrollViewer>
+        <Grid Margin="24,12,24,24"
+              RowDefinitions="Auto,Auto,Auto,Auto"
+              RowSpacing="18">
+            <Grid ColumnDefinitions="*,Auto">
+                <StackPanel Spacing="4">
+                    <ui:CsText Text="{i18n:Tr usage.title}" Classes="title"/>
+                    <ui:CsText Text="{i18n:Tr usage.description}" Classes="muted"/>
+                </StackPanel>
+                <ui:CsButton Grid.Column="1"
+                             Classes="outline compact"
+                             Command="{Binding RefreshUsageCommand}"
+                             VerticalAlignment="Top">
+                    <StackPanel Orientation="Horizontal" Spacing="7">
+                        <lucide:LucideIcon Kind="RefreshCw"
+                                           Size="14"
+                                           StrokeWidth="2"
+                                           IsVisible="{Binding IsUsageRefreshIdle}"/>
+                        <lucide:LucideIcon Kind="RefreshCw"
+                                           Size="14"
+                                           StrokeWidth="2.3"
+                                           Opacity="0.7"
+                                           IsVisible="{Binding IsUsageRefreshing}"/>
+                        <TextBlock Text="{Binding UsageRefreshButtonText}"/>
+                    </StackPanel>
+                </ui:CsButton>
+            </Grid>
+
+            <ItemsControl Grid.Row="1" ItemsSource="{Binding UsageMetrics}">
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <UniformGrid Columns="4"/>
+                    </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="vm:UsageMetricItem">
+                        <ui:CsStatsCard Margin="0,0,12,0">
+                            <Grid RowDefinitions="34,Auto"
+                                  ColumnDefinitions="*,Auto"
+                                  RowSpacing="8">
+                                <ui:CsText Text="{Binding Label}"
+                                           Classes="muted"
+                                           FontSize="12"
+                                           TextTrimming="CharacterEllipsis"
+                                           VerticalAlignment="Center"/>
+                                <Border Grid.Column="1"
+                                        Width="34"
+                                        Height="34"
+                                        CornerRadius="9"
+                                        Background="{Binding IconBackground}">
+                                    <lucide:LucideIcon Kind="{Binding Icon}"
+                                                       Foreground="{Binding IconForeground}"
+                                                       Size="18"
+                                                       StrokeWidth="2"
+                                                       HorizontalAlignment="Center"
+                                                       VerticalAlignment="Center"/>
+                                </Border>
+                                <ui:CsText Grid.Row="1"
+                                           Grid.ColumnSpan="2"
+                                           Text="{Binding Value}"
+                                           Classes="stat-value"
+                                           TextTrimming="CharacterEllipsis"
+                                           VerticalAlignment="Top"/>
+                            </Grid>
+                        </ui:CsStatsCard>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+
+            <ui:CsPanel Grid.Row="2" Padding="20">
+                <Grid RowDefinitions="Auto,Auto,*" RowSpacing="14">
+                    <Grid ColumnDefinitions="*,Auto">
+                        <StackPanel Spacing="3">
+                            <ui:CsText Text="{i18n:Tr usage.trend}" Classes="heading"/>
+                            <ui:CsText Text="{Binding UsageRangeCaption}" Classes="muted"/>
+                        </StackPanel>
+                        <ui:CsSegmentedControl Grid.Column="1">
+                            <StackPanel Orientation="Horizontal" Spacing="4">
+                                <ui:CsSegmentedButton IsSelected="{Binding IsUsageRange24HoursSelected}"
+                                                      Command="{Binding SelectUsageRangeCommand}"
+                                                      CommandParameter="Last24Hours"
+                                                      Content="{i18n:Tr usage.range.24h}"/>
+                                <ui:CsSegmentedButton IsSelected="{Binding IsUsageRange7DaysSelected}"
+                                                      Command="{Binding SelectUsageRangeCommand}"
+                                                      CommandParameter="Last7Days"
+                                                      Content="{i18n:Tr usage.range.7d}"/>
+                                <ui:CsSegmentedButton IsSelected="{Binding IsUsageRange30DaysSelected}"
+                                                      Command="{Binding SelectUsageRangeCommand}"
+                                                      CommandParameter="Last30Days"
+                                                      Content="{i18n:Tr usage.range.30d}"/>
+                            </StackPanel>
+                        </ui:CsSegmentedControl>
+                    </Grid>
+                    <Grid Grid.Row="1" ColumnDefinitions="*,Auto">
+                        <WrapPanel>
+                            <StackPanel Orientation="Horizontal" Spacing="7" Margin="0,0,16,0">
+                                <Border Width="8" Height="8" CornerRadius="4" Background="#60A5FA" VerticalAlignment="Center"/>
+                                <ui:CsText Text="{i18n:Tr usage.chart.input}" Classes="muted"/>
+                            </StackPanel>
+                            <StackPanel Orientation="Horizontal" Spacing="7" Margin="0,0,16,0">
+                                <Border Width="8" Height="8" CornerRadius="4" Background="#A78BFA" VerticalAlignment="Center"/>
+                                <ui:CsText Text="{i18n:Tr usage.chart.cached}" Classes="muted"/>
+                            </StackPanel>
+                            <StackPanel Orientation="Horizontal" Spacing="7" Margin="0,0,16,0">
+                                <Border Width="8" Height="8" CornerRadius="4" Background="#F59E0B" VerticalAlignment="Center"/>
+                                <ui:CsText Text="{i18n:Tr usage.chart.cacheWrite}" Classes="muted"/>
+                            </StackPanel>
+                            <StackPanel Orientation="Horizontal" Spacing="7" Margin="0,0,16,0">
+                                <Border Width="8" Height="8" CornerRadius="4" Background="#34D399" VerticalAlignment="Center"/>
+                                <ui:CsText Text="{i18n:Tr usage.chart.output}" Classes="muted"/>
+                            </StackPanel>
+                            <StackPanel Orientation="Horizontal" Spacing="7" Margin="0,0,16,0">
+                                <Border Width="8" Height="8" CornerRadius="4" Background="#22D3EE" VerticalAlignment="Center"/>
+                                <ui:CsText Text="{i18n:Tr usage.chart.reasoning}" Classes="muted"/>
+                            </StackPanel>
+                            <StackPanel Orientation="Horizontal" Spacing="7">
+                                <Border Width="18" Height="2" Background="#F472B6" VerticalAlignment="Center"/>
+                                <ui:CsText Text="{i18n:Tr usage.chart.cost}" Classes="muted"/>
+                            </StackPanel>
+                        </WrapPanel>
+                        <ui:CsText Grid.Column="1" Text="{i18n:Tr usage.localRecords}" Classes="muted"/>
+                    </Grid>
+                    <ui:CsUsageTrendChart Grid.Row="2"
+                                          ItemsSource="{Binding TrendPoints}"
+                                          Granularity="{Binding UsageTrendGranularity}"
+                                          TokensLabel="{i18n:Tr usage.chart.tokens}"
+                                          RequestsLabel="{i18n:Tr usage.chart.requests}"
+                                          CostLabel="{i18n:Tr usage.chart.cost}"
+                                          InputLabel="{i18n:Tr usage.chart.input}"
+                                          CachedInputLabel="{i18n:Tr usage.chart.cached}"
+                                          CacheCreationInputLabel="{i18n:Tr usage.chart.cacheWrite}"
+                                          OutputLabel="{i18n:Tr usage.chart.output}"
+                                          ReasoningLabel="{i18n:Tr usage.chart.reasoning}"
+                                          EmptyText="{i18n:Tr usage.chart.empty}"
+                                          IsRefreshing="{Binding IsUsageRefreshing}"
+                                          RefreshingText="{i18n:Tr usage.refreshing}"
+                                          Height="300"/>
+                </Grid>
+            </ui:CsPanel>
+
+            <Grid Grid.Row="3"
+                  RowDefinitions="Auto,Auto"
+                  RowSpacing="14">
+                <ui:CsSegmentedControl HorizontalAlignment="Left">
+                    <StackPanel Orientation="Horizontal" Spacing="4">
+                        <ui:CsSegmentedButton IsSelected="{Binding IsUsageRequestsVisible}"
+                                              Command="{Binding SelectUsageTabCommand}"
+                                              CommandParameter="Requests"
+                                              Content="{i18n:Tr usage.tab.requests}"/>
+                        <ui:CsSegmentedButton IsSelected="{Binding IsUsageProvidersVisible}"
+                                              Command="{Binding SelectUsageTabCommand}"
+                                              CommandParameter="Providers"
+                                              Content="{i18n:Tr usage.tab.providers}"/>
+                        <ui:CsSegmentedButton IsSelected="{Binding IsUsageModelsVisible}"
+                                              Command="{Binding SelectUsageTabCommand}"
+                                              CommandParameter="Models"
+                                              Content="{i18n:Tr usage.tab.models}"/>
+                    </StackPanel>
+                </ui:CsSegmentedControl>
+
+                <ui:CsPanel Grid.Row="1"
+                            Padding="0"
+                            IsVisible="{Binding IsUsageRequestsVisible}">
+                    <ui:CsTable>
+                        <Grid RowDefinitions="Auto,*">
+                            <ui:CsTableHeader>
+                                <Grid ColumnDefinitions="1.05*,1.1*,1.15*,0.72*,0.76*,0.78*,0.66*,0.72*,0.72*,0.58*" ColumnSpacing="8">
+                                    <ui:CsTableHead Content="{i18n:Tr usage.table.time}"/>
+                                    <ui:CsTableHead Grid.Column="1" Content="{i18n:Tr usage.table.provider}"/>
+                                    <ui:CsTableHead Grid.Column="2" Content="{i18n:Tr usage.table.model}"/>
+                                    <ui:CsTableHead Grid.Column="3" Content="{i18n:Tr usage.table.input}"/>
+                                    <ui:CsTableHead Grid.Column="4" Content="{i18n:Tr usage.table.cacheHit}"/>
+                                    <ui:CsTableHead Grid.Column="5" Content="{i18n:Tr usage.table.cacheWrite}"/>
+                                    <ui:CsTableHead Grid.Column="6" Content="{i18n:Tr usage.table.output}"/>
+                                    <ui:CsTableHead Grid.Column="7" Content="{i18n:Tr usage.table.cost}"/>
+                                    <ui:CsTableHead Grid.Column="8" Content="{i18n:Tr usage.table.duration}"/>
+                                    <ui:CsTableHead Grid.Column="9" Content="{i18n:Tr usage.table.status}"/>
+                                </Grid>
+                            </ui:CsTableHeader>
+                            <ItemsControl Grid.Row="1" ItemsSource="{Binding UsageLogRows}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate x:DataType="vm:UsageLogItem">
+                                        <ui:CsTableRow>
+                                            <Grid ColumnDefinitions="1.05*,1.1*,1.15*,0.72*,0.76*,0.78*,0.66*,0.72*,0.72*,0.58*" ColumnSpacing="8">
+                                                <ui:CsTableCell>
+                                                    <TextBlock Text="{Binding Time}"
+                                                               FontWeight="SemiBold"
+                                                               TextTrimming="CharacterEllipsis"/>
+                                                </ui:CsTableCell>
+                                                <ui:CsTableCell Grid.Column="1">
+                                                    <Border Background="#14FFFFFF"
+                                                            BorderBrush="#18FFFFFF"
+                                                            BorderThickness="1"
+                                                            CornerRadius="6"
+                                                            Padding="8,3"
+                                                            HorizontalAlignment="Left">
+                                                        <TextBlock Text="{Binding Provider}"
+                                                                   FontSize="12"
+                                                                   FontWeight="SemiBold"
+                                                                   TextTrimming="CharacterEllipsis"/>
+                                                    </Border>
+                                                </ui:CsTableCell>
+                                                <ui:CsTableCell Grid.Column="2">
+                                                    <TextBlock Text="{Binding Model}"
+                                                               FontWeight="SemiBold"
+                                                               Foreground="#C7D2FE"
+                                                               TextTrimming="CharacterEllipsis"/>
+                                                </ui:CsTableCell>
+                                                <ui:CsTableCell Grid.Column="3">
+                                                    <TextBlock Text="{Binding Input}"
+                                                               FontWeight="SemiBold"
+                                                               TextTrimming="CharacterEllipsis"/>
+                                                </ui:CsTableCell>
+                                                <ui:CsTableCell Grid.Column="4">
+                                                    <TextBlock Text="{Binding CachedInput}"
+                                                               Foreground="#C4B5FD"
+                                                               FontWeight="SemiBold"
+                                                               TextTrimming="CharacterEllipsis"/>
+                                                </ui:CsTableCell>
+                                                <ui:CsTableCell Grid.Column="5">
+                                                    <TextBlock Text="{Binding CacheCreationInput}"
+                                                               Foreground="#FCD34D"
+                                                               FontWeight="SemiBold"
+                                                               TextTrimming="CharacterEllipsis"/>
+                                                </ui:CsTableCell>
+                                                <ui:CsTableCell Grid.Column="6">
+                                                    <TextBlock Text="{Binding Output}"
+                                                               Foreground="#86EFAC"
+                                                               FontWeight="SemiBold"
+                                                               TextTrimming="CharacterEllipsis"/>
+                                                </ui:CsTableCell>
+                                                <ui:CsTableCell Grid.Column="7">
+                                                    <TextBlock Text="{Binding Cost}"
+                                                               FontWeight="SemiBold"
+                                                               TextTrimming="CharacterEllipsis"/>
+                                                </ui:CsTableCell>
+                                                <ui:CsTableCell Grid.Column="8">
+                                                    <TextBlock Text="{Binding Duration}"
+                                                               Foreground="{StaticResource CsMutedForegroundBrush}"
+                                                               TextTrimming="CharacterEllipsis"/>
+                                                </ui:CsTableCell>
+                                                <ui:CsTableCell Grid.Column="9">
+                                                    <Border Background="{Binding StatusBackground}"
+                                                            BorderBrush="{Binding StatusBorder}"
+                                                            BorderThickness="1"
+                                                            CornerRadius="6"
+                                                            Padding="7,3"
+                                                            HorizontalAlignment="Left">
+                                                        <TextBlock Text="{Binding Status}"
+                                                                   Foreground="{Binding StatusForeground}"
+                                                                   FontSize="12"
+                                                                   FontWeight="SemiBold"/>
+                                                    </Border>
+                                                </ui:CsTableCell>
+                                            </Grid>
+                                        </ui:CsTableRow>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </Grid>
+                    </ui:CsTable>
+                </ui:CsPanel>
+
+                <ui:CsPanel Grid.Row="1"
+                            Padding="0"
+                            IsVisible="{Binding IsUsageProvidersVisible}">
+                    <ui:CsTable>
+                        <Grid RowDefinitions="Auto,*">
+                            <ui:CsTableHeader>
+                                <Grid ColumnDefinitions="1.4*,1*,1*,1*,1*,1*" ColumnSpacing="10">
+                                    <ui:CsTableHead Content="{i18n:Tr usage.table.provider}"/>
+                                    <ui:CsTableHead Grid.Column="1" Content="{i18n:Tr usage.table.requests}"/>
+                                    <ui:CsTableHead Grid.Column="2" Content="{i18n:Tr usage.table.tokens}"/>
+                                    <ui:CsTableHead Grid.Column="3" Content="{i18n:Tr usage.table.cost}"/>
+                                    <ui:CsTableHead Grid.Column="4" Content="{i18n:Tr usage.table.successRate}"/>
+                                    <ui:CsTableHead Grid.Column="5" Content="{i18n:Tr usage.table.averageLatency}"/>
+                                </Grid>
+                            </ui:CsTableHeader>
+                            <ItemsControl Grid.Row="1" ItemsSource="{Binding ProviderUsageRows}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate x:DataType="vm:ProviderUsageItem">
+                                        <ui:CsTableRow>
+                                            <Grid ColumnDefinitions="1.4*,1*,1*,1*,1*,1*" ColumnSpacing="10">
+                                                <ui:CsTableCell Content="{Binding Provider}"/>
+                                                <ui:CsTableCell Grid.Column="1" Content="{Binding Requests}"/>
+                                                <ui:CsTableCell Grid.Column="2" Content="{Binding Tokens}"/>
+                                                <ui:CsTableCell Grid.Column="3" Content="{Binding Cost}"/>
+                                                <ui:CsTableCell Grid.Column="4" Content="{Binding SuccessRate}"/>
+                                                <ui:CsTableCell Grid.Column="5" Content="{Binding AverageLatency}"/>
+                                            </Grid>
+                                        </ui:CsTableRow>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </Grid>
+                    </ui:CsTable>
+                </ui:CsPanel>
+
+                <ui:CsPanel Grid.Row="1"
+                            Padding="0"
+                            IsVisible="{Binding IsUsageModelsVisible}">
+                    <ui:CsTable>
+                        <Grid RowDefinitions="Auto,*">
+                            <ui:CsTableHeader>
+                                <Grid ColumnDefinitions="1.5*,1*,1*,1*,1*" ColumnSpacing="10">
+                                    <ui:CsTableHead Content="{i18n:Tr usage.table.model}"/>
+                                    <ui:CsTableHead Grid.Column="1" Content="{i18n:Tr usage.table.requests}"/>
+                                    <ui:CsTableHead Grid.Column="2" Content="{i18n:Tr usage.table.tokens}"/>
+                                    <ui:CsTableHead Grid.Column="3" Content="{i18n:Tr usage.table.totalCost}"/>
+                                    <ui:CsTableHead Grid.Column="4" Content="{i18n:Tr usage.table.averageCost}"/>
+                                </Grid>
+                            </ui:CsTableHeader>
+                            <ItemsControl Grid.Row="1" ItemsSource="{Binding ModelUsageRows}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate x:DataType="vm:ModelUsageItem">
+                                        <ui:CsTableRow>
+                                            <Grid ColumnDefinitions="1.5*,1*,1*,1*,1*" ColumnSpacing="10">
+                                                <ui:CsTableCell Content="{Binding Model}"/>
+                                                <ui:CsTableCell Grid.Column="1" Content="{Binding Requests}"/>
+                                                <ui:CsTableCell Grid.Column="2" Content="{Binding Tokens}"/>
+                                                <ui:CsTableCell Grid.Column="3" Content="{Binding Cost}"/>
+                                                <ui:CsTableCell Grid.Column="4" Content="{Binding AverageCost}"/>
+                                            </Grid>
+                                        </ui:CsTableRow>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </Grid>
+                    </ui:CsTable>
+                </ui:CsPanel>
+            </Grid>
+        </Grid>
+    </ScrollViewer>
+</UserControl>

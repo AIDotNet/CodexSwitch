@@ -1,0 +1,47 @@
+<Styles xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:ui="using:CodexSwitch.Controls">
+    <Style Selector="ui|CsAppSwitcher">
+        <Setter Property="Height" Value="40"/>
+        <Setter Property="MinHeight" Value="40"/>
+        <Setter Property="MaxHeight" Value="40"/>
+        <Setter Property="Padding" Value="3"/>
+        <Setter Property="VerticalAlignment" Value="Center"/>
+        <Setter Property="Template">
+            <ControlTemplate>
+                <Border Background="{StaticResource CsSegmentedBrush}"
+                        BorderBrush="{StaticResource CsBorderBrush}"
+                        BorderThickness="1"
+                        CornerRadius="13"
+                        ClipToBounds="True"
+                        Padding="{TemplateBinding Padding}">
+                    <Grid x:Name="PART_SelectionLayer"
+                          ClipToBounds="True"
+                          VerticalAlignment="Center">
+                        <Border x:Name="PART_SelectedPill"
+                                HorizontalAlignment="Left"
+                                VerticalAlignment="Top"
+                                IsHitTestVisible="False"
+                                Opacity="0"
+                                Background="{StaticResource CsAppSwitcherPillBrush}"
+                                BorderBrush="Transparent"
+                                BorderThickness="0"
+                                CornerRadius="{StaticResource CsRadiusSm}">
+                            <Border.Transitions>
+                                <Transitions>
+                                    <DoubleTransition Property="Opacity" Duration="0:0:0.08"/>
+                                    <BrushTransition Property="BorderBrush" Duration="0:0:0.12"/>
+                                </Transitions>
+                            </Border.Transitions>
+                            <Border.RenderTransform>
+                                <TranslateTransform/>
+                            </Border.RenderTransform>
+                        </Border>
+                        <ContentPresenter Content="{TemplateBinding Content}"
+                                          VerticalAlignment="Center"/>
+                    </Grid>
+                </Border>
+            </ControlTemplate>
+        </Setter>
+    </Style>
+</Styles>

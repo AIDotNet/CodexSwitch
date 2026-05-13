@@ -1,0 +1,32 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:CodexSwitch.ViewModels"
+             xmlns:ui="using:CodexSwitch.Controls"
+             xmlns:i18n="using:CodexSwitch.I18n"
+             x:Class="CodexSwitch.Views.Dialogs.DeleteModelDialog"
+             x:DataType="vm:MainWindowViewModel">
+    <ui:CsDialog IsVisible="{Binding IsDeleteModelDialogOpen}">
+        <Border Classes="dialog-card"
+                Width="420"
+                MaxWidth="460"
+                HorizontalAlignment="Center"
+                VerticalAlignment="Center">
+            <StackPanel Spacing="14">
+                <ui:CsText Text="{i18n:Tr deleteModel.title}" Classes="title"/>
+                <ui:CsText Text="{i18n:Tr deleteModel.description}"
+                           Classes="muted"
+                           TextWrapping="Wrap"/>
+                <StackPanel Orientation="Horizontal"
+                            HorizontalAlignment="Right"
+                            Spacing="10">
+                    <ui:CsButton Classes="outline compact"
+                                 Command="{Binding CancelRemovePricingModelCommand}"
+                                 Content="{i18n:Tr common.cancel}"/>
+                    <ui:CsButton Classes="compact"
+                                 Command="{Binding ConfirmRemovePricingModelCommand}"
+                                 Content="{i18n:Tr common.delete}"/>
+                </StackPanel>
+            </StackPanel>
+        </Border>
+    </ui:CsDialog>
+</UserControl>

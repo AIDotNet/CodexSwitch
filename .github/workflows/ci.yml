@@ -1,0 +1,118 @@
+name: ci
+
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 10.0.203
+          cache: true
+          cache-dependency-path: |
+            global.json
+            Directory.Packages.props
+            CodexSwitch/CodexSwitch.csproj
+            CodexSwitch.Tests/CodexSwitch.Tests.csproj
+
+      - name: Validate changelog
+        shell: pwsh
+        run: ./build/Validate-Changelog.ps1
+
+      - name: Restore
+        run: dotnet restore CodexSwitch.Tests/CodexSwitch.Tests.csproj
+
+      - name: Build
+        run: dotnet build CodexSwitch.Tests/CodexSwitch.Tests.csproj -c Release --no-restore
+
+      - name: Test
+        run: dotnet test CodexSwitch.Tests/CodexSwitch.Tests.csproj -c Release --no-build --no-restore --verbosity normal
+
+  publish:
+    needs: verify
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: windows-latest
+            rid: win-x64
+          - runner: ubuntu-latest
+            rid: linux-x64
+          - runner: macos-13
+            rid: osx-x64
+          - runner: macos-14
+            rid: osx-arm64
+
+    runs-on: ${{ matrix.runner }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 10.0.203
+          cache: true
+          cache-dependency-path: |
+            global.json
+            Directory.Packages.props
+            CodexSwitch/CodexSwitch.csproj
+            CodexSwitch.Tests/CodexSwitch.Tests.csproj
+
+      - name: Read version
+        id: version
+        shell: pwsh
+        run: |
+          [xml]$props = Get-Content -LiteralPath "Directory.Build.props"
+          $version = $props.Project.PropertyGroup.Version
+          "value=$version" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+
+      - name: Publish ${{ matrix.rid }}
+        run: >
+          dotnet publish CodexSwitch/CodexSwitch.csproj
+          -c Release
+          -r ${{ matrix.rid }}
+          --self-contained true
+          -o artifacts/publish/${{ matrix.rid }}
+
+      - name: Package artifact
+        id: package
+        shell: pwsh
+        run: |
+          $version = "${{ steps.version.outputs.value }}"
+          $artifactName = "CodexSwitch-v$version-${{ matrix.rid }}"
+          $publishDirectory = Join-Path $PWD "artifacts/publish/${{ matrix.rid }}"
+          $packageDirectory = Join-Path $PWD "artifacts/package"
+
+          New-Item -ItemType Directory -Force -Path $packageDirectory | Out-Null
+
+          $zipPath = Join-Path $packageDirectory "$artifactName.zip"
+          if (Test-Path -LiteralPath $zipPath) {
+            Remove-Item -LiteralPath $zipPath -Force
+          }
+
+          Compress-Archive -Path (Join-Path $publishDirectory "*") -DestinationPath $zipPath
+
+          "name=$artifactName" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          "path=$zipPath" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.package.outputs.name }}
+          path: ${{ steps.package.outputs.path }}
+          if-no-files-found: error

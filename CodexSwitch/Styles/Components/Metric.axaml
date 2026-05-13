@@ -1,0 +1,38 @@
+<Styles xmlns="https://github.com/avaloniaui"
+        xmlns:ui="using:CodexSwitch.Controls">
+    <Style Selector="ui|CsMetric">
+        <Setter Property="Template">
+            <ControlTemplate>
+                <Border Name="MetricRoot"
+                        Background="{StaticResource CsMutedBrush}"
+                        BorderBrush="{StaticResource CsBorderBrush}"
+                        BorderThickness="1"
+                        CornerRadius="{StaticResource CsRadiusXl}"
+                        Padding="14">
+                    <Border.Transitions>
+                        <Transitions>
+                            <BrushTransition Property="Background" Duration="0:0:0.14"/>
+                            <BrushTransition Property="BorderBrush" Duration="0:0:0.14"/>
+                        </Transitions>
+                    </Border.Transitions>
+                    <StackPanel Spacing="5">
+                        <TextBlock Text="{TemplateBinding Label}"
+                                   Foreground="{StaticResource CsMutedForegroundBrush}"
+                                   FontSize="12"/>
+                        <TextBlock Text="{TemplateBinding Value}"
+                                   Foreground="{StaticResource CsForegroundBrush}"
+                                   FontSize="24"
+                                   FontWeight="SemiBold"/>
+                        <TextBlock Text="{TemplateBinding Detail}"
+                                   Foreground="{StaticResource CsMutedForegroundBrush}"
+                                   FontSize="11"/>
+                    </StackPanel>
+                </Border>
+            </ControlTemplate>
+        </Setter>
+    </Style>
+    <Style Selector="ui|CsMetric:pointerover /template/ Border#MetricRoot">
+        <Setter Property="Background" Value="{StaticResource CsSubtleButtonHoverBrush}"/>
+        <Setter Property="BorderBrush" Value="{StaticResource CsHoverBorderBrush}"/>
+    </Style>
+</Styles>

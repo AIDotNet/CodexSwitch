@@ -1,0 +1,29 @@
+<Styles xmlns="https://github.com/avaloniaui"
+        xmlns:ui="using:CodexSwitch.Controls">
+    <Style Selector="ui|CsKbd">
+        <Setter Property="Padding" Value="5,1"/>
+        <Setter Property="Template">
+            <ControlTemplate>
+                <Border Name="KbdRoot"
+                        Background="{StaticResource CsMutedBrush}"
+                        BorderBrush="{StaticResource CsBorderBrush}"
+                        BorderThickness="1"
+                        CornerRadius="{StaticResource CsRadiusSm}"
+                        Padding="{TemplateBinding Padding}">
+                    <Border.Transitions>
+                        <Transitions>
+                            <BrushTransition Property="Background" Duration="0:0:0.12"/>
+                            <BrushTransition Property="BorderBrush" Duration="0:0:0.12"/>
+                        </Transitions>
+                    </Border.Transitions>
+                    <ContentPresenter Content="{TemplateBinding Content}"
+                                      HorizontalAlignment="Center"
+                                      VerticalAlignment="Center"/>
+                </Border>
+            </ControlTemplate>
+        </Setter>
+    </Style>
+    <Style Selector="ui|CsKbd:pointerover /template/ Border#KbdRoot">
+        <Setter Property="Background" Value="{StaticResource CsSubtleButtonHoverBrush}"/>
+    </Style>
+</Styles>

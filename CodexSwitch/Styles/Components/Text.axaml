@@ -1,0 +1,53 @@
+<Styles xmlns="https://github.com/avaloniaui"
+        xmlns:ui="using:CodexSwitch.Controls">
+    <Style Selector="ui|CsText">
+        <Setter Property="Foreground" Value="{StaticResource CsForegroundBrush}"/>
+        <Setter Property="FontSize" Value="13"/>
+        <Setter Property="LineHeight" Value="18"/>
+        <Setter Property="TextWrapping" Value="NoWrap"/>
+    </Style>
+    <Style Selector="ui|CsText.title">
+        <Setter Property="FontSize" Value="18"/>
+        <Setter Property="FontWeight" Value="SemiBold"/>
+        <Setter Property="LineHeight" Value="24"/>
+    </Style>
+    <Style Selector="ui|CsText.heading">
+        <Setter Property="FontSize" Value="15"/>
+        <Setter Property="FontWeight" Value="SemiBold"/>
+        <Setter Property="LineHeight" Value="22"/>
+    </Style>
+    <Style Selector="ui|CsText.label">
+        <Setter Property="Foreground" Value="{StaticResource CsForegroundBrush}"/>
+        <Setter Property="FontSize" Value="12"/>
+        <Setter Property="FontWeight" Value="SemiBold"/>
+        <Setter Property="LineHeight" Value="16"/>
+    </Style>
+    <Style Selector="ui|CsText.muted">
+        <Setter Property="Foreground" Value="{StaticResource CsMutedForegroundBrush}"/>
+        <Setter Property="FontSize" Value="12"/>
+        <Setter Property="LineHeight" Value="16"/>
+    </Style>
+    <Style Selector="ui|CsText.metric">
+        <Setter Property="FontSize" Value="28"/>
+        <Setter Property="FontWeight" Value="SemiBold"/>
+        <Setter Property="LineHeight" Value="34"/>
+    </Style>
+    <Style Selector="ui|CsText.stat-value">
+        <Setter Property="FontSize" Value="25"/>
+        <Setter Property="FontWeight" Value="SemiBold"/>
+        <Setter Property="LineHeight" Value="32"/>
+        <Setter Property="Foreground" Value="{StaticResource CsForegroundBrush}"/>
+    </Style>
+
+    <Style Selector="ui|CsLabel">
+        <Setter Property="Foreground" Value="{StaticResource CsForegroundBrush}"/>
+        <Setter Property="FontSize" Value="14"/>
+        <Setter Property="FontWeight" Value="Medium"/>
+        <Setter Property="LineHeight" Value="18"/>
+        <Setter Property="Transitions">
+            <Transitions>
+                <BrushTransition Property="Foreground" Duration="0:0:0.12"/>
+            </Transitions>
+        </Setter>
+    </Style>
+</Styles>

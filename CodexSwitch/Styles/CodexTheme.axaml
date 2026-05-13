@@ -1,0 +1,112 @@
+<Styles xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <Styles.Resources>
+        <CornerRadius x:Key="CsRadiusSm">6</CornerRadius>
+        <CornerRadius x:Key="CsRadiusMd">8</CornerRadius>
+        <CornerRadius x:Key="CsRadiusLg">10</CornerRadius>
+        <CornerRadius x:Key="CsRadiusXl">14</CornerRadius>
+        <Thickness x:Key="CsFocusThickness">3</Thickness>
+
+        <SolidColorBrush x:Key="CsBackgroundBrush" Color="#171717"/>
+        <SolidColorBrush x:Key="CsForegroundBrush" Color="#FAFAFA"/>
+        <SolidColorBrush x:Key="CsCardBrush" Color="#262626"/>
+        <SolidColorBrush x:Key="CsCardForegroundBrush" Color="#FAFAFA"/>
+        <SolidColorBrush x:Key="CsPopoverBrush" Color="#262626"/>
+        <SolidColorBrush x:Key="CsPopoverForegroundBrush" Color="#FAFAFA"/>
+        <SolidColorBrush x:Key="CsPrimaryBrush" Color="#E5E5E5"/>
+        <SolidColorBrush x:Key="CsPrimaryForegroundBrush" Color="#262626"/>
+        <SolidColorBrush x:Key="CsSecondaryBrush" Color="#404040"/>
+        <SolidColorBrush x:Key="CsSecondaryForegroundBrush" Color="#FAFAFA"/>
+        <SolidColorBrush x:Key="CsMutedBrush" Color="#404040"/>
+        <SolidColorBrush x:Key="CsMutedForegroundBrush" Color="#A3A3A3"/>
+        <SolidColorBrush x:Key="CsAccentBrush" Color="#404040"/>
+        <SolidColorBrush x:Key="CsAccentForegroundBrush" Color="#FAFAFA"/>
+        <SolidColorBrush x:Key="CsDestructiveBrush" Color="#FF6467"/>
+        <SolidColorBrush x:Key="CsDestructiveForegroundBrush" Color="#FAFAFA"/>
+        <SolidColorBrush x:Key="CsBorderBrush" Color="#1AFFFFFF"/>
+        <SolidColorBrush x:Key="CsAlertBorderBrush" Color="#FF6467"/>
+        <SolidColorBrush x:Key="CsInputBrush" Color="#26FFFFFF"/>
+        <SolidColorBrush x:Key="CsRingBrush" Color="#8E8E8E"/>
+        <SolidColorBrush x:Key="CsSidebarBrush" Color="#262626"/>
+        <SolidColorBrush x:Key="CsSidebarForegroundBrush" Color="#FAFAFA"/>
+        <SolidColorBrush x:Key="CsSidebarPrimaryBrush" Color="#5277FF"/>
+        <SolidColorBrush x:Key="CsSidebarPrimaryForegroundBrush" Color="#FAFAFA"/>
+        <SolidColorBrush x:Key="CsSidebarAccentBrush" Color="#404040"/>
+        <SolidColorBrush x:Key="CsSidebarAccentForegroundBrush" Color="#FAFAFA"/>
+        <SolidColorBrush x:Key="CsSidebarBorderBrush" Color="#1AFFFFFF"/>
+        <SolidColorBrush x:Key="CsSidebarRingBrush" Color="#8E8E8E"/>
+        <SolidColorBrush x:Key="CsSuccessBrush" Color="#36D399"/>
+        <SolidColorBrush x:Key="CsWarningBrush" Color="#FACC15"/>
+        <SolidColorBrush x:Key="CsHoverBorderBrush" Color="#33FFFFFF"/>
+        <SolidColorBrush x:Key="CsSubtleButtonBrush" Color="#26FFFFFF"/>
+        <SolidColorBrush x:Key="CsSubtleButtonHoverBrush" Color="#404040"/>
+        <SolidColorBrush x:Key="CsPressedBrush" Color="#242424"/>
+        <SolidColorBrush x:Key="CsActiveButtonBrush" Color="#171717"/>
+        <SolidColorBrush x:Key="CsSegmentedBrush" Color="#303030"/>
+        <SolidColorBrush x:Key="CsSegmentedPillBrush" Color="#171717"/>
+        <SolidColorBrush x:Key="CsSegmentedPillBorderBrush" Color="#34FFFFFF"/>
+        <SolidColorBrush x:Key="CsAppSwitcherPillBrush" Color="#123A5D"/>
+        <SolidColorBrush x:Key="CsInputBackgroundBrush" Color="#4D404040"/>
+        <SolidColorBrush x:Key="CsInputFocusBackgroundBrush" Color="#66404040"/>
+        <SolidColorBrush x:Key="CsProviderCardHoverBrush" Color="#2B2B2D"/>
+        <SolidColorBrush x:Key="CsProviderCardActiveBrush" Color="#142235"/>
+        <SolidColorBrush x:Key="CsProviderCardActiveHoverBrush" Color="#172B45"/>
+        <SolidColorBrush x:Key="CsProviderCardActivePressedBrush" Color="#102033"/>
+        <SolidColorBrush x:Key="CsDialogCardBrush" Color="#F01A202C"/>
+        <SolidColorBrush x:Key="CsDialogSectionBrush" Color="#13182025"/>
+        <SolidColorBrush x:Key="CsDialogSectionHoverBrush" Color="#181E28"/>
+        <SolidColorBrush x:Key="CsRouteRowBrush" Color="#10161E"/>
+        <SolidColorBrush x:Key="CsRouteRowHoverBrush" Color="#151C26"/>
+        <SolidColorBrush x:Key="CsModelCardBrush" Color="#1F242D"/>
+        <SolidColorBrush x:Key="CsModelCardHoverBrush" Color="#252B36"/>
+        <SolidColorBrush x:Key="CsPriceChipBrush" Color="#17FFFFFF"/>
+        <SolidColorBrush x:Key="CsPriceChipHoverBrush" Color="#22FFFFFF"/>
+        <SolidColorBrush x:Key="CsIconButtonDangerBrush" Color="#2C1517"/>
+        <SolidColorBrush x:Key="CsIconButtonDangerBorderBrush" Color="#6B2429"/>
+        <SolidColorBrush x:Key="CsIconButtonDangerHoverBrush" Color="#3A171A"/>
+        <SolidColorBrush x:Key="CsIconButtonDangerHoverBorderBrush" Color="#B23A42"/>
+    </Styles.Resources>
+
+    <Style Selector="Window">
+        <Setter Property="FontFamily" Value="Inter, Segoe UI, Microsoft YaHei UI"/>
+        <Setter Property="Background" Value="{StaticResource CsBackgroundBrush}"/>
+    </Style>
+
+    <Style Selector="Border.app-shell">
+        <Setter Property="BorderBrush" Value="{StaticResource CsBorderBrush}"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="Background" Value="{StaticResource CsBackgroundBrush}"/>
+        <Setter Property="Transitions">
+            <Transitions>
+                <BrushTransition Property="BorderBrush" Duration="0:0:0.18"/>
+            </Transitions>
+        </Setter>
+    </Style>
+    <Style Selector="Border.app-shell.alert">
+        <Setter Property="BorderBrush" Value="{StaticResource CsAlertBorderBrush}"/>
+    </Style>
+
+    <StyleInclude Source="avares://CodexSwitch/Styles/Components/Text.axaml"/>
+    <StyleInclude Source="avares://CodexSwitch/Styles/Components/Button.axaml"/>
+    <StyleInclude Source="avares://CodexSwitch/Styles/Components/IconButton.axaml"/>
+    <StyleInclude Source="avares://CodexSwitch/Styles/Components/Input.axaml"/>
+    <StyleInclude Source="avares://CodexSwitch/Styles/Components/Panel.axaml"/>
+    <StyleInclude Source="avares://CodexSwitch/Styles/Components/AppSwitcher.axaml"/>
+    <StyleInclude Source="avares://CodexSwitch/Styles/Components/SegmentedControl.axaml"/>
+    <StyleInclude Source="avares://CodexSwitch/Styles/Components/Dialog.axaml"/>
+    <StyleInclude Source="avares://CodexSwitch/Styles/Components/ProviderCard.axaml"/>
+    <StyleInclude Source="avares://CodexSwitch/Styles/Components/ModelCatalog.axaml"/>
+    <StyleInclude Source="avares://CodexSwitch/Styles/Components/StatsCard.axaml"/>
+    <StyleInclude Source="avares://CodexSwitch/Styles/Components/UsageTrendChart.axaml"/>
+    <StyleInclude Source="avares://CodexSwitch/Styles/Components/Card.axaml"/>
+    <StyleInclude Source="avares://CodexSwitch/Styles/Components/Badge.axaml"/>
+    <StyleInclude Source="avares://CodexSwitch/Styles/Components/Field.axaml"/>
+    <StyleInclude Source="avares://CodexSwitch/Styles/Components/Section.axaml"/>
+    <StyleInclude Source="avares://CodexSwitch/Styles/Components/Metric.axaml"/>
+    <StyleInclude Source="avares://CodexSwitch/Styles/Components/Separator.axaml"/>
+    <StyleInclude Source="avares://CodexSwitch/Styles/Components/Tabs.axaml"/>
+    <StyleInclude Source="avares://CodexSwitch/Styles/Components/Table.axaml"/>
+    <StyleInclude Source="avares://CodexSwitch/Styles/Components/Kbd.axaml"/>
+    <StyleInclude Source="avares://CodexSwitch/Styles/Components/ScrollArea.axaml"/>
+    <StyleInclude Source="avares://CodexSwitch/Styles/Components/ContextMenu.axaml"/>
+</Styles>

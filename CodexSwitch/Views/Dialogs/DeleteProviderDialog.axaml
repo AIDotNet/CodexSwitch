@@ -1,0 +1,52 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:CodexSwitch.ViewModels"
+             xmlns:ui="using:CodexSwitch.Controls"
+             xmlns:i18n="using:CodexSwitch.I18n"
+             xmlns:lucide="using:Lucide.Avalonia"
+             x:Class="CodexSwitch.Views.Dialogs.DeleteProviderDialog"
+             x:DataType="vm:MainWindowViewModel">
+    <ui:CsDialog IsVisible="{Binding IsDeleteProviderDialogOpen}">
+        <Border Classes="dialog-card"
+                Width="420"
+                HorizontalAlignment="Center"
+                VerticalAlignment="Center">
+            <StackPanel Spacing="16">
+                <StackPanel Orientation="Horizontal" Spacing="10">
+                    <Border Width="34"
+                            Height="34"
+                            CornerRadius="10"
+                            Background="#2C1517"
+                            BorderBrush="#6B2429"
+                            BorderThickness="1">
+                        <lucide:LucideIcon Kind="Trash2"
+                                           Size="17"
+                                           StrokeWidth="2"
+                                           Foreground="{StaticResource CsDestructiveBrush}"
+                                           HorizontalAlignment="Center"
+                                           VerticalAlignment="Center"/>
+                    </Border>
+                    <StackPanel Spacing="4">
+                        <ui:CsText Text="{i18n:Tr deleteProvider.title}" Classes="title"/>
+                        <ui:CsText Text="{Binding ProviderPendingDeleteName}" Classes="muted"/>
+                    </StackPanel>
+                </StackPanel>
+
+                <ui:CsText Text="{i18n:Tr deleteProvider.description}"
+                           TextWrapping="Wrap"
+                           Classes="muted"/>
+
+                <StackPanel Orientation="Horizontal"
+                            HorizontalAlignment="Right"
+                            Spacing="10">
+                    <ui:CsButton Classes="outline compact"
+                                 Command="{Binding CancelRemoveProviderCommand}"
+                                 Content="{i18n:Tr common.cancel}"/>
+                    <ui:CsButton Classes="compact danger"
+                                 Command="{Binding ConfirmRemoveProviderCommand}"
+                                 Content="{i18n:Tr common.delete}"/>
+                </StackPanel>
+            </StackPanel>
+        </Border>
+    </ui:CsDialog>
+</UserControl>

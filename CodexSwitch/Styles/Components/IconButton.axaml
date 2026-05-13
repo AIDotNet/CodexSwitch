@@ -1,0 +1,63 @@
+<Styles xmlns="https://github.com/avaloniaui"
+        xmlns:ui="using:CodexSwitch.Controls">
+    <Style Selector="ui|CsIconButton">
+        <Setter Property="Width" Value="36"/>
+        <Setter Property="Height" Value="36"/>
+        <Setter Property="MinHeight" Value="36"/>
+        <Setter Property="Padding" Value="0"/>
+        <Setter Property="Background" Value="{StaticResource CsSubtleButtonBrush}"/>
+        <Setter Property="Foreground" Value="{StaticResource CsForegroundBrush}"/>
+        <Setter Property="BorderBrush" Value="{StaticResource CsInputBrush}"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="HorizontalContentAlignment" Value="Center"/>
+        <Setter Property="VerticalContentAlignment" Value="Center"/>
+        <Setter Property="Transitions">
+            <Transitions>
+                <BrushTransition Property="Background" Duration="0:0:0.12"/>
+                <BrushTransition Property="BorderBrush" Duration="0:0:0.12"/>
+                <DoubleTransition Property="Opacity" Duration="0:0:0.10"/>
+            </Transitions>
+        </Setter>
+        <Setter Property="Template">
+            <ControlTemplate>
+                <Border CornerRadius="{StaticResource CsRadiusMd}"
+                        Background="{TemplateBinding Background}"
+                        BorderBrush="{TemplateBinding BorderBrush}"
+                        BorderThickness="{TemplateBinding BorderThickness}">
+                    <ContentPresenter Content="{TemplateBinding Content}"
+                                      HorizontalAlignment="Center"
+                                      VerticalAlignment="Center"/>
+                </Border>
+            </ControlTemplate>
+        </Setter>
+    </Style>
+    <Style Selector="ui|CsIconButton:pointerover">
+        <Setter Property="Background" Value="{StaticResource CsAccentBrush}"/>
+        <Setter Property="BorderBrush" Value="{StaticResource CsRingBrush}"/>
+    </Style>
+    <Style Selector="ui|CsIconButton:pressed">
+        <Setter Property="Background" Value="{StaticResource CsPressedBrush}"/>
+        <Setter Property="BorderBrush" Value="{StaticResource CsRingBrush}"/>
+    </Style>
+    <Style Selector="ui|CsIconButton.primary">
+        <Setter Property="Background" Value="#0A84FF"/>
+        <Setter Property="BorderBrush" Value="#0A84FF"/>
+    </Style>
+    <Style Selector="ui|CsIconButton.primary:pointerover">
+        <Setter Property="Background" Value="#1677D8"/>
+        <Setter Property="BorderBrush" Value="#1677D8"/>
+    </Style>
+    <Style Selector="ui|CsIconButton.primary:pressed">
+        <Setter Property="Background" Value="#0B63CE"/>
+        <Setter Property="BorderBrush" Value="#0B63CE"/>
+    </Style>
+    <Style Selector="ui|CsIconButton.danger">
+        <Setter Property="Background" Value="{StaticResource CsIconButtonDangerBrush}"/>
+        <Setter Property="BorderBrush" Value="{StaticResource CsIconButtonDangerBorderBrush}"/>
+        <Setter Property="Foreground" Value="{StaticResource CsDestructiveBrush}"/>
+    </Style>
+    <Style Selector="ui|CsIconButton.danger:pointerover">
+        <Setter Property="Background" Value="{StaticResource CsIconButtonDangerHoverBrush}"/>
+        <Setter Property="BorderBrush" Value="{StaticResource CsIconButtonDangerHoverBorderBrush}"/>
+    </Style>
+</Styles>

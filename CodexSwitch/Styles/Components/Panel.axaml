@@ -1,0 +1,88 @@
+<Styles xmlns="https://github.com/avaloniaui"
+        xmlns:ui="using:CodexSwitch.Controls">
+    <Style Selector="ui|CsPanel">
+        <Setter Property="Padding" Value="18"/>
+        <Setter Property="Template">
+            <ControlTemplate>
+                <Border Name="PanelRoot"
+                        Background="{StaticResource CsCardBrush}"
+                        BorderBrush="{StaticResource CsBorderBrush}"
+                        BorderThickness="1"
+                        CornerRadius="{StaticResource CsRadiusXl}"
+                        Padding="{TemplateBinding Padding}">
+                    <Border.Transitions>
+                        <Transitions>
+                            <BrushTransition Property="Background" Duration="0:0:0.14"/>
+                            <BrushTransition Property="BorderBrush" Duration="0:0:0.14"/>
+                        </Transitions>
+                    </Border.Transitions>
+                    <ContentPresenter Content="{TemplateBinding Content}"/>
+                </Border>
+            </ControlTemplate>
+        </Setter>
+    </Style>
+    <Style Selector="ui|CsPanel:pointerover /template/ Border#PanelRoot">
+        <Setter Property="BorderBrush" Value="{StaticResource CsHoverBorderBrush}"/>
+    </Style>
+
+    <Style Selector="ui|CsPanel.inset">
+        <Setter Property="Template">
+            <ControlTemplate>
+                <Border Name="PanelRoot"
+                        Background="{StaticResource CsMutedBrush}"
+                        BorderBrush="{StaticResource CsBorderBrush}"
+                        BorderThickness="1"
+                        CornerRadius="{StaticResource CsRadiusXl}"
+                        Padding="{TemplateBinding Padding}">
+                    <Border.Transitions>
+                        <Transitions>
+                            <BrushTransition Property="Background" Duration="0:0:0.14"/>
+                            <BrushTransition Property="BorderBrush" Duration="0:0:0.14"/>
+                        </Transitions>
+                    </Border.Transitions>
+                    <ContentPresenter Content="{TemplateBinding Content}"/>
+                </Border>
+            </ControlTemplate>
+        </Setter>
+    </Style>
+    <Style Selector="ui|CsPanel.flat">
+        <Setter Property="Template">
+            <ControlTemplate>
+                <Border Name="PanelRoot"
+                        Background="Transparent"
+                        BorderBrush="{StaticResource CsSidebarBorderBrush}"
+                        BorderThickness="0,0,0,1"
+                        Padding="{TemplateBinding Padding}">
+                    <Border.Transitions>
+                        <Transitions>
+                            <BrushTransition Property="Background" Duration="0:0:0.14"/>
+                            <BrushTransition Property="BorderBrush" Duration="0:0:0.14"/>
+                        </Transitions>
+                    </Border.Transitions>
+                    <ContentPresenter Content="{TemplateBinding Content}"/>
+                </Border>
+            </ControlTemplate>
+        </Setter>
+    </Style>
+    <Style Selector="ui|CsPanel.flat:pointerover /template/ Border#PanelRoot">
+        <Setter Property="Background" Value="{StaticResource CsAccentBrush}"/>
+    </Style>
+
+    <Style Selector="ui|CsSidebar">
+        <Setter Property="Template">
+            <ControlTemplate>
+                <Border Name="SidebarRoot"
+                        Background="{StaticResource CsSidebarBrush}"
+                        BorderBrush="{StaticResource CsBorderBrush}"
+                        BorderThickness="0,0,1,0">
+                    <Border.Transitions>
+                        <Transitions>
+                            <BrushTransition Property="Background" Duration="0:0:0.16"/>
+                        </Transitions>
+                    </Border.Transitions>
+                    <ContentPresenter Content="{TemplateBinding Content}"/>
+                </Border>
+            </ControlTemplate>
+        </Setter>
+    </Style>
+</Styles>

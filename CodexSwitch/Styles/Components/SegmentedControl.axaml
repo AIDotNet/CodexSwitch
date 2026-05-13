@@ -1,0 +1,110 @@
+<Styles xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:ui="using:CodexSwitch.Controls">
+    <Style Selector="ui|CsSegmentedControl">
+        <Setter Property="Height" Value="42"/>
+        <Setter Property="MinHeight" Value="42"/>
+        <Setter Property="MaxHeight" Value="42"/>
+        <Setter Property="Padding" Value="3"/>
+        <Setter Property="VerticalAlignment" Value="Top"/>
+        <Setter Property="Template">
+            <ControlTemplate>
+                <Border Background="{StaticResource CsSegmentedBrush}"
+                        BorderBrush="{StaticResource CsBorderBrush}"
+                        BorderThickness="1"
+                        CornerRadius="{StaticResource CsRadiusMd}"
+                        ClipToBounds="True"
+                        Padding="{TemplateBinding Padding}">
+                    <Border.Transitions>
+                        <Transitions>
+                            <BrushTransition Property="Background" Duration="0:0:0.14"/>
+                            <BrushTransition Property="BorderBrush" Duration="0:0:0.14"/>
+                        </Transitions>
+                    </Border.Transitions>
+                    <Grid x:Name="PART_SelectionLayer"
+                          ClipToBounds="True"
+                          VerticalAlignment="Center">
+                        <Border x:Name="PART_SelectedPill"
+                                HorizontalAlignment="Left"
+                                VerticalAlignment="Top"
+                                IsHitTestVisible="False"
+                                Opacity="0"
+                                Background="{StaticResource CsSegmentedPillBrush}"
+                                BorderBrush="{StaticResource CsSegmentedPillBorderBrush}"
+                                BorderThickness="1"
+                                CornerRadius="{StaticResource CsRadiusSm}">
+                            <Border.Transitions>
+                                <Transitions>
+                                    <DoubleTransition Property="Opacity" Duration="0:0:0.08"/>
+                                    <BrushTransition Property="BorderBrush" Duration="0:0:0.12"/>
+                                </Transitions>
+                            </Border.Transitions>
+                            <Border.RenderTransform>
+                                <TranslateTransform/>
+                            </Border.RenderTransform>
+                        </Border>
+                        <ContentPresenter Content="{TemplateBinding Content}"
+                                          VerticalAlignment="Center"/>
+                    </Grid>
+                </Border>
+            </ControlTemplate>
+        </Setter>
+    </Style>
+    <Style Selector="ui|CsSegmentedButton">
+        <Setter Property="Height" Value="34"/>
+        <Setter Property="MinHeight" Value="34"/>
+        <Setter Property="MaxHeight" Value="34"/>
+        <Setter Property="Padding" Value="12,7"/>
+        <Setter Property="FontSize" Value="13"/>
+        <Setter Property="FontWeight" Value="SemiBold"/>
+        <Setter Property="Background" Value="Transparent"/>
+        <Setter Property="Foreground" Value="{StaticResource CsMutedForegroundBrush}"/>
+        <Setter Property="BorderBrush" Value="Transparent"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="HorizontalContentAlignment" Value="Center"/>
+        <Setter Property="VerticalContentAlignment" Value="Center"/>
+        <Setter Property="VerticalAlignment" Value="Center"/>
+        <Setter Property="Transitions">
+            <Transitions>
+                <BrushTransition Property="Background" Duration="0:0:0.10"/>
+                <BrushTransition Property="BorderBrush" Duration="0:0:0.10"/>
+                <BrushTransition Property="Foreground" Duration="0:0:0.10"/>
+            </Transitions>
+        </Setter>
+        <Setter Property="Template">
+            <ControlTemplate>
+                <Border CornerRadius="{StaticResource CsRadiusSm}"
+                        Background="{TemplateBinding Background}"
+                        BorderBrush="{TemplateBinding BorderBrush}"
+                        BorderThickness="{TemplateBinding BorderThickness}">
+                    <ContentPresenter Margin="{TemplateBinding Padding}"
+                                      Content="{TemplateBinding Content}"
+                                      HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                      VerticalAlignment="{TemplateBinding VerticalContentAlignment}"/>
+                </Border>
+            </ControlTemplate>
+        </Setter>
+    </Style>
+    <Style Selector="ui|CsSegmentedButton:pointerover">
+        <Setter Property="Background" Value="Transparent"/>
+        <Setter Property="Foreground" Value="{StaticResource CsForegroundBrush}"/>
+        <Setter Property="BorderBrush" Value="Transparent"/>
+    </Style>
+    <Style Selector="ui|CsSegmentedButton:pressed">
+        <Setter Property="Background" Value="Transparent"/>
+        <Setter Property="Foreground" Value="{StaticResource CsForegroundBrush}"/>
+    </Style>
+    <Style Selector="ui|CsSegmentedButton:selected">
+        <Setter Property="Background" Value="Transparent"/>
+        <Setter Property="Foreground" Value="{StaticResource CsForegroundBrush}"/>
+        <Setter Property="BorderBrush" Value="Transparent"/>
+    </Style>
+    <Style Selector="ui|CsSegmentedButton:selected:pointerover">
+        <Setter Property="Background" Value="Transparent"/>
+        <Setter Property="Foreground" Value="{StaticResource CsForegroundBrush}"/>
+        <Setter Property="BorderBrush" Value="Transparent"/>
+    </Style>
+    <Style Selector="ui|CsSegmentedButton:focus">
+        <Setter Property="BorderBrush" Value="Transparent"/>
+    </Style>
+</Styles>

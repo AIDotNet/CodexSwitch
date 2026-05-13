@@ -1,0 +1,22 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:CodexSwitch.ViewModels"
+             xmlns:ui="using:CodexSwitch.Controls"
+             xmlns:i18n="using:CodexSwitch.I18n"
+             x:Class="CodexSwitch.Views.Pages.ClaudePage"
+             x:DataType="vm:MainWindowViewModel">
+    <Grid Margin="24">
+        <ui:CsPanel Padding="28" VerticalAlignment="Top">
+            <StackPanel Spacing="12">
+                <ui:CsText Text="{i18n:Tr claude.title}" Classes="title"/>
+                <ui:CsText Text="{i18n:Tr claude.description}"
+                           Classes="muted"
+                           TextWrapping="Wrap"/>
+                <ui:CsButton Classes="outline compact"
+                             Command="{Binding ShowProvidersCommand}"
+                             HorizontalAlignment="Left"
+                             Content="{i18n:Tr claude.backToProviders}"/>
+            </StackPanel>
+        </ui:CsPanel>
+    </Grid>
+</UserControl>

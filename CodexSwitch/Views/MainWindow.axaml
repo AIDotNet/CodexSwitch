@@ -1,0 +1,46 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:CodexSwitch.ViewModels"
+        xmlns:shell="using:CodexSwitch.Views.Shell"
+        xmlns:pages="using:CodexSwitch.Views.Pages"
+        xmlns:dialogs="using:CodexSwitch.Views.Dialogs"
+        xmlns:i18n="using:CodexSwitch.I18n"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        mc:Ignorable="d"
+        d:DesignWidth="980"
+        d:DesignHeight="680"
+        Width="980"
+        Height="680"
+        MinWidth="860"
+        MinHeight="560"
+        x:Class="CodexSwitch.Views.MainWindow"
+        x:DataType="vm:MainWindowViewModel"
+        Icon="/Assets/avalonia-logo.ico"
+        Title="{i18n:Tr app.name}">
+
+    <Design.DataContext>
+        <vm:MainWindowViewModel/>
+    </Design.DataContext>
+
+    <Border Classes="app-shell"
+            Classes.alert="{Binding IsProxyAlert}">
+        <Grid RowDefinitions="64,*">
+            <shell:TopBar/>
+
+            <Grid Grid.Row="1">
+                <pages:ProvidersPage IsVisible="{Binding IsProvidersPageVisible}"/>
+                <pages:AddProviderPage IsVisible="{Binding IsAddProviderPageVisible}"/>
+                <pages:UsagePage IsVisible="{Binding IsUsagePageVisible}"/>
+                <pages:ModelsPage IsVisible="{Binding IsModelsPageVisible}"/>
+                <pages:SettingsPage IsVisible="{Binding IsSettingsPageVisible}"/>
+                <pages:ClaudePage IsVisible="{Binding IsClaudePageVisible}"/>
+            </Grid>
+
+            <dialogs:ProviderEditorDialog Grid.RowSpan="2"/>
+            <dialogs:ModelEditorDialog Grid.RowSpan="2"/>
+            <dialogs:DeleteModelDialog Grid.RowSpan="2"/>
+            <dialogs:DeleteProviderDialog Grid.RowSpan="2"/>
+        </Grid>
+    </Border>
+</Window>

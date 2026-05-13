@@ -1,0 +1,81 @@
+<Styles xmlns="https://github.com/avaloniaui"
+        xmlns:ui="using:CodexSwitch.Controls">
+    <Style Selector="ui|CsTable">
+        <Setter Property="Template">
+            <ControlTemplate>
+                <ContentPresenter Content="{TemplateBinding Content}"/>
+            </ControlTemplate>
+        </Setter>
+    </Style>
+
+    <Style Selector="ui|CsTableHeader">
+        <Setter Property="Template">
+            <ControlTemplate>
+                <Border Name="TableHeaderRoot"
+                        Background="#0FFFFFFF"
+                        BorderBrush="{StaticResource CsBorderBrush}"
+                        BorderThickness="0,0,0,1"
+                        MinHeight="34">
+                    <Border.Transitions>
+                        <Transitions>
+                            <BrushTransition Property="Background" Duration="0:0:0.12"/>
+                            <BrushTransition Property="BorderBrush" Duration="0:0:0.12"/>
+                        </Transitions>
+                    </Border.Transitions>
+                    <ContentPresenter Content="{TemplateBinding Content}"/>
+                </Border>
+            </ControlTemplate>
+        </Setter>
+    </Style>
+
+    <Style Selector="ui|CsTableRow">
+        <Setter Property="Template">
+            <ControlTemplate>
+                <Border Name="TableRowRoot"
+                        Background="Transparent"
+                        BorderBrush="{StaticResource CsBorderBrush}"
+                        BorderThickness="0,0,0,1"
+                        MinHeight="46">
+                    <Border.Transitions>
+                        <Transitions>
+                            <BrushTransition Property="Background" Duration="0:0:0.12"/>
+                            <BrushTransition Property="BorderBrush" Duration="0:0:0.12"/>
+                        </Transitions>
+                    </Border.Transitions>
+                    <ContentPresenter Content="{TemplateBinding Content}"
+                                      VerticalAlignment="Center"/>
+                </Border>
+            </ControlTemplate>
+        </Setter>
+    </Style>
+    <Style Selector="ui|CsTableRow:pointerover /template/ Border#TableRowRoot">
+        <Setter Property="Background" Value="#12FFFFFF"/>
+        <Setter Property="BorderBrush" Value="#24FFFFFF"/>
+    </Style>
+
+    <Style Selector="ui|CsTableHead">
+        <Setter Property="Padding" Value="12,0"/>
+        <Setter Property="FontSize" Value="12"/>
+        <Setter Property="FontWeight" Value="SemiBold"/>
+        <Setter Property="Template">
+            <ControlTemplate>
+                <ContentPresenter Margin="{TemplateBinding Padding}"
+                                  Content="{TemplateBinding Content}"
+                                  Foreground="{StaticResource CsMutedForegroundBrush}"
+                                  VerticalAlignment="Center"/>
+            </ControlTemplate>
+        </Setter>
+    </Style>
+
+    <Style Selector="ui|CsTableCell">
+        <Setter Property="Padding" Value="12,0"/>
+        <Setter Property="FontSize" Value="13"/>
+        <Setter Property="Template">
+            <ControlTemplate>
+                <ContentPresenter Margin="{TemplateBinding Padding}"
+                                  Content="{TemplateBinding Content}"
+                                  VerticalAlignment="Center"/>
+            </ControlTemplate>
+        </Setter>
+    </Style>
+</Styles>
