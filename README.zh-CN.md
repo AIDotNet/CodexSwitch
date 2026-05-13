@@ -80,7 +80,6 @@ CodexSwitch 当前对外暴露的是 Responses 风格的入站接口，不提供
 
 - `win-x64`
 - `linux-x64`
-- `osx-x64`
 - `osx-arm64`
 
 ## 从源码运行

@@ -80,7 +80,6 @@ Current CI publish targets are:
 
 - `win-x64`
 - `linux-x64`
-- `osx-x64`
 - `osx-arm64`
 
 ## Run From Source

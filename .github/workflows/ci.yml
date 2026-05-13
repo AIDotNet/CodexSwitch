@@ -51,8 +51,6 @@ jobs:
             rid: win-x64
           - runner: ubuntu-latest
             rid: linux-x64
-          - runner: macos-13
-            rid: osx-x64
           - runner: macos-14
             rid: osx-arm64
 

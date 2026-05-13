@@ -23,5 +23,4 @@ This repository uses a single in-repo version source plus a manual GitHub Releas
 
 - `CodexSwitch-vX.Y.Z-win-x64.zip`
 - `CodexSwitch-vX.Y.Z-linux-x64.zip`
-- `CodexSwitch-vX.Y.Z-osx-x64.zip`
 - `CodexSwitch-vX.Y.Z-osx-arm64.zip`
