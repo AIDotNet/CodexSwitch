@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v0.0.5] - 2026-05-14
+
+### Added
+
+- Added outbound network proxy settings with system proxy, custom proxy, and disabled proxy modes.
+- Added a shared HTTP client factory that defaults to the system proxy, prefers HTTP/2, keeps pooled connections alive, and enables HTTP/2 keep-alive pings.
+
+### Changed
+
+- Optimized the local Codex to CodexSwitch proxy listener for low-latency keep-alive connections with TCP no-delay, longer client keep-alive, disabled response buffering, and higher connection limits.
+- Recreate shared networking services when proxy settings change so provider adapters, OAuth, usage queries, icon loading, and update checks use the latest network configuration.
+- Moved proxy request usage logging to buffered background writes and coalesced concurrent OAuth token refreshes to reduce request-path latency.
+- Bounded cached Responses conversation state with capacity and TTL pruning to prevent unbounded memory growth.
+
 ## [v0.0.4] - 2026-05-13
 
 ### Added
