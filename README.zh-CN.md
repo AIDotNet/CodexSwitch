@@ -46,7 +46,7 @@ flowchart LR
 - 自动写入受管理的 Codex 配置和 auth 文件，并支持备份与恢复。
 - 可选择保留 Codex App 的 ChatGPT 登录态，让依赖 ChatGPT 登录的插件能力在本地代理模式下继续可用。
 - 支持浅色、深色、跟随系统主题，以及本地化 UI 资源。
-- 应用内可检查 GitHub Release 更新。
+- 应用内可检查 GitHub Release 更新，并自动下载适合当前系统的安装包。
 
 ## 支持的协议
 

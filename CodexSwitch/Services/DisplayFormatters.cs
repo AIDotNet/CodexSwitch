@@ -31,6 +31,20 @@ public static class DisplayFormatters
         return normalized.ToString("0.0%", CultureInfo.InvariantCulture);
     }
 
+    public static string FormatByteCount(long value)
+    {
+        var absolute = Math.Abs(value);
+        if (absolute < 1024)
+            return value.ToString("N0", CultureInfo.InvariantCulture) + " B";
+
+        return absolute switch
+        {
+            < 1024L * 1024L => FormatScaled(value / 1024d, " KB"),
+            < 1024L * 1024L * 1024L => FormatScaled(value / (1024d * 1024d), " MB"),
+            _ => FormatScaled(value / (1024d * 1024d * 1024d), " GB")
+        };
+    }
+
     public static double CalculateCacheHitRate(
         long inputTokens,
         long cachedInputTokens,

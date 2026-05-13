@@ -27,6 +27,8 @@ public sealed class AppUiSettings
 
     public bool MiniStatusEnabled { get; set; } = true;
 
+    public bool AutoUpdateCheckEnabled { get; set; } = true;
+
     public double? MiniStatusLeft { get; set; }
 
     public double? MiniStatusTop { get; set; }

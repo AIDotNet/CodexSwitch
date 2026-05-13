@@ -16,10 +16,12 @@ public sealed class AppPaths
         UsageLogDirectory = Path.Combine(root, "usage-logs");
         IconDirectory = Path.Combine(root, "icons");
         BackupDirectory = Path.Combine(root, "backups");
+        UpdateDirectory = Path.Combine(root, "updates");
         CodexRestoreStatePath = Path.Combine(root, "codex-restore-state.json");
         Directory.CreateDirectory(UsageLogDirectory);
         Directory.CreateDirectory(IconDirectory);
         Directory.CreateDirectory(BackupDirectory);
+        Directory.CreateDirectory(UpdateDirectory);
 
         var codexRoot = codexDirectory ?? Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
@@ -42,6 +44,8 @@ public sealed class AppPaths
     public string IconDirectory { get; }
 
     public string BackupDirectory { get; }
+
+    public string UpdateDirectory { get; }
 
     public string CodexRestoreStatePath { get; }
 

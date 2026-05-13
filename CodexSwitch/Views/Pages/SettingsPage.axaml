@@ -196,6 +196,9 @@
                               Description="{i18n:Tr settings.version.description}"
                               IsVisible="{Binding IsAboutSettingsVisible}">
                     <StackPanel Spacing="16">
+                        <ui:CsSwitch Content="{i18n:Tr settings.version.autoCheck}"
+                                     IsChecked="{Binding AutoUpdateCheckEnabled}"/>
+
                         <Grid RowDefinitions="Auto,Auto,Auto,Auto,Auto"
                               ColumnDefinitions="180,*"
                               RowSpacing="10"
@@ -216,11 +219,53 @@
                             <ui:CsText Grid.Row="4" Grid.Column="1" Text="{Binding UpdateStatusDetails}" TextWrapping="Wrap"/>
                         </Grid>
 
+                        <Grid RowDefinitions="Auto,Auto,Auto"
+                              ColumnDefinitions="180,*"
+                              RowSpacing="10"
+                              ColumnSpacing="12"
+                              IsVisible="{Binding IsUpdateDownloadVisible}">
+                            <ui:CsText Text="{i18n:Tr settings.version.package}" Classes="muted"/>
+                            <ui:CsText Grid.Column="1"
+                                       Text="{Binding UpdatePackageName}"
+                                       TextWrapping="Wrap"/>
+
+                            <ui:CsText Grid.Row="1"
+                                       Text="{i18n:Tr settings.version.downloadProgress}"
+                                       Classes="muted"/>
+                            <Grid Grid.Row="1"
+                                  Grid.Column="1"
+                                  ColumnDefinitions="*,Auto"
+                                  ColumnSpacing="10">
+                                <ProgressBar Minimum="0"
+                                             Maximum="100"
+                                             Value="{Binding UpdateDownloadProgress}"
+                                             Height="10"
+                                             VerticalAlignment="Center"/>
+                                <ui:CsText Grid.Column="1"
+                                           Text="{Binding UpdateDownloadProgressText}"
+                                           Classes="muted"
+                                           TextWrapping="Wrap"/>
+                            </Grid>
+
+                            <ui:CsText Grid.Row="2"
+                                       Text="{i18n:Tr settings.version.downloadedFile}"
+                                       Classes="muted"/>
+                            <ui:CsText Grid.Row="2"
+                                       Grid.Column="1"
+                                       Text="{Binding DownloadedUpdatePath}"
+                                       Classes="muted"
+                                       TextWrapping="Wrap"/>
+                        </Grid>
+
                         <StackPanel Orientation="Horizontal"
                                     Spacing="10">
                             <ui:CsButton Classes="outline compact"
                                          Command="{Binding CheckForUpdatesCommand}"
                                          Content="{Binding UpdateCheckButtonText}"/>
+                            <ui:CsButton Classes="outline compact"
+                                         Command="{Binding OpenDownloadedUpdateCommand}"
+                                         IsEnabled="{Binding CanOpenDownloadedUpdate}"
+                                         Content="{i18n:Tr settings.version.openDownloaded}"/>
                             <ui:CsButton Classes="compact"
                                          Command="{Binding OpenLatestReleaseCommand}"
                                          IsEnabled="{Binding CanOpenLatestRelease}"

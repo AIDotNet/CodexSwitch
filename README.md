@@ -46,7 +46,7 @@ flowchart LR
 - Managed Codex config and auth file writing with backup and restore support.
 - Optional Codex App auth preservation so ChatGPT-login-only plugin features can stay available while routing through the local proxy.
 - Light, dark, and system themes with localized UI resources.
-- GitHub Release update checks from inside the app.
+- GitHub Release update checks with automatic system-specific installer downloads.
 
 ## Supported Protocols
 

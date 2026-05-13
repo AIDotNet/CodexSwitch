@@ -42,6 +42,24 @@ function Write-GitHubOutput {
     }
 }
 
+function Invoke-NativeTool {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$FilePath,
+
+        [Parameter(Mandatory = $true)]
+        [string[]]$Arguments
+    )
+
+    & $FilePath @Arguments 2>&1 | ForEach-Object {
+        Write-Host $_
+    }
+
+    if ($LASTEXITCODE -ne 0) {
+        throw "Command '$FilePath' failed with exit code $LASTEXITCODE."
+    }
+}
+
 function Get-RepositoryRoot {
     return (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot "..")).Path
 }
@@ -70,13 +88,14 @@ function New-WindowsInstaller {
     $outputBaseName = "CodexSwitch-v$Version-$RuntimeIdentifier-setup"
     $artifactPath = Join-Path $OutputDirectory "$outputBaseName.exe"
 
-    & $innoCompiler `
-        $innoScript `
-        "/DAppVersion=$Version" `
-        "/DSourceDir=$PublishDirectory" `
-        "/DOutputDir=$OutputDirectory" `
-        "/DOutputBaseFilename=$outputBaseName" `
+    Invoke-NativeTool -FilePath $innoCompiler -Arguments @(
+        $innoScript,
+        "/DAppVersion=$Version",
+        "/DSourceDir=$PublishDirectory",
+        "/DOutputDir=$OutputDirectory",
+        "/DOutputBaseFilename=$outputBaseName",
         "/DIconPath=$iconPath"
+    )
 
     if (-not (Test-Path -LiteralPath $artifactPath)) {
         throw "Expected Windows installer was not created: $artifactPath"
@@ -104,7 +123,7 @@ function New-MacDmg {
     New-Item -ItemType Directory -Force -Path $macOsPath, $resourcesPath | Out-Null
 
     Copy-Item -Path (Join-Path $PublishDirectory "*") -Destination $macOsPath -Recurse -Force
-    & chmod +x (Join-Path $macOsPath "CodexSwitch")
+    Invoke-NativeTool -FilePath "chmod" -Arguments @("+x", (Join-Path $macOsPath "CodexSwitch"))
 
     $plist = @"
 <?xml version="1.0" encoding="UTF-8"?>
@@ -137,12 +156,17 @@ function New-MacDmg {
 
     Write-Utf8NoBomFile -Path (Join-Path $contentsPath "Info.plist") -Value $plist
 
-    & hdiutil create `
-        -volname "CodexSwitch" `
-        -srcfolder $bundlePath `
-        -ov `
-        -format UDZO `
+    Invoke-NativeTool -FilePath "hdiutil" -Arguments @(
+        "create",
+        "-volname",
+        "CodexSwitch",
+        "-srcfolder",
+        $bundlePath,
+        "-ov",
+        "-format",
+        "UDZO",
         $artifactPath
+    )
 
     if (-not (Test-Path -LiteralPath $artifactPath)) {
         throw "Expected macOS DMG was not created: $artifactPath"
@@ -171,7 +195,7 @@ function New-LinuxAppImage {
     New-Item -ItemType Directory -Force -Path $usrBinPath | Out-Null
 
     Copy-Item -Path (Join-Path $PublishDirectory "*") -Destination $usrBinPath -Recurse -Force
-    & chmod +x (Join-Path $usrBinPath "CodexSwitch")
+    Invoke-NativeTool -FilePath "chmod" -Arguments @("+x", (Join-Path $usrBinPath "CodexSwitch"))
 
     $appRun = @'
 #!/bin/sh
@@ -179,7 +203,7 @@ HERE="$(dirname "$(readlink -f "$0")")"
 exec "$HERE/usr/bin/CodexSwitch" "$@"
 '@
     Write-Utf8NoBomFile -Path (Join-Path $appDir "AppRun") -Value $appRun
-    & chmod +x (Join-Path $appDir "AppRun")
+    Invoke-NativeTool -FilePath "chmod" -Arguments @("+x", (Join-Path $appDir "AppRun"))
 
     $desktopFile = @"
 [Desktop Entry]
@@ -201,7 +225,7 @@ Comment=Local AI provider switcher for Codex
         Invoke-WebRequest `
             -Uri "https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage" `
             -OutFile $appImageTool
-        & chmod +x $appImageTool
+        Invoke-NativeTool -FilePath "chmod" -Arguments @("+x", $appImageTool)
     }
 
     $previousExtractAndRun = $env:APPIMAGE_EXTRACT_AND_RUN
@@ -209,7 +233,7 @@ Comment=Local AI provider switcher for Codex
     try {
         $env:APPIMAGE_EXTRACT_AND_RUN = "1"
         $env:ARCH = "x86_64"
-        & $appImageTool $appDir $artifactPath
+        Invoke-NativeTool -FilePath $appImageTool -Arguments @($appDir, $artifactPath)
     }
     finally {
         $env:APPIMAGE_EXTRACT_AND_RUN = $previousExtractAndRun
@@ -227,9 +251,13 @@ $PublishDirectory = (Resolve-Path -LiteralPath $PublishDirectory).Path
 $OutputDirectory = New-Item -ItemType Directory -Force -Path $OutputDirectory
 $OutputDirectory = $OutputDirectory.FullName
 
+Get-ChildItem -LiteralPath $PublishDirectory -Filter "*.pdb" -Recurse -File -ErrorAction SilentlyContinue |
+    Remove-Item -Force
+
 $artifactPath = switch ($RuntimeIdentifier) {
     "win-x64" { New-WindowsInstaller -PublishDirectory $PublishDirectory -OutputDirectory $OutputDirectory -Version $Version -RuntimeIdentifier $RuntimeIdentifier }
     "osx-arm64" { New-MacDmg -PublishDirectory $PublishDirectory -OutputDirectory $OutputDirectory -Version $Version -RuntimeIdentifier $RuntimeIdentifier }
+    "osx-x64" { New-MacDmg -PublishDirectory $PublishDirectory -OutputDirectory $OutputDirectory -Version $Version -RuntimeIdentifier $RuntimeIdentifier }
     "linux-x64" { New-LinuxAppImage -PublishDirectory $PublishDirectory -OutputDirectory $OutputDirectory -Version $Version -RuntimeIdentifier $RuntimeIdentifier }
     default { throw "Unsupported runtime identifier for release packaging: $RuntimeIdentifier" }
 }

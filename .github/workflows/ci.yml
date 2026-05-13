@@ -55,6 +55,8 @@ jobs:
             rid: linux-x64
           - runner: macos-14
             rid: osx-arm64
+          - runner: macos-15-intel
+            rid: osx-x64
 
     runs-on: ${{ matrix.runner }}
 
@@ -89,6 +91,8 @@ jobs:
           --self-contained true
           -p:PublishAot=true
           -p:SelfContained=true
+          -p:DebugType=none
+          -p:DebugSymbols=false
           -o artifacts/publish/${{ matrix.rid }}
 
       - name: Install Windows packaging tools

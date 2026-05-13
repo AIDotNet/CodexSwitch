@@ -54,6 +54,7 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
     private UsageTimeRange _lastUsageDashboardRange;
     private DateTimeOffset _lastUsageWindowAnchor;
     private UsageLogSourceSnapshot _lastUsageSourceSnapshot;
+    private UpdateReleaseAsset? _latestUpdateAsset;
 
     [ObservableProperty]
     private string _currentPage = "Providers";
@@ -365,6 +366,27 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
     private bool _isCheckingForUpdates;
 
     [ObservableProperty]
+    private bool _autoUpdateCheckEnabled = true;
+
+    [ObservableProperty]
+    private bool _isDownloadingUpdate;
+
+    [ObservableProperty]
+    private double _updateDownloadProgress;
+
+    [ObservableProperty]
+    private string _updateDownloadProgressText = "";
+
+    [ObservableProperty]
+    private string _updatePackageName = "";
+
+    [ObservableProperty]
+    private string _downloadedUpdatePath = "";
+
+    [ObservableProperty]
+    private bool _hasDownloadedUpdate;
+
+    [ObservableProperty]
     private string _currentVersionTag = AppReleaseInfo.CurrentVersionTag;
 
     [ObservableProperty]
@@ -494,6 +516,7 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
         RefreshUsageCommand = new AsyncRelayCommand(RefreshUsageDashboardAsync);
         CheckForUpdatesCommand = new AsyncRelayCommand(() => CheckForUpdatesAsync(false));
         OpenLatestReleaseCommand = new RelayCommand(OpenLatestRelease);
+        OpenDownloadedUpdateCommand = new RelayCommand(OpenDownloadedUpdate);
 
         _usageMeter.Changed += (_, snapshot) => Dispatcher.UIThread.Post(() => ApplySnapshot(snapshot));
         _proxyHostService.StateChanged += (_, state) => ApplyProxyState(state);
@@ -507,7 +530,10 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
         RefreshModelCatalogRows();
         SelectProvider(ProviderRows.FirstOrDefault(row => row.IsActive) ?? ProviderRows.FirstOrDefault());
         _ = EnsureIconsAsync();
-        _ = CheckForUpdatesAsync(true);
+        if (_config.Ui.AutoUpdateCheckEnabled)
+            _ = CheckForUpdatesAsync(true);
+        else
+            UpdateStatusDetails = T("update.autoDisabled");
         _usageQueryTimer.Start();
         _miniStatusTimer.Start();
         RefreshMiniStatus();
@@ -651,6 +677,8 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
 
     public IRelayCommand OpenLatestReleaseCommand { get; }
 
+    public IRelayCommand OpenDownloadedUpdateCommand { get; }
+
     public async ValueTask DisposeAsync()
     {
         _usageQueryTimer.Stop();
@@ -771,6 +799,23 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
                 if (!silent)
                     StatusMessage = result.Message ?? T("status.updateFinished");
             });
+
+            if (result.Status == UpdateCheckStatus.UpdateAvailable)
+            {
+                if (result.Asset is not null)
+                {
+                    await DownloadLatestUpdateAsync(result.Asset, silent);
+                }
+                else
+                {
+                    await Dispatcher.UIThread.InvokeAsync(() =>
+                    {
+                        UpdateStatusDetails = T("update.noCompatibleInstaller");
+                        if (!silent)
+                            StatusMessage = T("update.noCompatibleInstaller");
+                    });
+                }
+            }
         }
         finally
         {
@@ -780,6 +825,72 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
                 OnPropertyChanged(nameof(UpdateCheckButtonText));
             });
         }
+    }
+
+    private async Task DownloadLatestUpdateAsync(UpdateReleaseAsset asset, bool silent)
+    {
+        var started = false;
+        await Dispatcher.UIThread.InvokeAsync(() =>
+        {
+            if (IsDownloadingUpdate)
+                return;
+
+            started = true;
+            _latestUpdateAsset = asset;
+            IsDownloadingUpdate = true;
+            HasDownloadedUpdate = false;
+            DownloadedUpdatePath = "";
+            UpdatePackageName = asset.Name;
+            UpdateDownloadProgress = 0d;
+            UpdateDownloadProgressText = F("update.downloading", asset.Name);
+            UpdateStatusDetails = F("update.downloading", asset.Name);
+            OnUpdateDownloadDisplayChanged();
+        });
+
+        if (!started)
+            return;
+
+        try
+        {
+            var progress = new Progress<UpdateDownloadProgress>(value =>
+            {
+                Dispatcher.UIThread.Post(() => ApplyUpdateDownloadProgress(value));
+            });
+            var result = await _updateCheckService.DownloadUpdateAsync(asset, _paths.UpdateDirectory, progress);
+            await Dispatcher.UIThread.InvokeAsync(() =>
+            {
+                DownloadedUpdatePath = result.FilePath;
+                HasDownloadedUpdate = true;
+                IsDownloadingUpdate = false;
+                UpdateDownloadProgress = 100d;
+                UpdateDownloadProgressText = F("update.downloaded", result.FilePath);
+                UpdateStatusDetails = F("update.downloaded", result.FilePath);
+                if (!silent)
+                    StatusMessage = F("update.downloaded", result.FilePath);
+                OnUpdateDownloadDisplayChanged();
+            });
+        }
+        catch (Exception ex)
+        {
+            await Dispatcher.UIThread.InvokeAsync(() =>
+            {
+                IsDownloadingUpdate = false;
+                UpdateDownloadProgressText = F("update.downloadFailed", ex.Message);
+                UpdateStatusDetails = F("update.downloadFailed", ex.Message);
+                if (!silent)
+                    StatusMessage = F("update.downloadFailed", ex.Message);
+                OnUpdateDownloadDisplayChanged();
+            });
+        }
+    }
+
+    private void ApplyUpdateDownloadProgress(UpdateDownloadProgress progress)
+    {
+        UpdateDownloadProgress = progress.Percent;
+        var downloaded = DisplayFormatters.FormatByteCount(progress.DownloadedBytes);
+        var total = progress.TotalBytes > 0 ? DisplayFormatters.FormatByteCount(progress.TotalBytes) : "-";
+        UpdateDownloadProgressText = F("update.downloadProgress", UpdateDownloadProgress.ToString("0", CultureInfo.InvariantCulture), downloaded, total);
+        OnUpdateDownloadDisplayChanged();
     }
 
     private async Task PersistSettingsAsync(string successMessage)
@@ -796,6 +907,7 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
         var startupStatusMessage = ApplyStartupRegistrationSetting();
         _config.Ui.StartWithWindows = StartWithWindows;
         _config.Ui.MiniStatusEnabled = MiniStatusEnabled;
+        _config.Ui.AutoUpdateCheckEnabled = AutoUpdateCheckEnabled;
         _config.Ui.DefaultApp = DefaultClientAppIsCodex ? ClientAppKind.Codex : ClientAppKind.ClaudeCode;
 
         _pricing.BillingUnitTokens = BillingUnitTokens <= 0 ? 1_000_000 : BillingUnitTokens;
@@ -1738,21 +1850,43 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
         LatestReleasePublishedAtText = result.PublishedAt?.ToLocalTime().ToString("yyyy-MM-dd HH:mm", CultureInfo.InvariantCulture)
             ?? T("update.notPublished");
         LatestReleaseUrl = string.IsNullOrWhiteSpace(result.ReleaseUrl) ? AppReleaseInfo.ReleasesUrl : result.ReleaseUrl;
+        _latestUpdateAsset = result.Asset;
+        UpdatePackageName = result.Asset?.Name ?? (result.Status == UpdateCheckStatus.UpdateAvailable
+            ? T("update.noCompatibleInstaller")
+            : "");
         UpdateStatusDetails = result.Status switch
         {
             UpdateCheckStatus.NoRelease => T("update.noRelease"),
             UpdateCheckStatus.UpToDate => T("update.upToDate"),
-            UpdateCheckStatus.UpdateAvailable => T("update.available"),
+            UpdateCheckStatus.UpdateAvailable => result.Asset is null ? T("update.noCompatibleInstaller") : T("update.available"),
             UpdateCheckStatus.Failed => F("update.failed", result.Message),
             _ => result.Message ?? T("update.unavailable")
         };
 
         OnPropertyChanged(nameof(CanOpenLatestRelease));
+        OnUpdateDownloadDisplayChanged();
     }
 
     private void OpenLatestRelease()
     {
         OpenExternalUrl(LatestReleaseUrl);
+    }
+
+    private void OpenDownloadedUpdate()
+    {
+        if (string.IsNullOrWhiteSpace(DownloadedUpdatePath) || !File.Exists(DownloadedUpdatePath))
+            return;
+
+        try
+        {
+            Process.Start(new ProcessStartInfo(DownloadedUpdatePath)
+            {
+                UseShellExecute = true
+            });
+        }
+        catch
+        {
+        }
     }
 
     private static void OpenExternalUrl(string? url)
@@ -2277,6 +2411,7 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
             StartWithWindows = ReadStartupRegistrationSetting();
             _config.Ui.StartWithWindows = StartWithWindows;
             MiniStatusEnabled = _config.Ui.MiniStatusEnabled;
+            AutoUpdateCheckEnabled = _config.Ui.AutoUpdateCheckEnabled;
             SelectedClientApp = _config.Ui.DefaultApp;
             DefaultClientAppIsCodex = _config.Ui.DefaultApp == ClientAppKind.Codex;
             BillingUnitTokens = _pricing.BillingUnitTokens;
@@ -2748,6 +2883,8 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
             LatestVersionTag = T("update.noReleaseYet");
         if (string.IsNullOrWhiteSpace(LatestReleasePublishedAtText) || !LatestReleasePublishedAtText.Contains('-', StringComparison.Ordinal))
             LatestReleasePublishedAtText = T("update.notPublished");
+        if (!AutoUpdateCheckEnabled)
+            UpdateStatusDetails = T("update.autoDisabled");
 
         if (IsProviderDialogOpen)
             ProviderDialogTitle = string.IsNullOrWhiteSpace(_editingProviderId) ? T("providerDialog.addTitle") : T("providerDialog.editTitle");
@@ -2766,6 +2903,7 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
         OnPropertyChanged(nameof(ServiceToggleText));
         OnPropertyChanged(nameof(ServiceStateText));
         OnPropertyChanged(nameof(UpdateCheckButtonText));
+        OnUpdateDownloadDisplayChanged();
         OnPropertyChanged(nameof(PricingUnitText));
         OnPropertyChanged(nameof(ModelCatalogCountText));
     }
@@ -2802,6 +2940,12 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
         OnPropertyChanged(nameof(IsProxyAlert));
         OnPropertyChanged(nameof(ServiceToggleText));
         OnPropertyChanged(nameof(ServiceStateText));
+    }
+
+    private void OnUpdateDownloadDisplayChanged()
+    {
+        OnPropertyChanged(nameof(IsUpdateDownloadVisible));
+        OnPropertyChanged(nameof(CanOpenDownloadedUpdate));
     }
 
     partial void OnSelectedApiKeyChanged(string value)
@@ -2882,6 +3026,21 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
         OnPropertyChanged(nameof(UsageRefreshButtonText));
     }
 
+    partial void OnIsDownloadingUpdateChanged(bool value)
+    {
+        OnUpdateDownloadDisplayChanged();
+    }
+
+    partial void OnHasDownloadedUpdateChanged(bool value)
+    {
+        OnUpdateDownloadDisplayChanged();
+    }
+
+    partial void OnDownloadedUpdatePathChanged(string value)
+    {
+        OnUpdateDownloadDisplayChanged();
+    }
+
     partial void OnSelectedClientAppChanged(ClientAppKind value)
     {
         RefreshClientApps();
@@ -2946,6 +3105,19 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
         _store.SaveConfig(_config);
     }
 
+    partial void OnAutoUpdateCheckEnabledChanged(bool value)
+    {
+        if (_isRefreshingSettingsFields)
+            return;
+
+        _config.Ui.AutoUpdateCheckEnabled = value;
+        _store.SaveConfig(_config);
+        if (value)
+            _ = CheckForUpdatesAsync(true);
+        else
+            UpdateStatusDetails = T("update.autoDisabled");
+    }
+
     public bool IsProvidersPageVisible => CurrentPage == "Providers";
 
     public bool IsAddProviderPageVisible => CurrentPage == "AddProvider";
@@ -2995,6 +3167,15 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
     public bool IsSystemThemeSelected => string.Equals(UiTheme, "system", StringComparison.OrdinalIgnoreCase);
 
     public bool CanOpenLatestRelease => !string.IsNullOrWhiteSpace(LatestReleaseUrl);
+
+    public bool IsUpdateDownloadVisible => IsDownloadingUpdate ||
+        HasDownloadedUpdate ||
+        _latestUpdateAsset is not null ||
+        !string.IsNullOrWhiteSpace(UpdatePackageName);
+
+    public bool CanOpenDownloadedUpdate => HasDownloadedUpdate &&
+        !string.IsNullOrWhiteSpace(DownloadedUpdatePath) &&
+        File.Exists(DownloadedUpdatePath);
 
     public bool IsStartWithWindowsSupported => _startupRegistrationService.IsSupported;
 
