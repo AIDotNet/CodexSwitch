@@ -498,6 +498,7 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
         RestartProxyCommand = new AsyncRelayCommand(RestartProxyAsync);
         StopProxyCommand = new AsyncRelayCommand(StopProxyAsync);
         SelectProviderCommand = new RelayCommand<ProviderListItem>(row => _ = ActivateProviderAsync(row));
+        SelectClaudeCodeModelCommand = new RelayCommand<string>(SelectClaudeCodeModel);
         SaveClaudeCodeSettingsCommand = new AsyncRelayCommand(SaveClaudeCodeSettingsAsync);
         EditProviderCommand = new RelayCommand<ProviderListItem>(OpenEditProvider);
         AddProviderCommand = new RelayCommand(OpenAddProvider);
@@ -634,6 +635,8 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
     public IAsyncRelayCommand StopProxyCommand { get; }
 
     public IRelayCommand<ProviderListItem> SelectProviderCommand { get; }
+
+    public IRelayCommand<string> SelectClaudeCodeModelCommand { get; }
 
     public IAsyncRelayCommand SaveClaudeCodeSettingsCommand { get; }
 
@@ -1500,6 +1503,14 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
         return provider.Models.FirstOrDefault(route => route.Protocol == ProviderProtocol.AnthropicMessages)?.Id ??
             provider.Models.FirstOrDefault()?.Id ??
             "claude-sonnet-4-5";
+    }
+
+    private void SelectClaudeCodeModel(string? model)
+    {
+        if (string.IsNullOrWhiteSpace(model))
+            return;
+
+        ClaudeCodeModel = model.Trim();
     }
 
     private async Task SaveClaudeCodeSettingsAsync()

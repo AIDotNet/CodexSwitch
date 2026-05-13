@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added a shared HTTP client factory that defaults to the system proxy, prefers HTTP/2, keeps pooled connections alive, and enables HTTP/2 keep-alive pings.
 - Added Claude Code provider settings that write and restore `~/.claude/settings.json`, expose provider/model controls, and route `/v1/messages` through CodexSwitch.
 - Added Claude Code `sonnet`, `opus`, and `haiku` aliases for Anthropic providers, including optional 1M context handling for Sonnet models.
+- Added manual Claude Code model entry with quick model buttons and preserved Anthropic extension headers when proxying `/v1/messages`.
 
 ### Changed
 

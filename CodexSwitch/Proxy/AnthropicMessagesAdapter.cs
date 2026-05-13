@@ -2684,6 +2684,16 @@ public sealed class AnthropicMessagesAdapter : IProviderProtocolAdapter
             request.Headers.Accept.ParseAdd("text/event-stream");
 
         var inbound = context.HttpContext.Request.Headers;
+        foreach (var header in inbound)
+        {
+            if (header.Key.StartsWith("anthropic-", StringComparison.OrdinalIgnoreCase) &&
+                !string.Equals(header.Key, "anthropic-version", StringComparison.OrdinalIgnoreCase) &&
+                !string.Equals(header.Key, "anthropic-beta", StringComparison.OrdinalIgnoreCase))
+            {
+                request.Headers.TryAddWithoutValidation(header.Key, header.Value.ToArray());
+            }
+        }
+
         inbound.TryGetValue("anthropic-version", out var anthropicVersionValues);
         var anthropicVersion = anthropicVersionValues.FirstOrDefault();
         request.Headers.TryAddWithoutValidation(

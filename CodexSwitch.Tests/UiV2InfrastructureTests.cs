@@ -397,6 +397,7 @@ public sealed class UiV2InfrastructureTests : IDisposable
                 "application/json")
         };
         request.Headers.TryAddWithoutValidation("anthropic-version", "2023-06-01");
+        request.Headers.TryAddWithoutValidation("anthropic-dangerous-direct-browser-access", "true");
         using var response = await client.SendAsync(request);
         var body = await response.Content.ReadAsStringAsync();
 
@@ -408,12 +409,101 @@ public sealed class UiV2InfrastructureTests : IDisposable
         Assert.Equal("provider-key", Assert.Single(apiKeys));
         Assert.True(upstreamRequest.Headers.TryGetValues("anthropic-beta", out var betaValues));
         Assert.Contains(betaValues, value => value.Contains("context-1m-2025-08-07", StringComparison.OrdinalIgnoreCase));
+        Assert.True(upstreamRequest.Headers.TryGetValues("anthropic-dangerous-direct-browser-access", out var browserAccessValues));
+        Assert.Equal("true", Assert.Single(browserAccessValues));
 
         using var upstreamJson = JsonDocument.Parse(upstreamBody);
         Assert.Equal("claude-sonnet-4-5-20250929", upstreamJson.RootElement.GetProperty("model").GetString());
         Assert.Equal(1, meter.Snapshot.Requests);
         Assert.Equal(3, meter.Snapshot.InputTokens);
         Assert.Equal(4, meter.Snapshot.OutputTokens);
+    }
+
+    [Fact]
+    public async Task ProxyHostService_Messages_ProxiesAnthropicStreamingResponse()
+    {
+        var paths = CreatePaths("messages-anthropic-stream");
+        var catalog = new ModelPricingCatalog();
+        var calculator = new PriceCalculator(catalog);
+        var meter = new UsageMeter(calculator);
+        var configStore = new ConfigurationStore(paths);
+        using var upstreamHttpClient = new HttpClient(new AsyncHandler((_, _) =>
+        {
+            var response = new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent(
+                    """
+                    event: message_start
+                    data: {"type":"message_start","message":{"model":"claude-sonnet-4-5-20250929","usage":{"input_tokens":5,"output_tokens":0}}}
+
+                    event: message_delta
+                    data: {"type":"message_delta","usage":{"output_tokens":2}}
+
+                    """,
+                    Encoding.UTF8,
+                    "text/event-stream")
+            };
+            return Task.FromResult(response);
+        }));
+        var config = new AppConfig
+        {
+            ActiveClaudeCodeProviderId = "anthropic",
+            Proxy =
+            {
+                Enabled = true,
+                Host = "127.0.0.1",
+                Port = GetAvailablePort()
+            },
+            Providers =
+            {
+                new ProviderConfig
+                {
+                    Id = "anthropic",
+                    SupportsClaudeCode = true,
+                    BaseUrl = "https://upstream.test/v1",
+                    ApiKey = "provider-key",
+                    Protocol = ProviderProtocol.AnthropicMessages,
+                    DefaultModel = "sonnet",
+                    ClaudeCode = { Model = "sonnet" },
+                    Models =
+                    {
+                        new ModelRouteConfig
+                        {
+                            Id = "sonnet",
+                            Protocol = ProviderProtocol.AnthropicMessages,
+                            UpstreamModel = "claude-sonnet-4-5-20250929"
+                        }
+                    }
+                }
+            }
+        };
+        using var authHttpClient = new HttpClient();
+        await using var service = new ProxyHostService(
+            meter,
+            calculator,
+            new UsageLogWriter(paths),
+            new CodexConfigWriter(paths),
+            new ClaudeCodeConfigWriter(paths),
+            new ProviderAuthService(configStore, config, authHttpClient),
+            [new AnthropicMessagesAdapter(upstreamHttpClient)]);
+
+        await service.StartAsync(config);
+
+        using var client = new HttpClient(new SocketsHttpHandler { UseProxy = false });
+        using var response = await client.PostAsync(
+            $"http://127.0.0.1:{config.Proxy.Port}/v1/messages",
+            new StringContent(
+                """{"model":"sonnet","stream":true,"max_tokens":16,"messages":[{"role":"user","content":"ping"}]}""",
+                Encoding.UTF8,
+                "application/json"));
+        var body = await response.Content.ReadAsStringAsync();
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal("text/event-stream", response.Content.Headers.ContentType?.MediaType);
+        Assert.Contains("message_start", body, StringComparison.Ordinal);
+        Assert.Equal(1, meter.Snapshot.Requests);
+        Assert.Equal(5, meter.Snapshot.InputTokens);
+        Assert.Equal(2, meter.Snapshot.OutputTokens);
     }
 
     [Fact]
