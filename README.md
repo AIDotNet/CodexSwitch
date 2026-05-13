@@ -66,7 +66,7 @@ CodexSwitch currently exposes Responses-style inbound routes. It does not expose
 | RoutinAI Plan | OpenAI Responses | `gpt-5.5` |
 | OpenAI Official | OpenAI Responses | `gpt-5.5` |
 | Anthropic Messages | Anthropic Messages | `claude-sonnet-4-5` |
-| DeepSeek | OpenAI Chat | `deepseek-v4-flash` |
+| DeepSeek | Anthropic Messages | `deepseek-v4-flash` |
 | Xiaomi MiMo | OpenAI Chat | `mimo-v2.5-pro` |
 | Codex OAuth | OpenAI Responses | `gpt-5.1-codex` |
 

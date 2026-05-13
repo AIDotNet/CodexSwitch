@@ -75,6 +75,34 @@ public sealed class UiV2InfrastructureTests : IDisposable
         Assert.Equal("claude-sonnet-4-5", config.Providers[1].ClaudeCode.Model);
     }
 
+    [Fact]
+    public void EnsureValidDefaults_AnthropicProtocolDefaultsToClaudeCodeSupport()
+    {
+        var config = new AppConfig
+        {
+            ActiveProviderId = "anthropic",
+            Providers =
+            {
+                new ProviderConfig
+                {
+                    Id = "anthropic",
+                    DisplayName = "Anthropic Compatible",
+                    Protocol = ProviderProtocol.AnthropicMessages,
+                    SupportsCodex = true,
+                    SupportsClaudeCode = false,
+                    DefaultModel = "claude-custom"
+                }
+            }
+        };
+
+        ConfigurationStore.EnsureValidDefaults(config);
+
+        var provider = Assert.Single(config.Providers, provider => provider.Id == "anthropic");
+        Assert.True(provider.SupportsCodex);
+        Assert.True(provider.SupportsClaudeCode);
+        Assert.Equal("anthropic", config.ActiveClaudeCodeProviderId);
+    }
+
     [Theory]
     [InlineData(null)]
     [InlineData("")]
@@ -507,12 +535,42 @@ public sealed class UiV2InfrastructureTests : IDisposable
     }
 
     [Fact]
-    public async Task ProxyHostService_Messages_ReturnsNotImplementedForOpenAiProvider()
+    public async Task ProxyHostService_Messages_ConvertsOpenAiChatProviderRequest()
     {
-        var paths = CreatePaths("messages-openai-not-implemented");
+        var paths = CreatePaths("messages-openai-chat");
         var catalog = new ModelPricingCatalog();
         var calculator = new PriceCalculator(catalog);
+        var meter = new UsageMeter(calculator);
         var configStore = new ConfigurationStore(paths);
+        HttpRequestMessage? upstreamRequest = null;
+        string upstreamBody = "";
+        using var upstreamHttpClient = new HttpClient(new AsyncHandler(async (request, cancellationToken) =>
+        {
+            upstreamRequest = request;
+            upstreamBody = await request.Content!.ReadAsStringAsync(cancellationToken);
+            return new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent(
+                    """
+                    {
+                      "id": "chatcmpl_1",
+                      "object": "chat.completion",
+                      "created": 1710000000,
+                      "model": "gpt-upstream",
+                      "choices": [
+                        {
+                          "index": 0,
+                          "message": { "role": "assistant", "content": "pong" },
+                          "finish_reason": "stop"
+                        }
+                      ],
+                      "usage": { "prompt_tokens": 9, "completion_tokens": 2 }
+                    }
+                    """,
+                    Encoding.UTF8,
+                    "application/json")
+            };
+        }));
         var config = new AppConfig
         {
             ActiveClaudeCodeProviderId = "openai",
@@ -528,27 +586,32 @@ public sealed class UiV2InfrastructureTests : IDisposable
                 {
                     Id = "openai",
                     SupportsClaudeCode = true,
-                    BaseUrl = "https://api.openai.com/v1",
+                    BaseUrl = "https://upstream.test/v1",
                     ApiKey = "provider-key",
                     Protocol = ProviderProtocol.OpenAiChat,
                     DefaultModel = "gpt-5.5",
                     ClaudeCode = { Model = "gpt-5.5" },
                     Models =
                     {
-                        new ModelRouteConfig { Id = "gpt-5.5", Protocol = ProviderProtocol.OpenAiChat }
+                        new ModelRouteConfig
+                        {
+                            Id = "gpt-5.5",
+                            Protocol = ProviderProtocol.OpenAiChat,
+                            UpstreamModel = "gpt-upstream"
+                        }
                     }
                 }
             }
         };
         using var authHttpClient = new HttpClient();
         await using var service = new ProxyHostService(
-            new UsageMeter(calculator),
+            meter,
             calculator,
             new UsageLogWriter(paths),
             new CodexConfigWriter(paths),
             new ClaudeCodeConfigWriter(paths),
             new ProviderAuthService(configStore, config, authHttpClient),
-            [new OpenAiChatAdapter()]);
+            [new OpenAiChatAdapter(upstreamHttpClient)]);
 
         await service.StartAsync(config);
 
@@ -561,8 +624,25 @@ public sealed class UiV2InfrastructureTests : IDisposable
                 "application/json"));
         var body = await response.Content.ReadAsStringAsync();
 
-        Assert.Equal(HttpStatusCode.NotImplemented, response.StatusCode);
-        Assert.Contains("does not support /v1/messages yet", body, StringComparison.Ordinal);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        using var downstreamJson = JsonDocument.Parse(body);
+        Assert.Equal("message", downstreamJson.RootElement.GetProperty("type").GetString());
+        Assert.Equal("pong", downstreamJson.RootElement.GetProperty("content")[0].GetProperty("text").GetString());
+
+        Assert.NotNull(upstreamRequest);
+        Assert.Equal(new Uri("https://upstream.test/v1/chat/completions"), upstreamRequest!.RequestUri);
+        Assert.Equal("Bearer", upstreamRequest.Headers.Authorization?.Scheme);
+        Assert.Equal("provider-key", upstreamRequest.Headers.Authorization?.Parameter);
+
+        using var upstreamJson = JsonDocument.Parse(upstreamBody);
+        Assert.Equal("gpt-upstream", upstreamJson.RootElement.GetProperty("model").GetString());
+        Assert.Equal(16, upstreamJson.RootElement.GetProperty("max_completion_tokens").GetInt32());
+        var upstreamMessage = Assert.Single(upstreamJson.RootElement.GetProperty("messages").EnumerateArray());
+        Assert.Equal("user", upstreamMessage.GetProperty("role").GetString());
+        Assert.Equal("ping", upstreamMessage.GetProperty("content").GetString());
+        Assert.Equal(1, meter.Snapshot.Requests);
+        Assert.Equal(9, meter.Snapshot.InputTokens);
+        Assert.Equal(2, meter.Snapshot.OutputTokens);
     }
 
     [Fact]

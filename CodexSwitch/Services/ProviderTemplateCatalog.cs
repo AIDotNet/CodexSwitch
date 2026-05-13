@@ -88,13 +88,14 @@ public static class ProviderTemplateCatalog
             Id = DeepSeekBuiltinId,
             BuiltinId = DeepSeekBuiltinId,
             DisplayName = "DeepSeek",
-            Description = "Official DeepSeek OpenAI-compatible chat API",
+            Description = "Official DeepSeek Anthropic-compatible Messages API",
             Website = "https://platform.deepseek.com",
             BaseUrl = "https://api.deepseek.com/anthropic",
             Protocol = ProviderProtocol.AnthropicMessages,
             DefaultModel = "deepseek-v4-flash",
             IconSlug = "deepseek",
             SupportsCodex = true,
+            SupportsClaudeCode = true,
             Models = BuiltInModelCatalog.DeepSeekModels
         },
         new()

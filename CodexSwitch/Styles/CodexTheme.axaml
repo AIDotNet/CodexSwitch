@@ -40,6 +40,17 @@
         <SolidColorBrush x:Key="CsHoverBorderBrush" Color="#33FFFFFF"/>
         <SolidColorBrush x:Key="CsSubtleButtonBrush" Color="#26FFFFFF"/>
         <SolidColorBrush x:Key="CsSubtleButtonHoverBrush" Color="#404040"/>
+        <SolidColorBrush x:Key="CsPrimaryHoverBrush" Color="#D1D1D1"/>
+        <SolidColorBrush x:Key="CsPrimaryPressedBrush" Color="#C7C7C7"/>
+        <SolidColorBrush x:Key="CsSecondaryHoverBrush" Color="#383838"/>
+        <SolidColorBrush x:Key="CsSecondaryPressedBrush" Color="#303030"/>
+        <SolidColorBrush x:Key="CsOutlineButtonBrush" Color="#0BFFFFFF"/>
+        <SolidColorBrush x:Key="CsOutlineButtonHoverBrush" Color="#13FFFFFF"/>
+        <SolidColorBrush x:Key="CsOutlineButtonPressedBrush" Color="#1AFFFFFF"/>
+        <SolidColorBrush x:Key="CsButtonAccentHoverBrush" Color="#2C2C2C"/>
+        <SolidColorBrush x:Key="CsButtonAccentPressedBrush" Color="#363636"/>
+        <SolidColorBrush x:Key="CsDestructiveHoverBrush" Color="#E85C5F"/>
+        <SolidColorBrush x:Key="CsDestructivePressedBrush" Color="#D94F52"/>
         <SolidColorBrush x:Key="CsPressedBrush" Color="#242424"/>
         <SolidColorBrush x:Key="CsActiveButtonBrush" Color="#171717"/>
         <SolidColorBrush x:Key="CsSegmentedBrush" Color="#303030"/>

@@ -173,7 +173,7 @@ public sealed class ClaudeCodeConfigWriter
         }
 
         var port = proxy.Port <= 0 ? 12785 : proxy.Port;
-        return $"http://{host}:{port}/v1";
+        return $"http://{host}:{port}";
     }
 
     private void BackupIfExists(string path)

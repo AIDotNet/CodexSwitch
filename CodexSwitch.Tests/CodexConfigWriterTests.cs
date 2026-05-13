@@ -157,7 +157,7 @@ public sealed class CodexConfigWriterTests : IDisposable
             var root = document.RootElement;
             Assert.Equal("dark", root.GetProperty("theme").GetString());
             Assert.Equal("keep", root.GetProperty("env").GetProperty("EXISTING").GetString());
-            Assert.Equal("http://127.0.0.1:12785/v1", root.GetProperty("env").GetProperty("ANTHROPIC_BASE_URL").GetString());
+            Assert.Equal("http://127.0.0.1:12785", root.GetProperty("env").GetProperty("ANTHROPIC_BASE_URL").GetString());
             Assert.Equal("local-secret", root.GetProperty("env").GetProperty("ANTHROPIC_AUTH_TOKEN").GetString());
             Assert.Equal("claude-sonnet-4-5[1m]", root.GetProperty("model").GetString());
             Assert.True(root.GetProperty("alwaysThinkingEnabled").GetBoolean());

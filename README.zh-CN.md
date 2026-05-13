@@ -66,7 +66,7 @@ CodexSwitch 当前对外暴露的是 Responses 风格的入站接口，不提供
 | RoutinAI Plan | OpenAI Responses | `gpt-5.5` |
 | OpenAI Official | OpenAI Responses | `gpt-5.5` |
 | Anthropic Messages | Anthropic Messages | `claude-sonnet-4-5` |
-| DeepSeek | OpenAI Chat | `deepseek-v4-flash` |
+| DeepSeek | Anthropic Messages | `deepseek-v4-flash` |
 | Xiaomi MiMo | OpenAI Chat | `mimo-v2.5-pro` |
 | Codex OAuth | OpenAI Responses | `gpt-5.1-codex` |
 

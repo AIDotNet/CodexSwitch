@@ -1,0 +1,178 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:CodexSwitch.ViewModels"
+        xmlns:ui="using:CodexSwitch.Controls"
+        x:Class="CodexSwitch.Views.MiniStatusDetailsWindow"
+        x:DataType="vm:MainWindowViewModel"
+        Width="400"
+        Height="276"
+        MinWidth="400"
+        MaxWidth="400"
+        CanResize="False"
+        ShowInTaskbar="False"
+        WindowDecorations="None"
+        WindowStartupLocation="Manual"
+        Background="Transparent"
+        Topmost="True">
+    <Border CornerRadius="8"
+            ClipToBounds="True"
+            BorderBrush="#4D334252"
+            BorderThickness="1"
+            Background="#F014171C"
+            Padding="10">
+        <ScrollViewer VerticalScrollBarVisibility="Auto"
+                      HorizontalScrollBarVisibility="Disabled">
+            <StackPanel Spacing="10">
+                <Grid ColumnDefinitions="Auto,*"
+                      ColumnSpacing="10">
+                    <Border Width="30"
+                            Height="30"
+                            CornerRadius="9"
+                            Background="#2633404C"
+                            BorderBrush="#40516372"
+                            BorderThickness="1">
+                        <ui:CsImageIcon Path="{Binding MiniStatusProviderIconPath}"
+                                        Width="23"
+                                        Height="23"
+                                        HorizontalAlignment="Center"
+                                        VerticalAlignment="Center"/>
+                    </Border>
+                    <StackPanel Grid.Column="1"
+                                Spacing="1"
+                                VerticalAlignment="Center">
+                        <TextBlock Text="{Binding MiniStatusProviderName}"
+                                   Foreground="#F8FAFC"
+                                   FontSize="15"
+                                   FontWeight="SemiBold"
+                                   TextTrimming="CharacterEllipsis"/>
+                        <TextBlock Text="Live usage"
+                                   Foreground="#9CA3AF"
+                                   FontSize="11"/>
+                    </StackPanel>
+                </Grid>
+
+                <ItemsControl ItemsSource="{Binding MiniStatusMetricCards}">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <UniformGrid Rows="1"/>
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="vm:MiniStatusMetricCardItem">
+                            <Border Margin="0,0,6,0"
+                                    Padding="10,8"
+                                    CornerRadius="7"
+                                    Background="#2432424C"
+                                    BorderBrush="#3843525E"
+                                    BorderThickness="1">
+                                <StackPanel Spacing="3">
+                                    <TextBlock Text="{Binding Label}"
+                                               Foreground="#AEBECB"
+                                               FontSize="12"/>
+                                    <TextBlock Text="{Binding Value}"
+                                               Foreground="#F8FAFC"
+                                               FontSize="20"
+                                               FontWeight="SemiBold"
+                                               TextTrimming="CharacterEllipsis"/>
+                                    <TextBlock Text="{Binding Caption}"
+                                               Foreground="#7F8EA3"
+                                               FontSize="10"
+                                               TextTrimming="CharacterEllipsis"/>
+                                </StackPanel>
+                            </Border>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+
+                <ItemsControl ItemsSource="{Binding MiniStatusQuotaCards}"
+                              IsVisible="{Binding MiniStatusHasQuotaRow}">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <UniformGrid Rows="1"/>
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="vm:MiniStatusQuotaCardItem">
+                            <Border Margin="0,0,6,0"
+                                    Padding="10,9"
+                                    CornerRadius="7"
+                                    Background="#27313D49"
+                                    BorderBrush="#38475B68"
+                                    BorderThickness="1">
+                                <Grid RowDefinitions="Auto,Auto,Auto"
+                                      RowSpacing="8">
+                                    <TextBlock Text="{Binding Title}"
+                                               Foreground="#B8C6D6"
+                                               FontSize="12"
+                                               TextAlignment="Center"
+                                               TextTrimming="CharacterEllipsis"/>
+                                    <StackPanel Grid.Row="1"
+                                                Spacing="2"
+                                                HorizontalAlignment="Center">
+                                        <TextBlock Text="{Binding Remaining}"
+                                                   Foreground="#F8FAFC"
+                                                   FontSize="27"
+                                                   FontWeight="SemiBold"
+                                                   TextAlignment="Center"
+                                                   TextTrimming="CharacterEllipsis"/>
+                                        <TextBlock Text="{Binding Total}"
+                                                   Foreground="#93A4B7"
+                                                   FontSize="12"
+                                                   TextAlignment="Center"
+                                                   TextTrimming="CharacterEllipsis"/>
+                                    </StackPanel>
+                                    <Grid Grid.Row="2"
+                                          ColumnDefinitions="*,Auto"
+                                          ColumnSpacing="7">
+                                        <ProgressBar Minimum="0"
+                                                     Maximum="100"
+                                                     Value="{Binding Percent}"
+                                                     Height="10"
+                                                     VerticalAlignment="Center"
+                                                     Foreground="#38BDF8"
+                                                     Background="#25313B46"/>
+                                        <TextBlock Grid.Column="1"
+                                                   Text="{Binding PercentText}"
+                                                   Foreground="#D8E4F0"
+                                                   FontSize="11"
+                                                   MinWidth="32"
+                                                   TextAlignment="Right"/>
+                                    </Grid>
+                                </Grid>
+                            </Border>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+
+                <Border CornerRadius="7"
+                        Background="#2027313B"
+                        BorderBrush="#3342525F"
+                        BorderThickness="1"
+                        Padding="10,6"
+                        IsVisible="{Binding MiniStatusHasDetails}">
+                    <ItemsControl ItemsSource="{Binding MiniStatusDetails}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="vm:MiniStatusDetailItem">
+                                <Grid ColumnDefinitions="96,*"
+                                      ColumnSpacing="8"
+                                      Margin="0,3">
+                                    <TextBlock Text="{Binding Label}"
+                                               FontSize="13"
+                                               LineHeight="18"
+                                               Foreground="#AEBECB"/>
+                                    <TextBlock Grid.Column="1"
+                                               Text="{Binding Value}"
+                                               FontSize="13"
+                                               LineHeight="18"
+                                               Foreground="#F8FAFC"
+                                               TextAlignment="Right"
+                                               TextTrimming="CharacterEllipsis"/>
+                                </Grid>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </Border>
+            </StackPanel>
+        </ScrollViewer>
+    </Border>
+</Window>

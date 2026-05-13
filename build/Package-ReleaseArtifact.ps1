@@ -72,14 +72,24 @@ function New-WindowsInstaller {
         [string]$RuntimeIdentifier
     )
 
-    $innoCompiler = Join-Path ${env:ProgramFiles(x86)} "Inno Setup 6\ISCC.exe"
-    if (-not (Test-Path -LiteralPath $innoCompiler)) {
-        $command = Get-Command "iscc" -ErrorAction SilentlyContinue
-        if ($null -eq $command) {
-            throw "Inno Setup compiler was not found. Install Inno Setup before packaging Windows artifacts."
+    $command = Get-Command "iscc" -CommandType Application -ErrorAction SilentlyContinue
+    if ($null -ne $command) {
+        $innoCompiler = $command.Source
+    }
+    else {
+        $programFilesX86 = ${env:ProgramFiles(x86)}
+        if ([string]::IsNullOrWhiteSpace($programFilesX86)) {
+            $programFilesX86 = $env:ProgramFiles
         }
 
-        $innoCompiler = $command.Source
+        if ([string]::IsNullOrWhiteSpace($programFilesX86)) {
+            throw "Inno Setup compiler was not found because no Program Files directory is available on this runner."
+        }
+
+        $innoCompiler = Join-Path $programFilesX86 "Inno Setup 6\ISCC.exe"
+        if (-not (Test-Path -LiteralPath $innoCompiler)) {
+            throw "Inno Setup compiler was not found. Install Inno Setup before packaging Windows artifacts."
+        }
     }
 
     $repositoryRoot = Get-RepositoryRoot
@@ -248,8 +258,7 @@ Comment=Local AI provider switcher for Codex
 }
 
 $PublishDirectory = (Resolve-Path -LiteralPath $PublishDirectory).Path
-$OutputDirectory = New-Item -ItemType Directory -Force -Path $OutputDirectory
-$OutputDirectory = $OutputDirectory.FullName
+$OutputDirectory = (New-Item -ItemType Directory -Force -Path $OutputDirectory).FullName
 
 Get-ChildItem -LiteralPath $PublishDirectory -Filter "*.pdb" -Recurse -File -ErrorAction SilentlyContinue |
     Remove-Item -Force

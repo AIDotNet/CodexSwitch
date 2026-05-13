@@ -146,14 +146,74 @@ public sealed class BuiltInCatalogMigrationTests
             Assert.Contains(anthropic.Models, model => model.Id == "claude-opus-4-7");
             Assert.Contains(anthropic.Models, model => model.Id == "claude-3-5-sonnet");
             AssertDefaultConversion(anthropic);
+            Assert.Equal("https://api.deepseek.com/anthropic", deepSeek.BaseUrl);
             Assert.Equal(ProviderProtocol.AnthropicMessages, deepSeek.Protocol);
             Assert.Contains(deepSeek.Models, model => model.Id == "deepseek-v4-flash");
             Assert.Contains(deepSeek.Models, model => model.Id == "deepseek-reasoner");
+            Assert.All(deepSeek.Models, model => Assert.Equal(ProviderProtocol.AnthropicMessages, model.Protocol));
             AssertDefaultConversion(deepSeek);
             Assert.Equal(ProviderProtocol.OpenAiChat, xiaomi.Protocol);
             Assert.Contains(xiaomi.Models, model => model.Id == "mimo-v2.5-pro");
             Assert.Contains(xiaomi.Models, model => model.Id == "mimo-v2-flash");
             AssertDefaultConversion(xiaomi);
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void DeepSeekTemplate_UsesAnthropicMessagesEndpointAndRoutes()
+    {
+        var provider = ProviderTemplateCatalog.CreateProvider(ProviderTemplateCatalog.DeepSeekBuiltinId, []);
+
+        Assert.Equal("https://api.deepseek.com/anthropic", provider.BaseUrl);
+        Assert.Equal(ProviderProtocol.AnthropicMessages, provider.Protocol);
+        Assert.True(provider.SupportsClaudeCode);
+        Assert.All(provider.Models, model => Assert.Equal(ProviderProtocol.AnthropicMessages, model.Protocol));
+    }
+
+    [Fact]
+    public void LoadConfig_MigratesLegacyDeepSeekBuiltinToAnthropicMessages()
+    {
+        var root = CreateTempDirectory();
+        try
+        {
+            var paths = new AppPaths(root, Path.Combine(root, ".codex"));
+            var store = new ConfigurationStore(paths);
+
+            var legacy = new AppConfig
+            {
+                ActiveProviderId = "deepseek",
+                Providers =
+                {
+                    new ProviderConfig
+                    {
+                        Id = "deepseek",
+                        BuiltinId = ProviderTemplateCatalog.DeepSeekBuiltinId,
+                        DisplayName = "DeepSeek",
+                        BaseUrl = "https://api.deepseek.com/v1",
+                        Protocol = ProviderProtocol.OpenAiChat,
+                        DefaultModel = "deepseek-chat",
+                        Models =
+                        {
+                            new ModelRouteConfig { Id = "deepseek-chat", Protocol = ProviderProtocol.OpenAiChat }
+                        }
+                    }
+                }
+            };
+
+            WriteJson(paths.ConfigPath, legacy);
+
+            var upgraded = store.LoadConfig();
+            var deepSeek = Assert.Single(upgraded.Providers, provider => provider.Id == "deepseek");
+
+            Assert.Equal(ProviderTemplateCatalog.DeepSeekBuiltinId, deepSeek.BuiltinId);
+            Assert.Equal("https://api.deepseek.com/anthropic", deepSeek.BaseUrl);
+            Assert.Equal(ProviderProtocol.AnthropicMessages, deepSeek.Protocol);
+            Assert.Equal("deepseek-chat", deepSeek.DefaultModel);
+            Assert.All(deepSeek.Models, model => Assert.Equal(ProviderProtocol.AnthropicMessages, model.Protocol));
         }
         finally
         {

@@ -1,8 +1,10 @@
 <Styles xmlns="https://github.com/avaloniaui"
-        xmlns:ui="using:CodexSwitch.Controls">
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:ui="using:CodexSwitch.Controls"
+        xmlns:lucide="using:Lucide.Avalonia">
     <Style Selector="ui|CsButton">
         <Setter Property="MinHeight" Value="36"/>
-        <Setter Property="Padding" Value="13,8"/>
+        <Setter Property="Padding" Value="16,8"/>
         <Setter Property="FontSize" Value="14"/>
         <Setter Property="FontWeight" Value="Medium"/>
         <Setter Property="Background" Value="{StaticResource CsPrimaryBrush}"/>
@@ -11,22 +13,37 @@
         <Setter Property="BorderThickness" Value="1"/>
         <Setter Property="HorizontalContentAlignment" Value="Center"/>
         <Setter Property="VerticalContentAlignment" Value="Center"/>
+        <Setter Property="Cursor" Value="Hand"/>
+        <Setter Property="FocusAdorner" Value="{x:Null}"/>
         <Setter Property="Transitions">
             <Transitions>
-                <BrushTransition Property="Background" Duration="0:0:0.12"/>
-                <BrushTransition Property="BorderBrush" Duration="0:0:0.12"/>
-                <BrushTransition Property="Foreground" Duration="0:0:0.12"/>
+                <BrushTransition Property="Background" Duration="0:0:0.14"/>
+                <BrushTransition Property="BorderBrush" Duration="0:0:0.14"/>
+                <BrushTransition Property="Foreground" Duration="0:0:0.14"/>
                 <DoubleTransition Property="Opacity" Duration="0:0:0.10"/>
             </Transitions>
         </Setter>
         <Setter Property="Template">
             <ControlTemplate>
-                <Border CornerRadius="{StaticResource CsRadiusMd}"
+                <Border Name="PART_ButtonRoot"
+                        MinHeight="{TemplateBinding MinHeight}"
+                        MinWidth="{TemplateBinding MinWidth}"
                         Background="{TemplateBinding Background}"
                         BorderBrush="{TemplateBinding BorderBrush}"
-                        BorderThickness="{TemplateBinding BorderThickness}">
+                        BorderThickness="{TemplateBinding BorderThickness}"
+                        BoxShadow="0 0 0 0 #00000000"
+                        ClipToBounds="False"
+                        CornerRadius="{StaticResource CsRadiusMd}">
+                    <Border.Transitions>
+                        <Transitions>
+                            <BrushTransition Property="Background" Duration="0:0:0.14"/>
+                            <BrushTransition Property="BorderBrush" Duration="0:0:0.14"/>
+                            <BoxShadowsTransition Property="BoxShadow" Duration="0:0:0.14"/>
+                        </Transitions>
+                    </Border.Transitions>
                     <ContentPresenter Margin="{TemplateBinding Padding}"
                                       Content="{TemplateBinding Content}"
+                                      ContentTemplate="{TemplateBinding ContentTemplate}"
                                       HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
                                       VerticalAlignment="{TemplateBinding VerticalContentAlignment}"/>
                 </Border>
@@ -34,44 +51,76 @@
         </Setter>
     </Style>
     <Style Selector="ui|CsButton:pointerover">
-        <Setter Property="Background" Value="{StaticResource CsSubtleButtonHoverBrush}"/>
-        <Setter Property="BorderBrush" Value="{StaticResource CsSubtleButtonHoverBrush}"/>
+        <Setter Property="Background" Value="{StaticResource CsPrimaryHoverBrush}"/>
+        <Setter Property="BorderBrush" Value="{StaticResource CsPrimaryHoverBrush}"/>
     </Style>
     <Style Selector="ui|CsButton:pressed">
-        <Setter Property="Background" Value="{StaticResource CsPressedBrush}"/>
-        <Setter Property="BorderBrush" Value="{StaticResource CsPressedBrush}"/>
+        <Setter Property="Background" Value="{StaticResource CsPrimaryPressedBrush}"/>
+        <Setter Property="BorderBrush" Value="{StaticResource CsPrimaryPressedBrush}"/>
     </Style>
-    <Style Selector="ui|CsButton:focus">
+    <Style Selector="ui|CsButton:focus-visible">
         <Setter Property="BorderBrush" Value="{StaticResource CsRingBrush}"/>
     </Style>
-    <Style Selector="ui|CsButton:disabled">
-        <Setter Property="Opacity" Value="0.45"/>
+    <Style Selector="ui|CsButton:focus-visible /template/ Border#PART_ButtonRoot">
+        <Setter Property="BoxShadow" Value="0 0 0 3 #808E8E8E"/>
     </Style>
+    <Style Selector="ui|CsButton:disabled">
+        <Setter Property="Opacity" Value="0.5"/>
+        <Setter Property="Cursor" Value="Arrow"/>
+        <Setter Property="IsHitTestVisible" Value="False"/>
+    </Style>
+
     <Style Selector="ui|CsButton.primary">
         <Setter Property="Background" Value="{StaticResource CsPrimaryBrush}"/>
         <Setter Property="Foreground" Value="{StaticResource CsPrimaryForegroundBrush}"/>
         <Setter Property="BorderBrush" Value="{StaticResource CsPrimaryBrush}"/>
     </Style>
+    <Style Selector="ui|CsButton.primary:pointerover">
+        <Setter Property="Background" Value="{StaticResource CsPrimaryHoverBrush}"/>
+        <Setter Property="BorderBrush" Value="{StaticResource CsPrimaryHoverBrush}"/>
+    </Style>
+    <Style Selector="ui|CsButton.primary:pressed">
+        <Setter Property="Background" Value="{StaticResource CsPrimaryPressedBrush}"/>
+        <Setter Property="BorderBrush" Value="{StaticResource CsPrimaryPressedBrush}"/>
+    </Style>
+
     <Style Selector="ui|CsButton.outline">
-        <Setter Property="Background" Value="{StaticResource CsSubtleButtonBrush}"/>
+        <Setter Property="Background" Value="{StaticResource CsOutlineButtonBrush}"/>
         <Setter Property="Foreground" Value="{StaticResource CsForegroundBrush}"/>
         <Setter Property="BorderBrush" Value="{StaticResource CsInputBrush}"/>
         <Setter Property="BorderThickness" Value="1"/>
     </Style>
+    <Style Selector="ui|CsButton.outline /template/ Border#PART_ButtonRoot">
+        <Setter Property="BoxShadow" Value="0 1 2 0 #1A000000"/>
+    </Style>
     <Style Selector="ui|CsButton.outline:pointerover">
-        <Setter Property="Background" Value="{StaticResource CsAccentBrush}"/>
+        <Setter Property="Background" Value="{StaticResource CsOutlineButtonHoverBrush}"/>
         <Setter Property="Foreground" Value="{StaticResource CsAccentForegroundBrush}"/>
         <Setter Property="BorderBrush" Value="{StaticResource CsInputBrush}"/>
     </Style>
+    <Style Selector="ui|CsButton.outline:pressed">
+        <Setter Property="Background" Value="{StaticResource CsOutlineButtonPressedBrush}"/>
+        <Setter Property="Foreground" Value="{StaticResource CsAccentForegroundBrush}"/>
+        <Setter Property="BorderBrush" Value="{StaticResource CsInputBrush}"/>
+    </Style>
+    <Style Selector="ui|CsButton.outline:focus-visible /template/ Border#PART_ButtonRoot">
+        <Setter Property="BoxShadow" Value="0 0 0 3 #808E8E8E"/>
+    </Style>
+
     <Style Selector="ui|CsButton.secondary">
         <Setter Property="Background" Value="{StaticResource CsSecondaryBrush}"/>
         <Setter Property="Foreground" Value="{StaticResource CsSecondaryForegroundBrush}"/>
         <Setter Property="BorderBrush" Value="{StaticResource CsSecondaryBrush}"/>
     </Style>
     <Style Selector="ui|CsButton.secondary:pointerover">
-        <Setter Property="Background" Value="{StaticResource CsSubtleButtonHoverBrush}"/>
-        <Setter Property="BorderBrush" Value="{StaticResource CsSubtleButtonHoverBrush}"/>
+        <Setter Property="Background" Value="{StaticResource CsSecondaryHoverBrush}"/>
+        <Setter Property="BorderBrush" Value="{StaticResource CsSecondaryHoverBrush}"/>
     </Style>
+    <Style Selector="ui|CsButton.secondary:pressed">
+        <Setter Property="Background" Value="{StaticResource CsSecondaryPressedBrush}"/>
+        <Setter Property="BorderBrush" Value="{StaticResource CsSecondaryPressedBrush}"/>
+    </Style>
+
     <Style Selector="ui|CsButton.active">
         <Setter Property="Background" Value="{StaticResource CsActiveButtonBrush}"/>
         <Setter Property="Foreground" Value="{StaticResource CsForegroundBrush}"/>
@@ -81,37 +130,127 @@
         <Setter Property="Background" Value="{StaticResource CsActiveButtonBrush}"/>
         <Setter Property="BorderBrush" Value="{StaticResource CsHoverBorderBrush}"/>
     </Style>
+    <Style Selector="ui|CsButton.active:pressed">
+        <Setter Property="Background" Value="{StaticResource CsPressedBrush}"/>
+        <Setter Property="BorderBrush" Value="{StaticResource CsHoverBorderBrush}"/>
+    </Style>
+
     <Style Selector="ui|CsButton.ghost">
         <Setter Property="BorderBrush" Value="Transparent"/>
         <Setter Property="Background" Value="Transparent"/>
         <Setter Property="Foreground" Value="{StaticResource CsForegroundBrush}"/>
     </Style>
     <Style Selector="ui|CsButton.ghost:pointerover">
-        <Setter Property="Background" Value="{StaticResource CsAccentBrush}"/>
+        <Setter Property="Background" Value="{StaticResource CsButtonAccentHoverBrush}"/>
         <Setter Property="Foreground" Value="{StaticResource CsAccentForegroundBrush}"/>
     </Style>
+    <Style Selector="ui|CsButton.ghost:pressed">
+        <Setter Property="Background" Value="{StaticResource CsButtonAccentPressedBrush}"/>
+        <Setter Property="Foreground" Value="{StaticResource CsAccentForegroundBrush}"/>
+    </Style>
+
     <Style Selector="ui|CsButton.destructive">
         <Setter Property="Background" Value="{StaticResource CsDestructiveBrush}"/>
         <Setter Property="Foreground" Value="{StaticResource CsDestructiveForegroundBrush}"/>
         <Setter Property="BorderBrush" Value="{StaticResource CsDestructiveBrush}"/>
     </Style>
     <Style Selector="ui|CsButton.destructive:pointerover">
-        <Setter Property="Background" Value="#FF7A7D"/>
-        <Setter Property="BorderBrush" Value="#FF7A7D"/>
+        <Setter Property="Background" Value="{StaticResource CsDestructiveHoverBrush}"/>
+        <Setter Property="BorderBrush" Value="{StaticResource CsDestructiveHoverBrush}"/>
     </Style>
+    <Style Selector="ui|CsButton.destructive:pressed">
+        <Setter Property="Background" Value="{StaticResource CsDestructivePressedBrush}"/>
+        <Setter Property="BorderBrush" Value="{StaticResource CsDestructivePressedBrush}"/>
+    </Style>
+    <Style Selector="ui|CsButton.destructive:focus-visible /template/ Border#PART_ButtonRoot">
+        <Setter Property="BoxShadow" Value="0 0 0 3 #66FF6467"/>
+    </Style>
+
     <Style Selector="ui|CsButton.link">
         <Setter Property="Background" Value="Transparent"/>
         <Setter Property="Foreground" Value="{StaticResource CsPrimaryBrush}"/>
         <Setter Property="BorderBrush" Value="Transparent"/>
-        <Setter Property="Padding" Value="0"/>
     </Style>
     <Style Selector="ui|CsButton.link:pointerover">
         <Setter Property="Background" Value="Transparent"/>
-        <Setter Property="Foreground" Value="#D4D4D4"/>
+        <Setter Property="Foreground" Value="{StaticResource CsPrimaryBrush}"/>
+    </Style>
+    <Style Selector="ui|CsButton.link:pressed">
+        <Setter Property="Background" Value="Transparent"/>
+        <Setter Property="Foreground" Value="{StaticResource CsPrimaryHoverBrush}"/>
+    </Style>
+    <Style Selector="ui|CsButton.link:pointerover TextBlock">
+        <Setter Property="TextDecorations" Value="Underline"/>
+    </Style>
+
+    <Style Selector="ui|CsButton.danger">
+        <Setter Property="Foreground" Value="{StaticResource CsDestructiveBrush}"/>
+        <Setter Property="BorderBrush" Value="{StaticResource CsIconButtonDangerBorderBrush}"/>
+    </Style>
+    <Style Selector="ui|CsButton.outline.danger">
+        <Setter Property="Background" Value="{StaticResource CsIconButtonDangerBrush}"/>
+        <Setter Property="Foreground" Value="{StaticResource CsDestructiveBrush}"/>
+        <Setter Property="BorderBrush" Value="{StaticResource CsIconButtonDangerBorderBrush}"/>
+    </Style>
+    <Style Selector="ui|CsButton.outline.danger:pointerover">
+        <Setter Property="Background" Value="{StaticResource CsIconButtonDangerHoverBrush}"/>
+        <Setter Property="Foreground" Value="{StaticResource CsDestructiveBrush}"/>
+        <Setter Property="BorderBrush" Value="{StaticResource CsIconButtonDangerHoverBorderBrush}"/>
+    </Style>
+    <Style Selector="ui|CsButton.outline.danger:pressed">
+        <Setter Property="Background" Value="{StaticResource CsDestructivePressedBrush}"/>
+        <Setter Property="Foreground" Value="{StaticResource CsDestructiveForegroundBrush}"/>
+        <Setter Property="BorderBrush" Value="{StaticResource CsDestructivePressedBrush}"/>
+    </Style>
+    <Style Selector="ui|CsButton.outline.danger:focus-visible /template/ Border#PART_ButtonRoot">
+        <Setter Property="BoxShadow" Value="0 0 0 3 #66FF6467"/>
+    </Style>
+
+    <Style Selector="ui|CsButton.xs">
+        <Setter Property="MinHeight" Value="24"/>
+        <Setter Property="Padding" Value="8,4"/>
+        <Setter Property="FontSize" Value="12"/>
+    </Style>
+    <Style Selector="ui|CsButton.sm">
+        <Setter Property="MinHeight" Value="32"/>
+        <Setter Property="Padding" Value="12,6"/>
     </Style>
     <Style Selector="ui|CsButton.compact">
         <Setter Property="MinHeight" Value="32"/>
-        <Setter Property="Padding" Value="10,6"/>
+        <Setter Property="Padding" Value="12,6"/>
+    </Style>
+    <Style Selector="ui|CsButton.lg">
+        <Setter Property="MinHeight" Value="40"/>
+        <Setter Property="Padding" Value="24,8"/>
+    </Style>
+    <Style Selector="ui|CsButton.icon">
+        <Setter Property="Width" Value="36"/>
+        <Setter Property="Height" Value="36"/>
+        <Setter Property="MinHeight" Value="36"/>
+        <Setter Property="Padding" Value="0"/>
+    </Style>
+    <Style Selector="ui|CsButton.icon-xs">
+        <Setter Property="Width" Value="24"/>
+        <Setter Property="Height" Value="24"/>
+        <Setter Property="MinHeight" Value="24"/>
+        <Setter Property="Padding" Value="0"/>
+    </Style>
+    <Style Selector="ui|CsButton.icon-sm">
+        <Setter Property="Width" Value="32"/>
+        <Setter Property="Height" Value="32"/>
+        <Setter Property="MinHeight" Value="32"/>
+        <Setter Property="Padding" Value="0"/>
+    </Style>
+    <Style Selector="ui|CsButton.icon-lg">
+        <Setter Property="Width" Value="40"/>
+        <Setter Property="Height" Value="40"/>
+        <Setter Property="MinHeight" Value="40"/>
+        <Setter Property="Padding" Value="0"/>
+    </Style>
+    <Style Selector="ui|CsButton lucide|LucideIcon">
+        <Setter Property="Size" Value="16"/>
+        <Setter Property="IsHitTestVisible" Value="False"/>
+        <Setter Property="VerticalAlignment" Value="Center"/>
     </Style>
 
     <Style Selector="ui|CsNavButton">

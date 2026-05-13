@@ -198,6 +198,1348 @@ public sealed class OpenAiChatAdapter : IProviderProtocolAdapter
         }
     }
 
+    public async Task HandleMessagesAsync(ProviderRequestContext context, CancellationToken cancellationToken)
+    {
+        var stopwatch = Stopwatch.StartNew();
+        var root = context.RequestRoot;
+        var isStream = root.TryGetProperty("stream", out var streamValue) && streamValue.ValueKind == JsonValueKind.True;
+        var requestModel = ExtractMessagesRequestModel(context);
+
+        byte[] payload;
+        try
+        {
+            payload = BuildMessagesChatPayload(context, requestModel);
+        }
+        catch (ProtocolConversionException ex)
+        {
+            stopwatch.Stop();
+            var record = ProtocolAdapterCommon.CreateRecord(
+                context,
+                requestModel,
+                isStream,
+                StatusCodes.Status400BadRequest,
+                stopwatch.ElapsedMilliseconds,
+                default,
+                null,
+                ex.Message);
+            ProtocolAdapterCommon.Record(context, record);
+            await ProtocolAdapterCommon.WriteJsonErrorAsync(
+                context.HttpContext,
+                HttpStatusCode.BadRequest,
+                ex.Message,
+                cancellationToken);
+            return;
+        }
+
+        using var upstreamRequest = CreateUpstreamRequest(context, payload);
+
+        HttpResponseMessage upstreamResponse;
+        try
+        {
+            upstreamResponse = await _httpClient.SendAsync(
+                upstreamRequest,
+                isStream ? HttpCompletionOption.ResponseHeadersRead : HttpCompletionOption.ResponseContentRead,
+                cancellationToken);
+            if (ShouldRetryWithFreshOAuth(context, upstreamResponse) &&
+                await context.TryForceRefreshAuthAsync(cancellationToken))
+            {
+                upstreamResponse.Dispose();
+                using var retryRequest = CreateUpstreamRequest(context, payload);
+                upstreamResponse = await _httpClient.SendAsync(
+                    retryRequest,
+                    isStream ? HttpCompletionOption.ResponseHeadersRead : HttpCompletionOption.ResponseContentRead,
+                    cancellationToken);
+            }
+        }
+        catch (HttpRequestException ex)
+        {
+            stopwatch.Stop();
+            var record = ProtocolAdapterCommon.CreateRecord(
+                context,
+                requestModel,
+                isStream,
+                StatusCodes.Status502BadGateway,
+                stopwatch.ElapsedMilliseconds,
+                default,
+                null,
+                ex.Message);
+            ProtocolAdapterCommon.Record(context, record);
+            await ProtocolAdapterCommon.WriteJsonErrorAsync(
+                context.HttpContext,
+                HttpStatusCode.BadGateway,
+                ex.Message,
+                cancellationToken);
+            return;
+        }
+
+        using (upstreamResponse)
+        {
+            if (isStream && upstreamResponse.IsSuccessStatusCode)
+            {
+                context.HttpContext.Response.StatusCode = StatusCodes.Status200OK;
+                context.HttpContext.Response.ContentType = "text/event-stream";
+                await ProxyMessagesChatStreamAsync(
+                    context,
+                    upstreamResponse,
+                    requestModel,
+                    stopwatch,
+                    cancellationToken);
+                return;
+            }
+
+            var responseBody = await upstreamResponse.Content.ReadAsStringAsync(cancellationToken);
+
+            if (!upstreamResponse.IsSuccessStatusCode)
+            {
+                stopwatch.Stop();
+                var errorRecord = ProtocolAdapterCommon.CreateRecord(
+                    context,
+                    requestModel,
+                    isStream,
+                    (int)upstreamResponse.StatusCode,
+                    stopwatch.ElapsedMilliseconds,
+                    default,
+                    null,
+                    responseBody);
+                ProtocolAdapterCommon.Record(context, errorRecord);
+
+                context.HttpContext.Response.StatusCode = (int)upstreamResponse.StatusCode;
+                ProtocolAdapterCommon.CopyContentHeaders(upstreamResponse, context.HttpContext.Response);
+                if (string.IsNullOrWhiteSpace(context.HttpContext.Response.ContentType))
+                    context.HttpContext.Response.ContentType = "application/json";
+                await context.HttpContext.Response.WriteAsync(responseBody, cancellationToken);
+                return;
+            }
+
+            BuiltMessagesPayload builtResponse;
+            try
+            {
+                using var document = JsonDocument.Parse(responseBody);
+                builtResponse = BuildMessagesAnthropicPayload(context, requestModel, document.RootElement);
+            }
+            catch (JsonException ex)
+            {
+                stopwatch.Stop();
+                var errorRecord = ProtocolAdapterCommon.CreateRecord(
+                    context,
+                    requestModel,
+                    isStream,
+                    StatusCodes.Status502BadGateway,
+                    stopwatch.ElapsedMilliseconds,
+                    default,
+                    null,
+                    ex.Message);
+                ProtocolAdapterCommon.Record(context, errorRecord);
+                await ProtocolAdapterCommon.WriteJsonErrorAsync(
+                    context.HttpContext,
+                    HttpStatusCode.BadGateway,
+                    "OpenAI Chat upstream returned invalid JSON.",
+                    cancellationToken);
+                return;
+            }
+
+            stopwatch.Stop();
+            var record = ProtocolAdapterCommon.CreateRecord(
+                context,
+                requestModel,
+                isStream,
+                (int)upstreamResponse.StatusCode,
+                stopwatch.ElapsedMilliseconds,
+                builtResponse.Usage,
+                builtResponse.ResponseModel,
+                null);
+            ProtocolAdapterCommon.Record(context, record);
+
+            context.HttpContext.Response.StatusCode = StatusCodes.Status200OK;
+            context.HttpContext.Response.ContentType = "application/json";
+            await context.HttpContext.Response.WriteAsync(builtResponse.Json, cancellationToken);
+        }
+    }
+
+    private static string ExtractMessagesRequestModel(ProviderRequestContext context)
+    {
+        var requestModel = TryGetString(context.RequestRoot, "model") ?? context.Provider.ClaudeCode.Model;
+        if (string.IsNullOrWhiteSpace(requestModel))
+            requestModel = context.Provider.DefaultModel;
+
+        return ClaudeCodeConfigWriter.StripOneMillionSuffix(requestModel);
+    }
+
+    private static byte[] BuildMessagesChatPayload(ProviderRequestContext context, string requestModel)
+    {
+        var root = context.RequestRoot;
+        if (root.ValueKind != JsonValueKind.Object)
+            throw new ProtocolConversionException("Anthropic Messages request body must be a JSON object.");
+
+        var upstreamModel = ResolveMessagesChatModel(context, requestModel);
+        JsonElement? toolsValue = null;
+        JsonElement? toolChoiceValue = null;
+        JsonElement? streamOptionsValue = null;
+        JsonElement? requestedServiceTier = null;
+        var stream = false;
+        var wroteModel = false;
+        var wroteServiceTier = false;
+
+        using var buffer = new MemoryStream();
+        using (var writer = new Utf8JsonWriter(buffer))
+        {
+            writer.WriteStartObject();
+
+            foreach (var property in root.EnumerateObject())
+            {
+                switch (property.Name)
+                {
+                    case "model":
+                        wroteModel = true;
+                        writer.WriteString("model", upstreamModel);
+                        break;
+
+                    case "system":
+                    case "messages":
+                        // Converted below into Chat Completions `messages`.
+                        break;
+
+                    case "max_tokens":
+                        writer.WritePropertyName("max_completion_tokens");
+                        property.Value.WriteTo(writer);
+                        break;
+
+                    case "stop_sequences":
+                        writer.WritePropertyName("stop");
+                        property.Value.WriteTo(writer);
+                        break;
+
+                    case "tools":
+                        toolsValue = property.Value.Clone();
+                        break;
+
+                    case "tool_choice":
+                        toolChoiceValue = property.Value.Clone();
+                        break;
+
+                    case "stream":
+                        stream = property.Value.ValueKind == JsonValueKind.True;
+                        property.WriteTo(writer);
+                        break;
+
+                    case "stream_options":
+                        streamOptionsValue = property.Value.Clone();
+                        break;
+
+                    case "service_tier":
+                        wroteServiceTier = true;
+                        requestedServiceTier = property.Value.Clone();
+                        break;
+
+                    case "thinking":
+                    case "container":
+                    case "context_management":
+                    case "mcp_servers":
+                    case "top_k":
+                        // Anthropic-only controls currently have no Chat Completions equivalent.
+                        break;
+
+                    default:
+                        property.WriteTo(writer);
+                        break;
+                }
+            }
+
+            if (!wroteModel)
+                writer.WriteString("model", upstreamModel);
+
+            writer.WritePropertyName("messages");
+            WriteMessagesChatMessages(writer, root);
+
+            if (toolsValue.HasValue)
+            {
+                writer.WritePropertyName("tools");
+                WriteChatTools(writer, toolsValue.Value, allowedToolNames: null);
+            }
+
+            if (toolChoiceValue.HasValue)
+                WriteMessagesChatToolChoice(writer, toolChoiceValue.Value);
+
+            if (wroteServiceTier || context.CostSettings.FastMode ||
+                !string.IsNullOrWhiteSpace(context.Model?.ServiceTier) ||
+                !string.IsNullOrWhiteSpace(context.Provider.ServiceTier))
+            {
+                ProtocolAdapterCommon.WriteServiceTierProperty(
+                    writer,
+                    "service_tier",
+                    context.Provider,
+                    context.Model,
+                    context.CostSettings,
+                    requestedServiceTier);
+            }
+
+            if (stream)
+            {
+                writer.WritePropertyName("stream_options");
+                WriteMergedChatStreamOptions(writer, streamOptionsValue);
+            }
+
+            writer.WriteEndObject();
+        }
+
+        return buffer.ToArray();
+    }
+
+    private static string ResolveMessagesChatModel(ProviderRequestContext context, string requestModel)
+    {
+        var upstreamModel = ProtocolAdapterCommon.ResolveUpstreamModel(context.Provider, context.Model);
+        if (!string.IsNullOrWhiteSpace(upstreamModel))
+            return ClaudeCodeConfigWriter.StripOneMillionSuffix(upstreamModel);
+
+        if (!string.IsNullOrWhiteSpace(requestModel))
+            return ClaudeCodeConfigWriter.StripOneMillionSuffix(requestModel);
+
+        return ClaudeCodeConfigWriter.StripOneMillionSuffix(context.Provider.DefaultModel);
+    }
+
+    private static void WriteMessagesChatMessages(Utf8JsonWriter writer, JsonElement root)
+    {
+        if (!root.TryGetProperty("messages", out var messagesValue) || messagesValue.ValueKind != JsonValueKind.Array)
+            throw new ProtocolConversionException("Anthropic Messages request requires a messages array.");
+
+        writer.WriteStartArray();
+
+        if (root.TryGetProperty("system", out var systemValue) &&
+            systemValue.ValueKind != JsonValueKind.Null &&
+            systemValue.ValueKind != JsonValueKind.Undefined)
+        {
+            CreateMessagesSystemChatMessage(systemValue).WriteTo(writer);
+        }
+
+        foreach (var message in BuildMessagesChatMessages(messagesValue))
+            message.WriteTo(writer);
+
+        writer.WriteEndArray();
+    }
+
+    private static List<JsonElement> BuildMessagesChatMessages(JsonElement messagesValue)
+    {
+        var messages = new List<JsonElement>();
+        foreach (var message in messagesValue.EnumerateArray())
+        {
+            if (message.ValueKind != JsonValueKind.Object)
+                continue;
+
+            var role = NormalizeAnthropicMessageRole(TryGetString(message, "role"));
+            if (string.Equals(role, "assistant", StringComparison.Ordinal))
+            {
+                messages.Add(CreateMessagesAssistantChatMessage(message));
+                continue;
+            }
+
+            if (string.Equals(role, "user", StringComparison.Ordinal))
+            {
+                AppendMessagesUserChatMessages(messages, message);
+                continue;
+            }
+
+            messages.Add(CreateMessagesDirectChatMessage(role, message));
+        }
+
+        return messages;
+    }
+
+    private static string NormalizeAnthropicMessageRole(string? role)
+    {
+        return role switch
+        {
+            "assistant" => "assistant",
+            "system" => "system",
+            "developer" => "system",
+            "tool" => "tool",
+            _ => "user"
+        };
+    }
+
+    private static JsonElement CreateMessagesSystemChatMessage(JsonElement systemValue)
+    {
+        return CreateChatInstructionsMessage(systemValue);
+    }
+
+    private static JsonElement CreateMessagesDirectChatMessage(string role, JsonElement message)
+    {
+        var json = ProtocolAdapterCommon.SerializeJson(writer =>
+        {
+            writer.WriteStartObject();
+            writer.WriteString("role", role);
+            writer.WritePropertyName("content");
+            if (message.TryGetProperty("content", out var content))
+                WriteMessagesChatMessageContent(writer, content, role);
+            else
+                writer.WriteStringValue(string.Empty);
+            writer.WriteEndObject();
+        });
+
+        using var document = JsonDocument.Parse(json);
+        return document.RootElement.Clone();
+    }
+
+    private static JsonElement CreateMessagesAssistantChatMessage(JsonElement message)
+    {
+        var pendingAssistant = new PendingAssistantTurn();
+
+        if (message.TryGetProperty("content", out var content))
+        {
+            if (content.ValueKind == JsonValueKind.String)
+            {
+                AppendAssistantTextParts(pendingAssistant, [content.GetString() ?? string.Empty]);
+            }
+            else if (content.ValueKind == JsonValueKind.Array)
+            {
+                foreach (var part in content.EnumerateArray())
+                    AppendAnthropicAssistantContentPart(pendingAssistant, part);
+            }
+            else
+            {
+                AppendAssistantTextParts(pendingAssistant, [ConvertJsonElementToText(content)]);
+            }
+        }
+
+        if (!pendingAssistant.HasAnyContent)
+            AppendAssistantTextParts(pendingAssistant, [string.Empty]);
+
+        return CreateAssistantChatMessage(pendingAssistant);
+    }
+
+    private static void AppendAnthropicAssistantContentPart(PendingAssistantTurn pendingAssistant, JsonElement part)
+    {
+        if (part.ValueKind == JsonValueKind.String)
+        {
+            AppendAssistantTextParts(pendingAssistant, [part.GetString() ?? string.Empty]);
+            return;
+        }
+
+        if (part.ValueKind != JsonValueKind.Object)
+        {
+            AppendAssistantTextParts(pendingAssistant, [ConvertJsonElementToText(part)]);
+            return;
+        }
+
+        var type = ExtractItemType(part);
+        if (string.Equals(type, "tool_use", StringComparison.Ordinal))
+        {
+            AppendAssistantToolCall(pendingAssistant, CreateChatToolCallFromAnthropicToolUse(part));
+            return;
+        }
+
+        if (string.Equals(type, "thinking", StringComparison.Ordinal))
+        {
+            pendingAssistant.ReasoningContent = MergeReasoningText(
+                pendingAssistant.ReasoningContent,
+                ExtractKnownText(part));
+            return;
+        }
+
+        if (string.Equals(type, "redacted_thinking", StringComparison.Ordinal))
+            return;
+
+        if (string.Equals(type, "text", StringComparison.Ordinal))
+        {
+            AppendAssistantTextParts(pendingAssistant, [ExtractTextFromContentPart(part) ?? string.Empty]);
+            return;
+        }
+
+        AppendAssistantTextParts(pendingAssistant, [ExtractTextFromContentPart(part) ?? ConvertJsonElementToText(part)]);
+    }
+
+    private static JsonElement CreateChatToolCallFromAnthropicToolUse(JsonElement toolUse)
+    {
+        var callId = TryGetString(toolUse, "id") ?? ProtocolAdapterCommon.CreateFunctionCallId();
+        var name = TryGetString(toolUse, "name") ?? "tool";
+        var arguments = toolUse.TryGetProperty("input", out var inputValue) &&
+            inputValue.ValueKind != JsonValueKind.Undefined &&
+            inputValue.ValueKind != JsonValueKind.Null
+                ? inputValue.GetRawText()
+                : "{}";
+
+        var json = ProtocolAdapterCommon.SerializeJson(writer =>
+        {
+            writer.WriteStartObject();
+            writer.WriteString("id", callId);
+            writer.WriteString("type", "function");
+            writer.WritePropertyName("function");
+            writer.WriteStartObject();
+            writer.WriteString("name", name);
+            writer.WriteString("arguments", arguments);
+            writer.WriteEndObject();
+            writer.WriteEndObject();
+        });
+
+        using var document = JsonDocument.Parse(json);
+        return document.RootElement.Clone();
+    }
+
+    private static void AppendMessagesUserChatMessages(List<JsonElement> messages, JsonElement message)
+    {
+        if (!message.TryGetProperty("content", out var content))
+        {
+            messages.Add(CreateMessagesDirectChatMessage("user", message));
+            return;
+        }
+
+        if (content.ValueKind != JsonValueKind.Array)
+        {
+            messages.Add(CreateMessagesDirectChatMessage("user", message));
+            return;
+        }
+
+        var userParts = new List<JsonElement>();
+        foreach (var part in content.EnumerateArray())
+        {
+            if (part.ValueKind == JsonValueKind.Object &&
+                string.Equals(ExtractItemType(part), "tool_result", StringComparison.Ordinal))
+            {
+                FlushMessagesUserContent(messages, userParts);
+                messages.Add(CreateChatToolResultMessageFromAnthropicToolResult(part));
+                continue;
+            }
+
+            userParts.Add(part.Clone());
+        }
+
+        FlushMessagesUserContent(messages, userParts);
+    }
+
+    private static void FlushMessagesUserContent(List<JsonElement> messages, List<JsonElement> userParts)
+    {
+        if (userParts.Count == 0)
+            return;
+
+        messages.Add(CreateMessagesUserChatMessage(userParts));
+        userParts.Clear();
+    }
+
+    private static JsonElement CreateMessagesUserChatMessage(IReadOnlyList<JsonElement> parts)
+    {
+        var json = ProtocolAdapterCommon.SerializeJson(writer =>
+        {
+            writer.WriteStartObject();
+            writer.WriteString("role", "user");
+            writer.WritePropertyName("content");
+            if (TryJoinMessagesTextParts(parts, out var text))
+            {
+                writer.WriteStringValue(text);
+            }
+            else
+            {
+                writer.WriteStartArray();
+                foreach (var part in parts)
+                    WriteMessagesChatContentPart(writer, part, "user");
+                writer.WriteEndArray();
+            }
+
+            writer.WriteEndObject();
+        });
+
+        using var document = JsonDocument.Parse(json);
+        return document.RootElement.Clone();
+    }
+
+    private static bool TryJoinMessagesTextParts(IReadOnlyList<JsonElement> parts, out string text)
+    {
+        var builder = new StringBuilder();
+        foreach (var part in parts)
+        {
+            string? textPart = null;
+            if (part.ValueKind == JsonValueKind.String)
+            {
+                textPart = part.GetString();
+            }
+            else if (part.ValueKind == JsonValueKind.Object &&
+                     string.Equals(ExtractItemType(part), "text", StringComparison.Ordinal))
+            {
+                textPart = ExtractTextFromContentPart(part);
+            }
+
+            if (textPart is null)
+            {
+                text = string.Empty;
+                return false;
+            }
+
+            if (builder.Length > 0)
+                builder.Append('\n');
+            builder.Append(textPart);
+        }
+
+        text = builder.ToString();
+        return true;
+    }
+
+    private static JsonElement CreateChatToolResultMessageFromAnthropicToolResult(JsonElement toolResult)
+    {
+        var callId = TryGetString(toolResult, "tool_use_id") ??
+            TryGetString(toolResult, "tool_call_id") ??
+            TryGetString(toolResult, "id") ??
+            ProtocolAdapterCommon.CreateFunctionCallId();
+
+        var json = ProtocolAdapterCommon.SerializeJson(writer =>
+        {
+            writer.WriteStartObject();
+            writer.WriteString("role", "tool");
+            writer.WriteString("tool_call_id", callId);
+            writer.WriteString("content", ExtractAnthropicToolResultContent(toolResult));
+            writer.WriteEndObject();
+        });
+
+        using var document = JsonDocument.Parse(json);
+        return document.RootElement.Clone();
+    }
+
+    private static string ExtractAnthropicToolResultContent(JsonElement toolResult)
+    {
+        if (!toolResult.TryGetProperty("content", out var content))
+            return string.Empty;
+
+        return content.ValueKind switch
+        {
+            JsonValueKind.String => content.GetString() ?? string.Empty,
+            JsonValueKind.Null => string.Empty,
+            JsonValueKind.Array => TryJoinTextParts(content) ?? content.GetRawText(),
+            _ => ConvertJsonElementToText(content)
+        };
+    }
+
+    private static void WriteMessagesChatMessageContent(Utf8JsonWriter writer, JsonElement content, string role)
+    {
+        if (content.ValueKind == JsonValueKind.String)
+        {
+            writer.WriteStringValue(content.GetString());
+            return;
+        }
+
+        if (content.ValueKind != JsonValueKind.Array)
+        {
+            writer.WriteStringValue(ConvertJsonElementToText(content));
+            return;
+        }
+
+        writer.WriteStartArray();
+        foreach (var part in content.EnumerateArray())
+            WriteMessagesChatContentPart(writer, part, role);
+        writer.WriteEndArray();
+    }
+
+    private static void WriteMessagesChatContentPart(Utf8JsonWriter writer, JsonElement part, string role)
+    {
+        if (part.ValueKind == JsonValueKind.String)
+        {
+            WriteChatTextContentPart(writer, part.GetString());
+            return;
+        }
+
+        if (part.ValueKind != JsonValueKind.Object)
+        {
+            WriteChatTextContentPart(writer, ConvertJsonElementToText(part));
+            return;
+        }
+
+        var type = ExtractItemType(part);
+        switch (type)
+        {
+            case "text":
+                WriteChatTextContentPart(writer, ExtractTextFromContentPart(part) ?? string.Empty);
+                return;
+
+            case "image":
+                if (TryWriteAnthropicImageAsChatContentPart(writer, part, role))
+                    return;
+                WriteChatTextContentPart(writer, ConvertJsonElementToText(part));
+                return;
+
+            case "document":
+                WriteChatTextContentPart(writer, ExtractTextFromContentPart(part) ?? ConvertJsonElementToText(part));
+                return;
+
+            default:
+                WriteChatContentPart(writer, part, role);
+                return;
+        }
+    }
+
+    private static bool TryWriteAnthropicImageAsChatContentPart(Utf8JsonWriter writer, JsonElement part, string role)
+    {
+        if (!string.Equals(role, "user", StringComparison.Ordinal))
+            return false;
+
+        if (!part.TryGetProperty("source", out var source) || source.ValueKind != JsonValueKind.Object)
+            return false;
+
+        var sourceType = TryGetString(source, "type");
+        string? url = null;
+        if (string.Equals(sourceType, "url", StringComparison.Ordinal))
+        {
+            url = TryGetString(source, "url");
+        }
+        else if (string.Equals(sourceType, "base64", StringComparison.Ordinal))
+        {
+            var mediaType = TryGetString(source, "media_type") ?? "application/octet-stream";
+            var data = TryGetString(source, "data");
+            if (!string.IsNullOrWhiteSpace(data))
+                url = $"data:{mediaType};base64,{data}";
+        }
+
+        if (string.IsNullOrWhiteSpace(url))
+            return false;
+
+        writer.WriteStartObject();
+        writer.WriteString("type", "image_url");
+        writer.WritePropertyName("image_url");
+        writer.WriteStartObject();
+        writer.WriteString("url", url);
+        writer.WriteEndObject();
+        writer.WriteEndObject();
+        return true;
+    }
+
+    private static void WriteMessagesChatToolChoice(Utf8JsonWriter writer, JsonElement toolChoice)
+    {
+        writer.WritePropertyName("tool_choice");
+
+        if (toolChoice.ValueKind == JsonValueKind.String)
+        {
+            WriteMessagesChatToolChoiceString(writer, toolChoice.GetString());
+            return;
+        }
+
+        if (toolChoice.ValueKind != JsonValueKind.Object)
+        {
+            writer.WriteStringValue("auto");
+            return;
+        }
+
+        var type = TryGetString(toolChoice, "type");
+        if (string.Equals(type, "any", StringComparison.Ordinal))
+        {
+            writer.WriteStringValue("required");
+            return;
+        }
+
+        if (string.Equals(type, "tool", StringComparison.Ordinal))
+        {
+            var name = TryGetString(toolChoice, "name");
+            if (string.IsNullOrWhiteSpace(name))
+            {
+                writer.WriteStringValue("auto");
+                return;
+            }
+
+            writer.WriteStartObject();
+            writer.WriteString("type", "function");
+            writer.WritePropertyName("function");
+            writer.WriteStartObject();
+            writer.WriteString("name", name);
+            writer.WriteEndObject();
+            writer.WriteEndObject();
+            return;
+        }
+
+        if (string.Equals(type, "auto", StringComparison.Ordinal) ||
+            string.Equals(type, "none", StringComparison.Ordinal))
+        {
+            writer.WriteStringValue(type);
+            return;
+        }
+
+        if (string.Equals(type, "required", StringComparison.Ordinal))
+        {
+            writer.WriteStringValue("required");
+            return;
+        }
+
+        writer.WriteStringValue("auto");
+    }
+
+    private static void WriteMessagesChatToolChoiceString(Utf8JsonWriter writer, string? value)
+    {
+        if (string.Equals(value, "any", StringComparison.Ordinal))
+        {
+            writer.WriteStringValue("required");
+            return;
+        }
+
+        if (string.Equals(value, "auto", StringComparison.Ordinal) ||
+            string.Equals(value, "required", StringComparison.Ordinal) ||
+            string.Equals(value, "none", StringComparison.Ordinal))
+        {
+            writer.WriteStringValue(value);
+            return;
+        }
+
+        writer.WriteStringValue("auto");
+    }
+
+    private static BuiltMessagesPayload BuildMessagesAnthropicPayload(
+        ProviderRequestContext context,
+        string requestModel,
+        JsonElement upstreamRoot)
+    {
+        var responseId = TryGetString(upstreamRoot, "id") ?? ProtocolAdapterCommon.CreateMessageId();
+        var responseModel = TryGetString(upstreamRoot, "model") ?? requestModel;
+        var finishReason = "stop";
+        JsonElement? choiceMessage = null;
+
+        if (upstreamRoot.TryGetProperty("choices", out var choicesValue) &&
+            choicesValue.ValueKind == JsonValueKind.Array &&
+            choicesValue.GetArrayLength() > 0)
+        {
+            var choice = choicesValue[0];
+            finishReason = choice.TryGetProperty("finish_reason", out var finishReasonValue) &&
+                           finishReasonValue.ValueKind == JsonValueKind.String
+                ? finishReasonValue.GetString() ?? "stop"
+                : "stop";
+            if (choice.TryGetProperty("message", out var messageValue) && messageValue.ValueKind == JsonValueKind.Object)
+                choiceMessage = messageValue;
+        }
+
+        var usage = ParseChatUsage(upstreamRoot);
+        var json = ProtocolAdapterCommon.SerializeJson(writer =>
+        {
+            writer.WriteStartObject();
+            writer.WriteString("id", responseId);
+            writer.WriteString("type", "message");
+            writer.WriteString("role", "assistant");
+            writer.WriteString("model", responseModel);
+            writer.WritePropertyName("content");
+            writer.WriteStartArray();
+            if (choiceMessage.HasValue)
+                WriteAnthropicContentBlocksFromChatMessage(writer, choiceMessage.Value);
+            writer.WriteEndArray();
+            writer.WriteString("stop_reason", MapChatFinishReasonToAnthropic(finishReason));
+            writer.WriteNull("stop_sequence");
+            writer.WritePropertyName("usage");
+            WriteAnthropicUsage(writer, usage);
+            writer.WriteEndObject();
+        });
+
+        return new BuiltMessagesPayload(json, usage, responseModel);
+    }
+
+    private static void WriteAnthropicContentBlocksFromChatMessage(Utf8JsonWriter writer, JsonElement message)
+    {
+        foreach (var text in ExtractChatMessageTextParts(message))
+            WriteAnthropicTextBlock(writer, text);
+
+        if (message.TryGetProperty("refusal", out var refusalValue) && refusalValue.ValueKind == JsonValueKind.String)
+        {
+            var refusal = refusalValue.GetString();
+            if (!string.IsNullOrEmpty(refusal))
+                WriteAnthropicTextBlock(writer, refusal);
+        }
+
+        if (message.TryGetProperty("tool_calls", out var toolCalls) && toolCalls.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var toolCall in toolCalls.EnumerateArray())
+                WriteAnthropicToolUseBlock(writer, toolCall);
+        }
+
+        if (message.TryGetProperty("function_call", out var functionCall) && functionCall.ValueKind == JsonValueKind.Object)
+            WriteAnthropicToolUseBlock(writer, CreateToolCallFromFunctionCall(functionCall));
+    }
+
+    private static void WriteAnthropicTextBlock(Utf8JsonWriter writer, string text)
+    {
+        if (string.IsNullOrEmpty(text))
+            return;
+
+        writer.WriteStartObject();
+        writer.WriteString("type", "text");
+        writer.WriteString("text", text);
+        writer.WriteEndObject();
+    }
+
+    private static void WriteAnthropicToolUseBlock(Utf8JsonWriter writer, JsonElement toolCall)
+    {
+        var callId = TryGetString(toolCall, "id") ??
+            TryGetString(toolCall, "call_id") ??
+            ProtocolAdapterCommon.CreateFunctionCallId();
+        var function = toolCall.TryGetProperty("function", out var functionValue) &&
+            functionValue.ValueKind == JsonValueKind.Object
+                ? functionValue
+                : toolCall;
+        var name = TryGetString(function, "name") ?? "tool";
+        var arguments = TryGetString(function, "arguments") ?? "{}";
+
+        writer.WriteStartObject();
+        writer.WriteString("type", "tool_use");
+        writer.WriteString("id", callId);
+        writer.WriteString("name", name);
+        writer.WritePropertyName("input");
+        WriteAnthropicToolInput(writer, arguments);
+        writer.WriteEndObject();
+    }
+
+    private static JsonElement CreateToolCallFromFunctionCall(JsonElement functionCall)
+    {
+        var json = ProtocolAdapterCommon.SerializeJson(writer =>
+        {
+            writer.WriteStartObject();
+            writer.WriteString("id", ProtocolAdapterCommon.CreateFunctionCallId());
+            writer.WritePropertyName("function");
+            functionCall.WriteTo(writer);
+            writer.WriteEndObject();
+        });
+
+        using var document = JsonDocument.Parse(json);
+        return document.RootElement.Clone();
+    }
+
+    private static void WriteAnthropicToolInput(Utf8JsonWriter writer, string arguments)
+    {
+        if (!string.IsNullOrWhiteSpace(arguments))
+        {
+            try
+            {
+                using var document = JsonDocument.Parse(arguments);
+                if (document.RootElement.ValueKind == JsonValueKind.Object)
+                {
+                    document.RootElement.WriteTo(writer);
+                    return;
+                }
+            }
+            catch (JsonException)
+            {
+            }
+        }
+
+        writer.WriteStartObject();
+        if (!string.IsNullOrEmpty(arguments) && !string.Equals(arguments, "{}", StringComparison.Ordinal))
+            writer.WriteString("_raw_arguments", arguments);
+        writer.WriteEndObject();
+    }
+
+    private static string MapChatFinishReasonToAnthropic(string? finishReason)
+    {
+        return finishReason switch
+        {
+            "length" => "max_tokens",
+            "tool_calls" => "tool_use",
+            "function_call" => "tool_use",
+            "content_filter" => "stop_sequence",
+            _ => "end_turn"
+        };
+    }
+
+    private static void WriteAnthropicUsage(Utf8JsonWriter writer, UsageTokens usage)
+    {
+        writer.WriteStartObject();
+        writer.WriteNumber("input_tokens", usage.InputTokens);
+        if (usage.CachedInputTokens > 0)
+            writer.WriteNumber("cache_read_input_tokens", usage.CachedInputTokens);
+        if (usage.CacheCreationInputTokens > 0)
+            writer.WriteNumber("cache_creation_input_tokens", usage.CacheCreationInputTokens);
+        writer.WriteNumber("output_tokens", usage.OutputTokens);
+        writer.WriteEndObject();
+    }
+
+    private static async Task ProxyMessagesChatStreamAsync(
+        ProviderRequestContext context,
+        HttpResponseMessage upstreamResponse,
+        string requestModel,
+        Stopwatch stopwatch,
+        CancellationToken cancellationToken)
+    {
+        var state = new MessagesChatStreamingState
+        {
+            ResponseModel = requestModel
+        };
+        string? error = null;
+
+        try
+        {
+            await using var stream = await upstreamResponse.Content.ReadAsStreamAsync(cancellationToken);
+            using var reader = new StreamReader(stream, Encoding.UTF8);
+
+            while (true)
+            {
+                var line = await reader.ReadLineAsync(cancellationToken);
+                if (line is null)
+                    break;
+
+                if (line.Length == 0 || !line.StartsWith("data:", StringComparison.Ordinal))
+                    continue;
+
+                var data = line[5..].TrimStart();
+                if (string.Equals(data, "[DONE]", StringComparison.Ordinal))
+                    break;
+
+                try
+                {
+                    using var document = JsonDocument.Parse(data);
+                    await ProcessMessagesChatStreamChunkAsync(
+                        context.HttpContext,
+                        state,
+                        document.RootElement,
+                        cancellationToken);
+                }
+                catch (JsonException ex)
+                {
+                    error = ex.Message;
+                    break;
+                }
+            }
+
+            await FinalizeMessagesChatStreamAsync(context.HttpContext, state, cancellationToken);
+        }
+        finally
+        {
+            stopwatch.Stop();
+            var record = ProtocolAdapterCommon.CreateRecord(
+                context,
+                requestModel,
+                stream: true,
+                (int)upstreamResponse.StatusCode,
+                stopwatch.ElapsedMilliseconds,
+                state.Usage,
+                state.ResponseModel,
+                error);
+            ProtocolAdapterCommon.Record(context, record);
+        }
+    }
+
+    private static async Task ProcessMessagesChatStreamChunkAsync(
+        HttpContext httpContext,
+        MessagesChatStreamingState state,
+        JsonElement chunk,
+        CancellationToken cancellationToken)
+    {
+        if (!state.Started)
+        {
+            state.MessageId = TryGetString(chunk, "id") ?? state.MessageId;
+            state.ResponseModel = TryGetString(chunk, "model") ?? state.ResponseModel;
+        }
+        else
+        {
+            state.ResponseModel = TryGetString(chunk, "model") ?? state.ResponseModel;
+        }
+
+        if (chunk.TryGetProperty("usage", out var usageValue) && usageValue.ValueKind == JsonValueKind.Object)
+            state.Usage = ParseChatUsage(chunk);
+
+        if (!chunk.TryGetProperty("choices", out var choicesValue) ||
+            choicesValue.ValueKind != JsonValueKind.Array ||
+            choicesValue.GetArrayLength() == 0)
+        {
+            if (usageValue.ValueKind == JsonValueKind.Object)
+                await EnsureMessagesStreamStartedAsync(httpContext, state, cancellationToken);
+            return;
+        }
+
+        foreach (var choice in choicesValue.EnumerateArray())
+        {
+            if (choice.TryGetProperty("finish_reason", out var finishReasonValue) &&
+                finishReasonValue.ValueKind == JsonValueKind.String)
+            {
+                state.FinishReason = finishReasonValue.GetString() ?? state.FinishReason;
+            }
+
+            if (!choice.TryGetProperty("delta", out var delta) || delta.ValueKind != JsonValueKind.Object)
+                continue;
+
+            if (delta.TryGetProperty("content", out var contentValue))
+            {
+                foreach (var text in EnumerateChatDeltaText(contentValue))
+                {
+                    if (text.Length == 0)
+                        continue;
+
+                    await EnsureMessagesStreamStartedAsync(httpContext, state, cancellationToken);
+                    await EnsureMessagesTextBlockStartedAsync(httpContext, state, cancellationToken);
+                    state.MessageText.Append(text);
+                    await ProtocolAdapterCommon.WriteSseEventAsync(
+                        httpContext,
+                        "content_block_delta",
+                        BuildMessagesTextDeltaEventJson(state.TextBlockIndex.GetValueOrDefault(), text),
+                        cancellationToken);
+                }
+            }
+
+            if (delta.TryGetProperty("tool_calls", out var toolCallsValue) && toolCallsValue.ValueKind == JsonValueKind.Array)
+            {
+                foreach (var toolCallDelta in toolCallsValue.EnumerateArray())
+                    await EmitMessagesToolCallDeltaAsync(httpContext, state, toolCallDelta, cancellationToken);
+            }
+        }
+    }
+
+    private static async Task EnsureMessagesStreamStartedAsync(
+        HttpContext httpContext,
+        MessagesChatStreamingState state,
+        CancellationToken cancellationToken)
+    {
+        if (state.Started)
+            return;
+
+        state.Started = true;
+        await ProtocolAdapterCommon.WriteSseEventAsync(
+            httpContext,
+            "message_start",
+            BuildMessagesStartEventJson(state),
+            cancellationToken);
+    }
+
+    private static async Task EnsureMessagesTextBlockStartedAsync(
+        HttpContext httpContext,
+        MessagesChatStreamingState state,
+        CancellationToken cancellationToken)
+    {
+        if (state.TextBlockOpen)
+            return;
+
+        state.TextBlockIndex = state.NextContentBlockIndex++;
+        state.TextBlockOpen = true;
+        await ProtocolAdapterCommon.WriteSseEventAsync(
+            httpContext,
+            "content_block_start",
+            BuildMessagesTextBlockStartEventJson(state.TextBlockIndex.Value),
+            cancellationToken);
+    }
+
+    private static async Task StopMessagesTextBlockAsync(
+        HttpContext httpContext,
+        MessagesChatStreamingState state,
+        CancellationToken cancellationToken)
+    {
+        if (!state.TextBlockOpen || !state.TextBlockIndex.HasValue)
+            return;
+
+        await ProtocolAdapterCommon.WriteSseEventAsync(
+            httpContext,
+            "content_block_stop",
+            BuildMessagesContentBlockStopEventJson(state.TextBlockIndex.Value),
+            cancellationToken);
+        state.TextBlockOpen = false;
+    }
+
+    private static async Task EmitMessagesToolCallDeltaAsync(
+        HttpContext httpContext,
+        MessagesChatStreamingState state,
+        JsonElement toolCallDelta,
+        CancellationToken cancellationToken)
+    {
+        await EnsureMessagesStreamStartedAsync(httpContext, state, cancellationToken);
+        await StopMessagesTextBlockAsync(httpContext, state, cancellationToken);
+
+        var index = toolCallDelta.TryGetProperty("index", out var indexValue) &&
+                    indexValue.ValueKind == JsonValueKind.Number &&
+                    indexValue.TryGetInt32(out var parsedIndex)
+            ? parsedIndex
+            : state.ToolCalls.Count;
+
+        if (!state.ToolCalls.TryGetValue(index, out var toolCall))
+        {
+            toolCall = new MessagesToolUseBlockState
+            {
+                BlockIndex = state.NextContentBlockIndex++,
+                Id = TryGetString(toolCallDelta, "id") ?? ProtocolAdapterCommon.CreateFunctionCallId()
+            };
+            state.ToolCalls[index] = toolCall;
+        }
+
+        if (toolCallDelta.TryGetProperty("id", out var idValue) && idValue.ValueKind == JsonValueKind.String)
+            toolCall.Id = idValue.GetString() ?? toolCall.Id;
+
+        var argumentsDelta = string.Empty;
+        if (toolCallDelta.TryGetProperty("function", out var functionValue) && functionValue.ValueKind == JsonValueKind.Object)
+        {
+            if (functionValue.TryGetProperty("name", out var nameValue) && nameValue.ValueKind == JsonValueKind.String)
+                toolCall.Name = nameValue.GetString() ?? toolCall.Name;
+
+            if (functionValue.TryGetProperty("arguments", out var argumentsValue) && argumentsValue.ValueKind == JsonValueKind.String)
+                argumentsDelta = argumentsValue.GetString() ?? string.Empty;
+        }
+
+        if (!toolCall.Started)
+        {
+            toolCall.Started = true;
+            await ProtocolAdapterCommon.WriteSseEventAsync(
+                httpContext,
+                "content_block_start",
+                BuildMessagesToolUseBlockStartEventJson(toolCall),
+                cancellationToken);
+        }
+
+        if (argumentsDelta.Length > 0)
+        {
+            toolCall.Arguments.Append(argumentsDelta);
+            await ProtocolAdapterCommon.WriteSseEventAsync(
+                httpContext,
+                "content_block_delta",
+                BuildMessagesToolUseDeltaEventJson(toolCall.BlockIndex, argumentsDelta),
+                cancellationToken);
+        }
+    }
+
+    private static async Task FinalizeMessagesChatStreamAsync(
+        HttpContext httpContext,
+        MessagesChatStreamingState state,
+        CancellationToken cancellationToken)
+    {
+        await EnsureMessagesStreamStartedAsync(httpContext, state, cancellationToken);
+        await StopMessagesTextBlockAsync(httpContext, state, cancellationToken);
+
+        foreach (var toolCall in state.ToolCalls.OrderBy(pair => pair.Key).Select(pair => pair.Value))
+        {
+            if (!toolCall.Started)
+            {
+                toolCall.Started = true;
+                await ProtocolAdapterCommon.WriteSseEventAsync(
+                    httpContext,
+                    "content_block_start",
+                    BuildMessagesToolUseBlockStartEventJson(toolCall),
+                    cancellationToken);
+            }
+
+            if (!toolCall.Stopped)
+            {
+                await ProtocolAdapterCommon.WriteSseEventAsync(
+                    httpContext,
+                    "content_block_stop",
+                    BuildMessagesContentBlockStopEventJson(toolCall.BlockIndex),
+                    cancellationToken);
+                toolCall.Stopped = true;
+            }
+        }
+
+        await ProtocolAdapterCommon.WriteSseEventAsync(
+            httpContext,
+            "message_delta",
+            BuildMessagesDeltaEventJson(state),
+            cancellationToken);
+        await ProtocolAdapterCommon.WriteSseEventAsync(
+            httpContext,
+            "message_stop",
+            """{"type":"message_stop"}""",
+            cancellationToken);
+    }
+
+    private static string BuildMessagesStartEventJson(MessagesChatStreamingState state)
+    {
+        return ProtocolAdapterCommon.SerializeJson(writer =>
+        {
+            writer.WriteStartObject();
+            writer.WriteString("type", "message_start");
+            writer.WritePropertyName("message");
+            writer.WriteStartObject();
+            writer.WriteString("id", state.MessageId);
+            writer.WriteString("type", "message");
+            writer.WriteString("role", "assistant");
+            writer.WritePropertyName("content");
+            writer.WriteStartArray();
+            writer.WriteEndArray();
+            writer.WriteString("model", state.ResponseModel ?? string.Empty);
+            writer.WriteNull("stop_reason");
+            writer.WriteNull("stop_sequence");
+            writer.WritePropertyName("usage");
+            WriteAnthropicUsage(writer, state.Usage);
+            writer.WriteEndObject();
+            writer.WriteEndObject();
+        });
+    }
+
+    private static string BuildMessagesTextBlockStartEventJson(int index)
+    {
+        return ProtocolAdapterCommon.SerializeJson(writer =>
+        {
+            writer.WriteStartObject();
+            writer.WriteString("type", "content_block_start");
+            writer.WriteNumber("index", index);
+            writer.WritePropertyName("content_block");
+            writer.WriteStartObject();
+            writer.WriteString("type", "text");
+            writer.WriteString("text", string.Empty);
+            writer.WriteEndObject();
+            writer.WriteEndObject();
+        });
+    }
+
+    private static string BuildMessagesTextDeltaEventJson(int index, string delta)
+    {
+        return ProtocolAdapterCommon.SerializeJson(writer =>
+        {
+            writer.WriteStartObject();
+            writer.WriteString("type", "content_block_delta");
+            writer.WriteNumber("index", index);
+            writer.WritePropertyName("delta");
+            writer.WriteStartObject();
+            writer.WriteString("type", "text_delta");
+            writer.WriteString("text", delta);
+            writer.WriteEndObject();
+            writer.WriteEndObject();
+        });
+    }
+
+    private static string BuildMessagesToolUseBlockStartEventJson(MessagesToolUseBlockState toolCall)
+    {
+        return ProtocolAdapterCommon.SerializeJson(writer =>
+        {
+            writer.WriteStartObject();
+            writer.WriteString("type", "content_block_start");
+            writer.WriteNumber("index", toolCall.BlockIndex);
+            writer.WritePropertyName("content_block");
+            writer.WriteStartObject();
+            writer.WriteString("type", "tool_use");
+            writer.WriteString("id", toolCall.Id);
+            writer.WriteString("name", toolCall.Name);
+            writer.WritePropertyName("input");
+            writer.WriteStartObject();
+            writer.WriteEndObject();
+            writer.WriteEndObject();
+            writer.WriteEndObject();
+        });
+    }
+
+    private static string BuildMessagesToolUseDeltaEventJson(int index, string delta)
+    {
+        return ProtocolAdapterCommon.SerializeJson(writer =>
+        {
+            writer.WriteStartObject();
+            writer.WriteString("type", "content_block_delta");
+            writer.WriteNumber("index", index);
+            writer.WritePropertyName("delta");
+            writer.WriteStartObject();
+            writer.WriteString("type", "input_json_delta");
+            writer.WriteString("partial_json", delta);
+            writer.WriteEndObject();
+            writer.WriteEndObject();
+        });
+    }
+
+    private static string BuildMessagesContentBlockStopEventJson(int index)
+    {
+        return ProtocolAdapterCommon.SerializeJson(writer =>
+        {
+            writer.WriteStartObject();
+            writer.WriteString("type", "content_block_stop");
+            writer.WriteNumber("index", index);
+            writer.WriteEndObject();
+        });
+    }
+
+    private static string BuildMessagesDeltaEventJson(MessagesChatStreamingState state)
+    {
+        return ProtocolAdapterCommon.SerializeJson(writer =>
+        {
+            writer.WriteStartObject();
+            writer.WriteString("type", "message_delta");
+            writer.WritePropertyName("delta");
+            writer.WriteStartObject();
+            writer.WriteString("stop_reason", MapChatFinishReasonToAnthropic(state.FinishReason));
+            writer.WriteNull("stop_sequence");
+            writer.WriteEndObject();
+            writer.WritePropertyName("usage");
+            writer.WriteStartObject();
+            writer.WriteNumber("output_tokens", state.Usage.OutputTokens);
+            writer.WriteEndObject();
+            writer.WriteEndObject();
+        });
+    }
+
     private static byte[] BuildUpstreamPayload(
         ProviderRequestContext context,
         ResponsesRequestContextData requestData,
@@ -2901,6 +4243,22 @@ public sealed class OpenAiChatAdapter : IProviderProtocolAdapter
         public IReadOnlyList<JsonElement> OpenAiChatMessages { get; }
     }
 
+    private sealed class BuiltMessagesPayload
+    {
+        public BuiltMessagesPayload(string json, UsageTokens usage, string? responseModel)
+        {
+            Json = json;
+            Usage = usage;
+            ResponseModel = responseModel;
+        }
+
+        public string Json { get; }
+
+        public UsageTokens Usage { get; }
+
+        public string? ResponseModel { get; }
+    }
+
     private sealed class ChatStreamingState
     {
         private int _sequenceNumber = 0;
@@ -2989,5 +4347,43 @@ public sealed class OpenAiChatAdapter : IProviderProtocolAdapter
             using var document = JsonDocument.Parse(json);
             return document.RootElement.Clone();
         }
+    }
+
+    private sealed class MessagesChatStreamingState
+    {
+        public bool Started { get; set; }
+
+        public string MessageId { get; set; } = ProtocolAdapterCommon.CreateMessageId();
+
+        public string? ResponseModel { get; set; }
+
+        public string FinishReason { get; set; } = "stop";
+
+        public UsageTokens Usage { get; set; }
+
+        public int NextContentBlockIndex { get; set; }
+
+        public int? TextBlockIndex { get; set; }
+
+        public bool TextBlockOpen { get; set; }
+
+        public StringBuilder MessageText { get; } = new();
+
+        public Dictionary<int, MessagesToolUseBlockState> ToolCalls { get; } = new();
+    }
+
+    private sealed class MessagesToolUseBlockState
+    {
+        public int BlockIndex { get; set; }
+
+        public string Id { get; set; } = ProtocolAdapterCommon.CreateFunctionCallId();
+
+        public string Name { get; set; } = "tool";
+
+        public bool Started { get; set; }
+
+        public bool Stopped { get; set; }
+
+        public StringBuilder Arguments { get; } = new();
     }
 }

@@ -3228,6 +3228,15 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
         _proxyHostService.UpdateConfig(_config);
     }
 
+    partial void OnSelectedProtocolChanged(ProviderProtocol value)
+    {
+        if (_isLoadingProviderFields)
+            return;
+
+        if (value == ProviderProtocol.AnthropicMessages)
+            SelectedSupportsClaudeCode = true;
+    }
+
     partial void OnCurrentPageChanged(string value)
     {
         OnPropertyChanged(nameof(IsProvidersPageVisible));

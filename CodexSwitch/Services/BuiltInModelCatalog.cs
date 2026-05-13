@@ -56,10 +56,10 @@ public static class BuiltInModelCatalog
 
     public static IReadOnlyList<ProviderTemplateModel> DeepSeekModels { get; } =
     [
-        OpenAiChatRoute("deepseek-v4-flash", "DeepSeek V4 Flash"),
-        OpenAiChatRoute("deepseek-v4-pro", "DeepSeek V4 Pro"),
-        OpenAiChatRoute("deepseek-chat", "DeepSeek Chat"),
-        OpenAiChatRoute("deepseek-reasoner", "DeepSeek Reasoner")
+        AnthropicRoute("deepseek-v4-flash", "DeepSeek V4 Flash"),
+        AnthropicRoute("deepseek-v4-pro", "DeepSeek V4 Pro"),
+        AnthropicRoute("deepseek-chat", "DeepSeek Chat"),
+        AnthropicRoute("deepseek-reasoner", "DeepSeek Reasoner")
     ];
 
     public static IReadOnlyList<ProviderTemplateModel> XiaomiModels { get; } =

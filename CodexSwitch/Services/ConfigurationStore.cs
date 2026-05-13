@@ -190,11 +190,14 @@ public sealed class ConfigurationStore
     {
         foreach (var provider in config.Providers)
         {
+            var isAnthropicProvider = IsAnthropicProvider(provider);
             if (!provider.SupportsCodex && !provider.SupportsClaudeCode)
             {
                 provider.SupportsCodex = true;
-                provider.SupportsClaudeCode = IsAnthropicProvider(provider);
             }
+
+            if (isAnthropicProvider)
+                provider.SupportsClaudeCode = true;
         }
     }
 
@@ -277,12 +280,13 @@ public sealed class ConfigurationStore
                 provider.IconSlug ??= "claude";
                 SyncProviderTemplate(provider, ProviderTemplateCatalog.AnthropicBuiltinId);
             }
-            else if (IsBaseUrl(provider, "https://api.deepseek.com/anthropic"))
+            else if (IsDeepSeekProvider(provider))
             {
-                provider.BuiltinId ??= ProviderTemplateCatalog.DeepSeekBuiltinId;
+                provider.BuiltinId = ProviderTemplateCatalog.DeepSeekBuiltinId;
                 provider.DisplayName = string.IsNullOrWhiteSpace(provider.DisplayName) ? "DeepSeek" : provider.DisplayName;
                 provider.Website ??= "https://platform.deepseek.com";
                 provider.IconSlug ??= "deepseek";
+                provider.BaseUrl = "https://api.deepseek.com/anthropic";
                 provider.AuthMode = ProviderAuthMode.ApiKey;
                 provider.Protocol = ProviderProtocol.AnthropicMessages;
                 provider.DefaultModel = string.IsNullOrWhiteSpace(provider.DefaultModel) ? "deepseek-v4-flash" : provider.DefaultModel;
@@ -380,6 +384,13 @@ public sealed class ConfigurationStore
     private static bool IsBaseUrl(ProviderConfig provider, string baseUrl)
     {
         return string.Equals(provider.BaseUrl.TrimEnd('/'), baseUrl.TrimEnd('/'), StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool IsDeepSeekProvider(ProviderConfig provider)
+    {
+        return string.Equals(provider.BuiltinId, ProviderTemplateCatalog.DeepSeekBuiltinId, StringComparison.OrdinalIgnoreCase) ||
+            IsBaseUrl(provider, "https://api.deepseek.com/anthropic") ||
+            IsBaseUrl(provider, "https://api.deepseek.com/v1");
     }
 
     private static bool ProviderSupportsClient(ProviderConfig provider, ClientAppKind kind)
