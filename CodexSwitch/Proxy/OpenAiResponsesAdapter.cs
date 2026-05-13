@@ -242,7 +242,7 @@ public sealed class OpenAiResponsesAdapter : IProviderProtocolAdapter
     private static void Record(ProviderRequestContext context, UsageLogRecord record)
     {
         context.UsageMeter.Record(record);
-        context.UsageLogWriter.Append(record);
+        context.UsageLogWriter.AppendBuffered(record);
     }
 
     private static string? TruncateError(string? error)

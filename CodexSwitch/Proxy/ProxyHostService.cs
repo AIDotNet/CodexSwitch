@@ -6,7 +6,9 @@ using CodexSwitch.Services;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.Server.Kestrel.Core;
+using Microsoft.AspNetCore.Server.Kestrel.Transport.Sockets;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -15,10 +17,16 @@ namespace CodexSwitch.Proxy;
 
 public sealed class ProxyHostService : IAsyncDisposable
 {
+    private static readonly TimeSpan ClientKeepAliveTimeout = TimeSpan.FromHours(2);
+    private static readonly TimeSpan ClientRequestHeadersTimeout = TimeSpan.FromSeconds(10);
+    private static readonly TimeSpan ClientHttp2KeepAlivePingDelay = TimeSpan.FromSeconds(30);
+    private static readonly TimeSpan ClientHttp2KeepAlivePingTimeout = TimeSpan.FromSeconds(15);
+
     private readonly UsageMeter _usageMeter;
     private readonly PriceCalculator _priceCalculator;
     private readonly UsageLogWriter _usageLogWriter;
     private readonly CodexConfigWriter _codexConfigWriter;
+    private readonly ClaudeCodeConfigWriter _claudeCodeConfigWriter;
     private readonly ProviderAuthService _providerAuthService;
     private readonly Dictionary<ProviderProtocol, IProviderProtocolAdapter> _adapters;
     private readonly ResponsesConversationStateStore _responseStateStore = new();
@@ -30,6 +38,7 @@ public sealed class ProxyHostService : IAsyncDisposable
         PriceCalculator priceCalculator,
         UsageLogWriter usageLogWriter,
         CodexConfigWriter codexConfigWriter,
+        ClaudeCodeConfigWriter claudeCodeConfigWriter,
         ProviderAuthService providerAuthService,
         IEnumerable<IProviderProtocolAdapter> adapters)
     {
@@ -37,6 +46,7 @@ public sealed class ProxyHostService : IAsyncDisposable
         _priceCalculator = priceCalculator;
         _usageLogWriter = usageLogWriter;
         _codexConfigWriter = codexConfigWriter;
+        _claudeCodeConfigWriter = claudeCodeConfigWriter;
         _providerAuthService = providerAuthService;
         _adapters = adapters.ToDictionary(adapter => adapter.Protocol);
     }
@@ -54,22 +64,27 @@ public sealed class ProxyHostService : IAsyncDisposable
         if (!config.Proxy.Enabled)
         {
             _codexConfigWriter.RestoreOriginal();
-            SetState(false, "Disabled", config.Proxy.Endpoint, config.ActiveProviderId, "", null);
+            _claudeCodeConfigWriter.RestoreOriginal();
+            SetState(false, "Disabled", config.Proxy.Endpoint, config.ActiveCodexProviderId, "", null);
             return;
         }
 
-        var provider = ProviderRoutingResolver.ResolveActiveProvider(config);
+        var provider = ProviderRoutingResolver.ResolveActiveProvider(config, ClientAppKind.Codex);
         if (provider is null)
         {
             _codexConfigWriter.RestoreOriginal();
+            _claudeCodeConfigWriter.RestoreOriginal();
             SetState(false, "No active provider", config.Proxy.Endpoint, "", "", "Active provider was not found.");
             return;
         }
+
+        SetState(false, "Starting", config.Proxy.Endpoint, provider.Id, provider.Protocol.ToString(), null);
 
         if (!IsPortAvailable(config.Proxy.Host, config.Proxy.Port))
         {
             var message = $"Port {config.Proxy.Port} on {config.Proxy.Host} is already in use.";
             _codexConfigWriter.RestoreOriginal();
+            _claudeCodeConfigWriter.RestoreOriginal();
             SetState(false, "Port unavailable", config.Proxy.Endpoint, provider.Id, provider.Protocol.ToString(), message);
             return;
         }
@@ -80,19 +95,33 @@ public sealed class ProxyHostService : IAsyncDisposable
         {
             options.SerializerOptions.TypeInfoResolverChain.Insert(0, CodexSwitchJsonContext.Default);
         });
+        builder.Services.Configure<SocketTransportOptions>(options =>
+        {
+            options.NoDelay = true;
+        });
         builder.WebHost.ConfigureKestrel(options =>
         {
             options.AddServerHeader = false;
+            options.Limits.KeepAliveTimeout = ClientKeepAliveTimeout;
+            options.Limits.RequestHeadersTimeout = ClientRequestHeadersTimeout;
+            options.Limits.MaxConcurrentConnections = 1024;
+            options.Limits.MinRequestBodyDataRate = null;
+            options.Limits.MinResponseDataRate = null;
+            options.Limits.Http2.MaxStreamsPerConnection = 256;
+            options.Limits.Http2.KeepAlivePingDelay = ClientHttp2KeepAlivePingDelay;
+            options.Limits.Http2.KeepAlivePingTimeout = ClientHttp2KeepAlivePingTimeout;
             options.Listen(ParseAddress(config.Proxy.Host), config.Proxy.Port, listenOptions =>
             {
-                listenOptions.Protocols = HttpProtocols.Http1;
+                listenOptions.Protocols = HttpProtocols.Http1AndHttp2;
             });
         });
 
         var app = builder.Build();
+        app.Use(ApplyLowLatencyClientConnectionAsync);
         app.MapGet("/health", WriteHealthAsync);
         app.MapGet("/v1/models", WriteModelsAsync);
         app.MapPost("/v1/responses", HandleResponsesAsync);
+        app.MapPost("/v1/messages", HandleMessagesAsync);
 
         try
         {
@@ -102,6 +131,7 @@ public sealed class ProxyHostService : IAsyncDisposable
         {
             await app.DisposeAsync();
             _codexConfigWriter.RestoreOriginal();
+            _claudeCodeConfigWriter.RestoreOriginal();
             SetState(false, "Start failed", config.Proxy.Endpoint, provider.Id, provider.Protocol.ToString(), ex.Message);
             return;
         }
@@ -109,12 +139,14 @@ public sealed class ProxyHostService : IAsyncDisposable
         try
         {
             _codexConfigWriter.Apply(config);
+            _claudeCodeConfigWriter.Apply(config);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
             await app.StopAsync(cancellationToken);
             await app.DisposeAsync();
             _codexConfigWriter.RestoreOriginal();
+            _claudeCodeConfigWriter.RestoreOriginal();
             SetState(false, "Start failed", config.Proxy.Endpoint, provider.Id, provider.Protocol.ToString(), ex.Message);
             return;
         }
@@ -125,17 +157,24 @@ public sealed class ProxyHostService : IAsyncDisposable
 
     public async Task StopAsync(CancellationToken cancellationToken = default)
     {
-        await StopRuntimeAsync(restoreOriginal: true, cancellationToken);
+        await StopRuntimeAsync(restoreOriginal: true, publishStoppedState: true, cancellationToken);
     }
 
-    private async Task StopRuntimeAsync(bool restoreOriginal, CancellationToken cancellationToken = default)
+    private async Task StopRuntimeAsync(
+        bool restoreOriginal,
+        bool publishStoppedState,
+        CancellationToken cancellationToken = default)
     {
         if (_app is null)
         {
             if (restoreOriginal)
+            {
                 _codexConfigWriter.RestoreOriginal();
+                _claudeCodeConfigWriter.RestoreOriginal();
+            }
 
-            SetState(false, "Stopped", _config.Proxy.Endpoint, _config.ActiveProviderId, "", null);
+            if (publishStoppedState)
+                SetState(false, "Stopped", _config.Proxy.Endpoint, _config.ActiveCodexProviderId, "", null);
             return;
         }
 
@@ -144,14 +183,33 @@ public sealed class ProxyHostService : IAsyncDisposable
         await app.StopAsync(cancellationToken);
         await app.DisposeAsync();
         if (restoreOriginal)
+        {
             _codexConfigWriter.RestoreOriginal();
+            _claudeCodeConfigWriter.RestoreOriginal();
+        }
 
-        SetState(false, "Stopped", _config.Proxy.Endpoint, _config.ActiveProviderId, "", null);
+        if (publishStoppedState)
+            SetState(false, "Stopped", _config.Proxy.Endpoint, _config.ActiveCodexProviderId, "", null);
     }
 
     public async Task RestartAsync(AppConfig config, CancellationToken cancellationToken = default)
     {
-        await StopRuntimeAsync(restoreOriginal: false, cancellationToken);
+        if (!config.Proxy.Enabled)
+        {
+            await StopRuntimeAsync(restoreOriginal: false, publishStoppedState: false, cancellationToken);
+            await StartAsync(config, cancellationToken);
+            return;
+        }
+
+        var provider = ProviderRoutingResolver.ResolveActiveProvider(config, ClientAppKind.Codex);
+        SetState(
+            false,
+            "Starting",
+            config.Proxy.Endpoint,
+            provider?.Id ?? config.ActiveCodexProviderId,
+            provider?.Protocol.ToString() ?? "",
+            null);
+        await StopRuntimeAsync(restoreOriginal: false, publishStoppedState: false, cancellationToken);
         await StartAsync(config, cancellationToken);
     }
 
@@ -161,12 +219,12 @@ public sealed class ProxyHostService : IAsyncDisposable
         if (!State.IsRunning)
             return;
 
-        var provider = ProviderRoutingResolver.ResolveActiveProvider(config);
+        var provider = ProviderRoutingResolver.ResolveActiveProvider(config, ClientAppKind.Codex);
         SetState(
             true,
             State.StatusText,
             config.Proxy.Endpoint,
-            provider?.Id ?? config.ActiveProviderId,
+            provider?.Id ?? config.ActiveCodexProviderId,
             provider?.Protocol.ToString() ?? "",
             State.Error);
     }
@@ -198,8 +256,8 @@ public sealed class ProxyHostService : IAsyncDisposable
         using (document)
         {
             var requestModel = ResponsesPayloadBuilder.ExtractRequestModel(document.RootElement);
-            var selection = ProviderRoutingResolver.Resolve(_config, requestModel);
-            var provider = selection?.Provider ?? ProviderRoutingResolver.ResolveActiveProvider(_config);
+            var selection = ProviderRoutingResolver.Resolve(_config, requestModel, ClientAppKind.Codex);
+            var provider = selection?.Provider ?? ProviderRoutingResolver.ResolveActiveProvider(_config, ClientAppKind.Codex);
             if (provider is null)
             {
                 await WriteJsonErrorAsync(httpContext, StatusCodes.Status503ServiceUnavailable, "No active provider configured.");
@@ -242,6 +300,76 @@ public sealed class ProxyHostService : IAsyncDisposable
                 _usageLogWriter);
             await adapter.HandleResponsesAsync(context, httpContext.RequestAborted);
         }
+    }
+
+    private async Task HandleMessagesAsync(HttpContext httpContext)
+    {
+        JsonDocument document;
+        try
+        {
+            document = await JsonDocument.ParseAsync(httpContext.Request.Body, cancellationToken: httpContext.RequestAborted);
+        }
+        catch (JsonException)
+        {
+            await WriteJsonErrorAsync(httpContext, StatusCodes.Status400BadRequest, "Invalid JSON body.");
+            return;
+        }
+
+        using (document)
+        {
+            var requestModel = ExtractRequestModel(document.RootElement);
+            var selection = ProviderRoutingResolver.Resolve(_config, requestModel, ClientAppKind.ClaudeCode);
+            var provider = selection?.Provider ?? ProviderRoutingResolver.ResolveActiveProvider(_config, ClientAppKind.ClaudeCode);
+            if (provider is null)
+            {
+                await WriteJsonErrorAsync(httpContext, StatusCodes.Status503ServiceUnavailable, "No Claude Code provider configured.");
+                return;
+            }
+
+            requestModel ??= provider.ClaudeCode.Model;
+            if (string.IsNullOrWhiteSpace(requestModel))
+                requestModel = provider.DefaultModel;
+
+            var model = selection?.Model ?? ProviderRoutingResolver.ResolveModel(provider, requestModel);
+            var protocol = model?.Protocol ?? provider.Protocol;
+            if (!_adapters.TryGetValue(protocol, out var adapter))
+            {
+                await WriteJsonErrorAsync(httpContext, StatusCodes.Status501NotImplemented, $"Provider protocol {protocol} is not supported.");
+                return;
+            }
+
+            var costSettings = ResolveCostSettings(_config, provider, model);
+            var accessToken = await _providerAuthService.ResolveAccessTokenAsync(
+                provider,
+                forceRefresh: false,
+                httpContext.RequestAborted);
+            if (provider.AuthMode == ProviderAuthMode.OAuth && string.IsNullOrWhiteSpace(accessToken))
+            {
+                await WriteJsonErrorAsync(httpContext, StatusCodes.Status401Unauthorized, "Provider OAuth account is not logged in.");
+                return;
+            }
+
+            var context = new ProviderRequestContext(
+                httpContext,
+                _config,
+                provider,
+                model,
+                costSettings,
+                accessToken,
+                _providerAuthService,
+                document,
+                _responseStateStore,
+                _usageMeter,
+                _priceCalculator,
+                _usageLogWriter);
+            await adapter.HandleMessagesAsync(context, httpContext.RequestAborted);
+        }
+    }
+
+    private static Task ApplyLowLatencyClientConnectionAsync(HttpContext httpContext, Func<Task> next)
+    {
+        httpContext.Features.Get<IHttpResponseBodyFeature>()?.DisableBuffering();
+        return next();
     }
 
     private Task WriteHealthAsync(HttpContext httpContext)
@@ -288,6 +416,21 @@ public sealed class ProxyHostService : IAsyncDisposable
 
         var header = httpContext.Request.Headers.Authorization.ToString();
         return string.Equals(header, "Bearer " + apiKey, StringComparison.Ordinal);
+    }
+
+    private static string? ExtractRequestModel(JsonElement root)
+    {
+        if (root.ValueKind != JsonValueKind.Object ||
+            !root.TryGetProperty("model", out var value) ||
+            value.ValueKind != JsonValueKind.String)
+        {
+            return null;
+        }
+
+        var model = value.GetString();
+        return string.IsNullOrWhiteSpace(model)
+            ? null
+            : ClaudeCodeConfigWriter.StripOneMillionSuffix(model.Trim());
     }
 
     private static ProviderCostSettings ResolveCostSettings(

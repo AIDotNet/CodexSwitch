@@ -4,6 +4,7 @@ using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Text;
 using CodexSwitch.Models;
+using CodexSwitch.Services;
 using Microsoft.AspNetCore.Http;
 
 namespace CodexSwitch.Proxy;
@@ -14,11 +15,7 @@ public sealed class OpenAiChatAdapter : IProviderProtocolAdapter
 
     public OpenAiChatAdapter(HttpClient? httpClient = null)
     {
-        _httpClient = httpClient ?? new HttpClient(new SocketsHttpHandler
-        {
-            AutomaticDecompression = DecompressionMethods.All,
-            PooledConnectionLifetime = TimeSpan.FromMinutes(10)
-        });
+        _httpClient = httpClient ?? AppHttpClientFactory.Create(new NetworkSettings());
     }
 
     public ProviderProtocol Protocol => ProviderProtocol.OpenAiChat;

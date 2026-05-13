@@ -11,10 +11,12 @@ namespace CodexSwitch.Serialization;
     PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase,
     UseStringEnumConverter = true)]
 [JsonSerializable(typeof(AppConfig))]
+[JsonSerializable(typeof(NetworkSettings))]
 [JsonSerializable(typeof(ModelPricingCatalog))]
 [JsonSerializable(typeof(ProviderConfig))]
 [JsonSerializable(typeof(ModelRouteConfig))]
 [JsonSerializable(typeof(ModelConversionConfig))]
+[JsonSerializable(typeof(ClaudeCodeProviderSettings))]
 [JsonSerializable(typeof(ProviderOAuthSettings))]
 [JsonSerializable(typeof(OAuthAccountConfig))]
 [JsonSerializable(typeof(ProviderRequestOverrides))]
@@ -33,6 +35,7 @@ namespace CodexSwitch.Serialization;
 [JsonSerializable(typeof(ModelInfoResponse))]
 [JsonSerializable(typeof(CodexAuthFile))]
 [JsonSerializable(typeof(CodexConfigRestoreState))]
+[JsonSerializable(typeof(ClaudeCodeConfigRestoreState))]
 [JsonSerializable(typeof(GitHubReleaseResponse))]
 [JsonSerializable(typeof(GitHubReleaseAssetResponse))]
 internal sealed partial class CodexSwitchJsonContext : JsonSerializerContext;

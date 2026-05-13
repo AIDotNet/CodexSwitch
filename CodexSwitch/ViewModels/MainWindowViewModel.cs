@@ -25,14 +25,14 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
     private readonly UsageLogReader _usageLogReader;
     private readonly CodexConfigWriter _codexConfigWriter;
     private readonly I18nService _i18n;
-    private readonly HttpClient _sharedHttpClient;
-    private readonly IconCacheService _iconCacheService;
-    private readonly ProviderAuthService _providerAuthService;
-    private readonly ProviderUsageQueryService _providerUsageQueryService;
-    private readonly CodexOAuthLoginService _codexOAuthLoginService;
+    private HttpClient _sharedHttpClient = null!;
+    private IconCacheService _iconCacheService = null!;
+    private ProviderAuthService _providerAuthService = null!;
+    private ProviderUsageQueryService _providerUsageQueryService = null!;
+    private CodexOAuthLoginService _codexOAuthLoginService = null!;
     private readonly StartupRegistrationService _startupRegistrationService;
-    private readonly ProxyHostService _proxyHostService;
-    private readonly UpdateCheckService _updateCheckService;
+    private ProxyHostService _proxyHostService = null!;
+    private UpdateCheckService _updateCheckService = null!;
     private readonly DispatcherTimer _usageQueryTimer;
     private readonly DispatcherTimer _miniStatusTimer;
     private readonly Dictionary<string, ProviderUsageQueryResult> _providerUsageResults = new(StringComparer.OrdinalIgnoreCase);
@@ -220,6 +220,15 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
 
     [ObservableProperty]
     private bool _proxyEnabled = true;
+
+    [ObservableProperty]
+    private OutboundProxyMode _networkProxyMode = OutboundProxyMode.System;
+
+    [ObservableProperty]
+    private string _networkProxyUrl = "";
+
+    [ObservableProperty]
+    private bool _networkProxyBypassOnLocal = true;
 
     [ObservableProperty]
     private bool _preserveCodexAppAuth;
@@ -418,17 +427,7 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
         _codexConfigWriter = new CodexConfigWriter(_paths);
         _startupRegistrationService = new StartupRegistrationService();
         SyncStartupRegistrationFromConfig();
-
-        _sharedHttpClient = new HttpClient(new SocketsHttpHandler
-        {
-            AutomaticDecompression = System.Net.DecompressionMethods.All,
-            PooledConnectionLifetime = TimeSpan.FromMinutes(10)
-        });
-        _iconCacheService = new IconCacheService(_paths, _sharedHttpClient);
-        _providerAuthService = new ProviderAuthService(_store, _config, _sharedHttpClient);
-        _providerUsageQueryService = new ProviderUsageQueryService(_sharedHttpClient, _providerAuthService);
-        _codexOAuthLoginService = new CodexOAuthLoginService(_sharedHttpClient);
-        _updateCheckService = new UpdateCheckService(_sharedHttpClient);
+        CreateNetworkServices();
         _usageQueryTimer = new DispatcherTimer { Interval = TimeSpan.FromMinutes(10) };
         _usageQueryTimer.Tick += (_, _) => _ = RefreshProviderUsageQueriesAsync();
         _miniStatusTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
@@ -437,17 +436,6 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
         LatestVersionTag = T("update.noReleaseYet");
         LatestReleasePublishedAtText = T("update.notPublished");
         UpdateStatusDetails = T("update.checking");
-        _proxyHostService = new ProxyHostService(
-            _usageMeter,
-            _priceCalculator,
-            _usageLogWriter,
-            _codexConfigWriter,
-            _providerAuthService,
-            [
-                new OpenAiResponsesAdapter(_sharedHttpClient),
-                new OpenAiChatAdapter(),
-                new AnthropicMessagesAdapter()
-            ]);
 
         ClientApps = [];
         ProviderTemplates = [];
@@ -482,6 +470,7 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
         SelectUsageFilterProviderCommand = new RelayCommand<string>(filter => SelectedUsageFilterProvider = NormalizeUsageFilterValue(filter));
         SelectUsageFilterModelCommand = new RelayCommand<string>(filter => SelectedUsageFilterModel = NormalizeUsageFilterValue(filter));
         SelectThemeCommand = new RelayCommand<string>(SelectTheme);
+        SelectNetworkProxyModeCommand = new RelayCommand<string>(SelectNetworkProxyMode);
         ToggleProxyCommand = new AsyncRelayCommand(ToggleProxyAsync);
         RestartProxyCommand = new AsyncRelayCommand(RestartProxyAsync);
         StopProxyCommand = new AsyncRelayCommand(StopProxyAsync);
@@ -519,7 +508,6 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
         OpenDownloadedUpdateCommand = new RelayCommand(OpenDownloadedUpdate);
 
         _usageMeter.Changed += (_, snapshot) => Dispatcher.UIThread.Post(() => ApplySnapshot(snapshot));
-        _proxyHostService.StateChanged += (_, state) => ApplyProxyState(state);
 
         RefreshProviderTemplates();
         RefreshUsageQueryTemplates();
@@ -609,6 +597,8 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
 
     public IRelayCommand<string> SelectThemeCommand { get; }
 
+    public IRelayCommand<string> SelectNetworkProxyModeCommand { get; }
+
     public IAsyncRelayCommand ToggleProxyCommand { get; }
 
     public IAsyncRelayCommand RestartProxyCommand { get; }
@@ -683,8 +673,45 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
     {
         _usageQueryTimer.Stop();
         _miniStatusTimer.Stop();
+        _proxyHostService.StateChanged -= OnProxyHostStateChanged;
+        await _proxyHostService.DisposeAsync();
+        await _usageLogWriter.DisposeAsync();
+        _sharedHttpClient.Dispose();
+    }
+
+    private void CreateNetworkServices()
+    {
+        _sharedHttpClient = AppHttpClientFactory.Create(_config.Network);
+        _iconCacheService = new IconCacheService(_paths, _sharedHttpClient);
+        _providerAuthService = new ProviderAuthService(_store, _config, _sharedHttpClient);
+        _providerUsageQueryService = new ProviderUsageQueryService(_sharedHttpClient, _providerAuthService);
+        _codexOAuthLoginService = new CodexOAuthLoginService(_sharedHttpClient);
+        _updateCheckService = new UpdateCheckService(_sharedHttpClient);
+        _proxyHostService = new ProxyHostService(
+            _usageMeter,
+            _priceCalculator,
+            _usageLogWriter,
+            _codexConfigWriter,
+            _providerAuthService,
+            [
+                new OpenAiResponsesAdapter(_sharedHttpClient),
+                new OpenAiChatAdapter(_sharedHttpClient),
+                new AnthropicMessagesAdapter(_sharedHttpClient)
+            ]);
+        _proxyHostService.StateChanged += OnProxyHostStateChanged;
+    }
+
+    private async Task RecreateNetworkServicesAsync()
+    {
+        _proxyHostService.StateChanged -= OnProxyHostStateChanged;
         await _proxyHostService.DisposeAsync();
         _sharedHttpClient.Dispose();
+        CreateNetworkServices();
+    }
+
+    private void OnProxyHostStateChanged(object? sender, ProxyRuntimeState state)
+    {
+        Dispatcher.UIThread.Post(() => ApplyProxyState(state));
     }
 
     private async Task EnsureIconsAsync()
@@ -713,7 +740,7 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
 
     private async Task ToggleProxyAsync()
     {
-        if (_proxyHostService.State.IsRunning)
+        if (!IsProxyAlert)
             await StopProxyAsync();
         else
             await RestartProxyAsync();
@@ -726,6 +753,12 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
         _store.SaveConfig(_config);
         AppThemeService.Apply(UiTheme);
         StatusMessage = F("status.themeSwitched", T("settings.theme." + UiTheme));
+    }
+
+    private void SelectNetworkProxyMode(string? mode)
+    {
+        if (Enum.TryParse<OutboundProxyMode>(mode, ignoreCase: true, out var parsed))
+            NetworkProxyMode = parsed;
     }
 
     private void SelectUsageRange(string? range)
@@ -895,12 +928,21 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
 
     private async Task PersistSettingsAsync(string successMessage)
     {
+        var networkProxyUrl = NetworkProxyUrl.Trim();
+        var networkChanged =
+            _config.Network.ProxyMode != NetworkProxyMode ||
+            !string.Equals(_config.Network.CustomProxyUrl?.Trim() ?? "", networkProxyUrl, StringComparison.Ordinal) ||
+            _config.Network.BypassProxyOnLocal != NetworkProxyBypassOnLocal;
+
         _config.Proxy.Host = string.IsNullOrWhiteSpace(ProxyListenHost) ? "127.0.0.1" : ProxyListenHost.Trim();
         _config.Proxy.Port = ProxyPort <= 0 ? 12785 : ProxyPort;
         _config.Proxy.InboundApiKey = InboundApiKey.Trim();
         _config.Proxy.Enabled = ProxyEnabled;
         _config.Proxy.PreserveCodexAppAuth = PreserveCodexAppAuth;
         _config.Proxy.UseFakeCodexAppAuth = UseFakeCodexAppAuth;
+        _config.Network.ProxyMode = NetworkProxyMode;
+        _config.Network.CustomProxyUrl = networkProxyUrl;
+        _config.Network.BypassProxyOnLocal = NetworkProxyBypassOnLocal;
         _config.Ui.Language = string.IsNullOrWhiteSpace(UiLanguage) ? _i18n.DefaultLanguageCode : UiLanguage.Trim();
         _config.Ui.Theme = AppThemeService.Normalize(UiTheme);
         UiTheme = _config.Ui.Theme;
@@ -917,6 +959,8 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
         _store.SaveConfig(_config);
         _store.SavePricing(_pricing);
         AppThemeService.Apply(_config.Ui.Theme);
+        if (networkChanged)
+            await RecreateNetworkServicesAsync();
         RefreshSettingsFields();
         RefreshModelCatalogRows();
         if (_config.Proxy.Enabled)
@@ -2401,6 +2445,9 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
             ProxyPort = _config.Proxy.Port;
             InboundApiKey = _config.Proxy.InboundApiKey;
             ProxyEnabled = _config.Proxy.Enabled;
+            NetworkProxyMode = _config.Network.ProxyMode;
+            NetworkProxyUrl = _config.Network.CustomProxyUrl;
+            NetworkProxyBypassOnLocal = _config.Network.BypassProxyOnLocal;
             PreserveCodexAppAuth = _config.Proxy.PreserveCodexAppAuth;
             UseFakeCodexAppAuth = _config.Proxy.UseFakeCodexAppAuth;
             Endpoint = _config.Proxy.Endpoint;
@@ -3074,6 +3121,13 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
         OnPropertyChanged(nameof(IsSystemThemeSelected));
     }
 
+    partial void OnNetworkProxyModeChanged(OutboundProxyMode value)
+    {
+        OnPropertyChanged(nameof(IsSystemNetworkProxySelected));
+        OnPropertyChanged(nameof(IsCustomNetworkProxySelected));
+        OnPropertyChanged(nameof(IsDisabledNetworkProxySelected));
+    }
+
     partial void OnBillingUnitTokensChanged(long value)
     {
         OnPropertyChanged(nameof(PricingUnitText));
@@ -3166,6 +3220,12 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
 
     public bool IsSystemThemeSelected => string.Equals(UiTheme, "system", StringComparison.OrdinalIgnoreCase);
 
+    public bool IsSystemNetworkProxySelected => NetworkProxyMode == OutboundProxyMode.System;
+
+    public bool IsCustomNetworkProxySelected => NetworkProxyMode == OutboundProxyMode.Custom;
+
+    public bool IsDisabledNetworkProxySelected => NetworkProxyMode == OutboundProxyMode.Disabled;
+
     public bool CanOpenLatestRelease => !string.IsNullOrWhiteSpace(LatestReleaseUrl);
 
     public bool IsUpdateDownloadVisible => IsDownloadingUpdate ||
@@ -3197,11 +3257,19 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
 
     public string UsageLogFilePath => _paths.UsageLogDirectory;
 
-    public bool IsProxyAlert => !_config.Proxy.Enabled || !_proxyHostService.State.IsRunning || _proxyHostService.State.Error is not null;
+    public bool IsProxyAlert => !_config.Proxy.Enabled ||
+        _proxyHostService.State.Error is not null ||
+        (!_proxyHostService.State.IsRunning &&
+            !string.Equals(_proxyHostService.State.StatusText, "Starting", StringComparison.Ordinal));
 
-    public string ServiceToggleText => _proxyHostService.State.IsRunning ? T("common.stop") : T("common.start");
+    public string ServiceToggleText => IsProxyAlert ? T("common.start") : T("common.stop");
 
-    public string ServiceStateText => _proxyHostService.State.IsRunning ? T("status.proxyRunning") : T("status.proxyStopped");
+    public string ServiceStateText => _proxyHostService.State.StatusText switch
+    {
+        "Starting" => T("status.proxyStarting"),
+        "Running" => T("status.proxyRunning"),
+        _ => T("status.proxyStopped")
+    };
 
     public string WorkspaceTitle => CurrentPage switch
     {

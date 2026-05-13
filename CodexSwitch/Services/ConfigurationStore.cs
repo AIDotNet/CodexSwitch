@@ -67,12 +67,16 @@ public sealed class ConfigurationStore
     {
         config.Ui ??= new AppUiSettings();
         config.Proxy ??= new ProxySettings();
+        config.Network ??= new NetworkSettings();
         config.GlobalTest ??= new ProviderTestSettings();
         config.GlobalCost ??= new ProviderCostSettings();
         config.Providers ??= [];
         config.Ui.Theme = AppThemeService.Normalize(config.Ui.Theme);
         if (string.IsNullOrWhiteSpace(config.Ui.Language))
             config.Ui.Language = "zh-CN";
+        if (!Enum.IsDefined(config.Network.ProxyMode))
+            config.Network.ProxyMode = OutboundProxyMode.System;
+        config.Network.CustomProxyUrl = config.Network.CustomProxyUrl?.Trim() ?? "";
 
         if (config.Proxy.UseFakeCodexAppAuth)
             config.Proxy.PreserveCodexAppAuth = false;
@@ -82,14 +86,17 @@ public sealed class ConfigurationStore
 
         MigrateBuiltInProviders(config);
         EnsureRequiredBuiltIns(config);
+        EnsureProviderClientSupport(config);
+        EnsureProviderClaudeCodeSettings(config);
         EnsureProviderModelConversions(config);
         EnsureProviderUsageQueries(config);
 
-        var activeExists = !string.IsNullOrWhiteSpace(config.ActiveProviderId) &&
-            config.Providers.Any(provider => string.Equals(provider.Id, config.ActiveProviderId, StringComparison.OrdinalIgnoreCase));
+        if (string.IsNullOrWhiteSpace(config.ActiveCodexProviderId))
+            config.ActiveCodexProviderId = config.ActiveProviderId;
 
-        if (!activeExists)
-            config.ActiveProviderId = config.Providers[0].Id;
+        EnsureActiveProvider(config, ClientAppKind.Codex);
+        EnsureActiveProvider(config, ClientAppKind.ClaudeCode);
+        config.ActiveProviderId = config.ActiveCodexProviderId;
     }
 
     private static void SaveJsonAtomically<T>(
@@ -177,6 +184,55 @@ public sealed class ConfigurationStore
 
         if (!HasProvider(config, ProviderTemplateCatalog.XiaomiBuiltinId, "https://api.xiaomimimo.com/v1"))
             AddFromTemplate(config, ProviderTemplateCatalog.XiaomiBuiltinId);
+    }
+
+    private static void EnsureProviderClientSupport(AppConfig config)
+    {
+        foreach (var provider in config.Providers)
+        {
+            if (!provider.SupportsCodex && !provider.SupportsClaudeCode)
+            {
+                provider.SupportsCodex = true;
+                provider.SupportsClaudeCode = IsAnthropicProvider(provider);
+            }
+
+            if (IsAnthropicProvider(provider))
+                provider.SupportsClaudeCode = true;
+        }
+    }
+
+    private static void EnsureProviderClaudeCodeSettings(AppConfig config)
+    {
+        foreach (var provider in config.Providers)
+        {
+            provider.ClaudeCode ??= new ClaudeCodeProviderSettings();
+            if (string.IsNullOrWhiteSpace(provider.ClaudeCode.Model))
+                provider.ClaudeCode.Model = ResolveDefaultClaudeCodeModel(provider);
+        }
+    }
+
+    private static void EnsureActiveProvider(AppConfig config, ClientAppKind kind)
+    {
+        var currentId = kind == ClientAppKind.Codex
+            ? config.ActiveCodexProviderId
+            : config.ActiveClaudeCodeProviderId;
+
+        var exists = !string.IsNullOrWhiteSpace(currentId) &&
+            config.Providers.Any(provider =>
+                ProviderSupportsClient(provider, kind) &&
+                string.Equals(provider.Id, currentId, StringComparison.OrdinalIgnoreCase));
+        if (exists)
+            return;
+
+        var fallback = config.Providers.FirstOrDefault(provider => ProviderSupportsClient(provider, kind)) ??
+            config.Providers.FirstOrDefault();
+        if (fallback is null)
+            return;
+
+        if (kind == ClientAppKind.Codex)
+            config.ActiveCodexProviderId = fallback.Id;
+        else
+            config.ActiveClaudeCodeProviderId = fallback.Id;
     }
 
     private static void MigrateBuiltInProviders(AppConfig config)
@@ -329,6 +385,28 @@ public sealed class ConfigurationStore
         return string.Equals(provider.BaseUrl.TrimEnd('/'), baseUrl.TrimEnd('/'), StringComparison.OrdinalIgnoreCase);
     }
 
+    private static bool ProviderSupportsClient(ProviderConfig provider, ClientAppKind kind)
+    {
+        return kind == ClientAppKind.Codex ? provider.SupportsCodex : provider.SupportsClaudeCode;
+    }
+
+    private static bool IsAnthropicProvider(ProviderConfig provider)
+    {
+        return provider.Protocol == ProviderProtocol.AnthropicMessages ||
+            string.Equals(provider.BuiltinId, ProviderTemplateCatalog.AnthropicBuiltinId, StringComparison.OrdinalIgnoreCase) ||
+            provider.Models.Any(model => model.Protocol == ProviderProtocol.AnthropicMessages);
+    }
+
+    private static string ResolveDefaultClaudeCodeModel(ProviderConfig provider)
+    {
+        if (!string.IsNullOrWhiteSpace(provider.DefaultModel))
+            return provider.DefaultModel;
+
+        var route = provider.Models.FirstOrDefault(model => model.Protocol == ProviderProtocol.AnthropicMessages) ??
+            provider.Models.FirstOrDefault();
+        return route?.Id ?? "claude-sonnet-4-5";
+    }
+
     private static ModelPricingCatalog CreateDefaultPricing()
     {
         return new ModelPricingCatalog
@@ -352,6 +430,11 @@ public sealed class ConfigurationStore
 
         provider.OAuth ??= CloneOAuth(template.OAuth);
         provider.RequestOverrides ??= CloneRequestOverrides(template.RequestOverrides);
+        provider.SupportsCodex = template.SupportsCodex;
+        provider.SupportsClaudeCode = template.SupportsClaudeCode;
+        provider.ClaudeCode ??= new ClaudeCodeProviderSettings();
+        if (string.IsNullOrWhiteSpace(provider.ClaudeCode.Model))
+            provider.ClaudeCode.Model = ResolveDefaultClaudeCodeModel(provider);
 
         provider.Models ??= [];
         foreach (var templateModel in template.Models)

@@ -4,7 +4,13 @@ public sealed class AppConfig
 {
     public ProxySettings Proxy { get; set; } = new();
 
+    public NetworkSettings Network { get; set; } = new();
+
     public AppUiSettings Ui { get; set; } = new();
+
+    public string ActiveCodexProviderId { get; set; } = "";
+
+    public string ActiveClaudeCodeProviderId { get; set; } = "";
 
     public string ActiveProviderId { get; set; } = "default";
 
@@ -57,6 +63,22 @@ public sealed class ProxySettings
     public string Endpoint => $"http://{Host}:{Port}/v1";
 }
 
+public sealed class NetworkSettings
+{
+    public OutboundProxyMode ProxyMode { get; set; } = OutboundProxyMode.System;
+
+    public string CustomProxyUrl { get; set; } = "";
+
+    public bool BypassProxyOnLocal { get; set; } = true;
+}
+
+public enum OutboundProxyMode
+{
+    System,
+    Custom,
+    Disabled
+}
+
 public sealed class ProviderConfig
 {
     public string Id { get; set; } = "";
@@ -81,6 +103,12 @@ public sealed class ProviderConfig
 
     public string DefaultModel { get; set; } = "";
 
+    public bool SupportsCodex { get; set; }
+
+    public bool SupportsClaudeCode { get; set; }
+
+    public ClaudeCodeProviderSettings ClaudeCode { get; set; } = new();
+
     public bool OverrideRequestModel { get; set; }
 
     public string? ServiceTier { get; set; }
@@ -102,6 +130,17 @@ public sealed class ProviderConfig
     public ProviderRequestOverrides? RequestOverrides { get; set; }
 
     public ProviderUsageQueryConfig? UsageQuery { get; set; }
+}
+
+public sealed class ClaudeCodeProviderSettings
+{
+    public string Model { get; set; } = "";
+
+    public bool AlwaysThinkingEnabled { get; set; } = true;
+
+    public bool SkipDangerousModePermissionPrompt { get; set; } = true;
+
+    public bool EnableOneMillionContext { get; set; }
 }
 
 public sealed class ProviderUsageQueryConfig

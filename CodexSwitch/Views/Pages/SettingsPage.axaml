@@ -140,6 +140,40 @@
                     </Grid>
                 </ui:CsSection>
 
+                <ui:CsSection Grid.Row="1"
+                              Title="{i18n:Tr settings.outboundProxy.title}"
+                              Description="{i18n:Tr settings.outboundProxy.description}"
+                              IsVisible="{Binding IsRouteSettingsVisible}">
+                    <StackPanel Spacing="12">
+                        <ui:CsField Label="{i18n:Tr settings.outboundProxy.mode}">
+                            <ui:CsSegmentedControl>
+                                <Grid ColumnDefinitions="*,*,*" ColumnSpacing="4">
+                                    <ui:CsSegmentedButton IsSelected="{Binding IsSystemNetworkProxySelected}"
+                                                          Command="{Binding SelectNetworkProxyModeCommand}"
+                                                          CommandParameter="System"
+                                                          Content="{i18n:Tr settings.outboundProxy.mode.system}"/>
+                                    <ui:CsSegmentedButton Grid.Column="1"
+                                                          IsSelected="{Binding IsCustomNetworkProxySelected}"
+                                                          Command="{Binding SelectNetworkProxyModeCommand}"
+                                                          CommandParameter="Custom"
+                                                          Content="{i18n:Tr settings.outboundProxy.mode.custom}"/>
+                                    <ui:CsSegmentedButton Grid.Column="2"
+                                                          IsSelected="{Binding IsDisabledNetworkProxySelected}"
+                                                          Command="{Binding SelectNetworkProxyModeCommand}"
+                                                          CommandParameter="Disabled"
+                                                          Content="{i18n:Tr settings.outboundProxy.mode.disabled}"/>
+                                </Grid>
+                            </ui:CsSegmentedControl>
+                        </ui:CsField>
+                        <ui:CsField Label="{i18n:Tr settings.outboundProxy.customUrl}">
+                            <ui:CsInput Text="{Binding NetworkProxyUrl}"
+                                        PlaceholderText="{i18n:Tr settings.outboundProxy.customUrlPlaceholder}"/>
+                        </ui:CsField>
+                        <ui:CsSwitch Content="{i18n:Tr settings.outboundProxy.bypassLocal}"
+                                     IsChecked="{Binding NetworkProxyBypassOnLocal}"/>
+                    </StackPanel>
+                </ui:CsSection>
+
                 <ui:CsSection Title="{i18n:Tr settings.auth.title}"
                               Description="{i18n:Tr settings.auth.description}"
                               IsVisible="{Binding IsAuthSettingsVisible}">

@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Collections.Concurrent;
 using System.Net;
 using System.Net.Http;
 using System.Net.Http.Headers;
@@ -20,6 +21,7 @@ public sealed class ProviderAuthService
     private readonly ConfigurationStore _store;
     private readonly AppConfig _config;
     private readonly HttpClient _httpClient;
+    private readonly ConcurrentDictionary<string, SemaphoreSlim> _refreshLocks = new(StringComparer.OrdinalIgnoreCase);
 
     public ProviderAuthService(ConfigurationStore store, AppConfig config, HttpClient httpClient)
     {
@@ -68,13 +70,46 @@ public sealed class ProviderAuthService
         if (settings is null || string.IsNullOrWhiteSpace(settings.TokenUrl) || string.IsNullOrWhiteSpace(settings.ClientId))
             return account.AccessToken;
 
-        var response = await SendRefreshRequestAsync(settings, account.RefreshToken, cancellationToken);
-        ApplyTokenResponse(account, response);
-        if (string.IsNullOrWhiteSpace(account.DisplayName))
-            account.DisplayName = ResolveAccountDisplayName(account);
-        provider.ActiveAccountId = account.Id;
-        _store.SaveConfig(_config);
-        return account.AccessToken;
+        var observedAccessToken = account.AccessToken;
+        var observedExpiresAt = account.ExpiresAt;
+        var refreshLock = _refreshLocks.GetOrAdd(CreateRefreshLockKey(provider, account), _ => new SemaphoreSlim(1, 1));
+        await refreshLock.WaitAsync(cancellationToken);
+        try
+        {
+            account = GetActiveAccount(provider);
+            if (account is null)
+                return null;
+
+            if (!force && !NeedsRefresh(account))
+                return account.AccessToken;
+
+            if (force &&
+                !NeedsRefresh(account) &&
+                (!string.Equals(account.AccessToken, observedAccessToken, StringComparison.Ordinal) ||
+                    account.ExpiresAt != observedExpiresAt))
+            {
+                return account.AccessToken;
+            }
+
+            if (string.IsNullOrWhiteSpace(account.RefreshToken))
+                return account.AccessToken;
+
+            settings = provider.OAuth;
+            if (settings is null || string.IsNullOrWhiteSpace(settings.TokenUrl) || string.IsNullOrWhiteSpace(settings.ClientId))
+                return account.AccessToken;
+
+            var response = await SendRefreshRequestAsync(settings, account.RefreshToken, cancellationToken);
+            ApplyTokenResponse(account, response);
+            if (string.IsNullOrWhiteSpace(account.DisplayName))
+                account.DisplayName = ResolveAccountDisplayName(account);
+            provider.ActiveAccountId = account.Id;
+            _store.SaveConfig(_config);
+            return account.AccessToken;
+        }
+        finally
+        {
+            refreshLock.Release();
+        }
     }
 
     public OAuthAccountConfig? GetActiveAccount(ProviderConfig provider)
@@ -130,6 +165,11 @@ public sealed class ProviderAuthService
             return false;
 
         return account.ExpiresAt.Value <= DateTimeOffset.UtcNow.Add(RefreshSkew);
+    }
+
+    private static string CreateRefreshLockKey(ProviderConfig provider, OAuthAccountConfig account)
+    {
+        return provider.Id + ":" + account.Id;
     }
 
     private async Task<OAuthTokenResponse> SendRefreshRequestAsync(

@@ -43,7 +43,7 @@ internal static class ProtocolAdapterCommon
     public static void Record(ProviderRequestContext context, UsageLogRecord record)
     {
         context.UsageMeter.Record(record);
-        context.UsageLogWriter.Append(record);
+        context.UsageLogWriter.AppendBuffered(record);
     }
 
     public static void CopyContentHeaders(HttpResponseMessage upstreamResponse, HttpResponse downstreamResponse)

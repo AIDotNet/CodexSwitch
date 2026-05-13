@@ -1,4 +1,6 @@
+using System.Net;
 using System.Net.Http;
+using System.Net.Sockets;
 using System.Text.Json;
 using CodexSwitch.Models;
 using CodexSwitch.Proxy;
@@ -74,6 +76,56 @@ public sealed class UiV2InfrastructureTests : IDisposable
     }
 
     [Fact]
+    public void EnsureValidDefaults_UsesSystemProxyForOutboundRequests()
+    {
+        var config = new AppConfig();
+
+        ConfigurationStore.EnsureValidDefaults(config);
+
+        Assert.Equal(OutboundProxyMode.System, config.Network.ProxyMode);
+        Assert.Equal("", config.Network.CustomProxyUrl);
+        Assert.True(config.Network.BypassProxyOnLocal);
+    }
+
+    [Fact]
+    public void AppHttpClientFactory_PrefersHttp2AndKeepsConnectionsPooled()
+    {
+        using var client = AppHttpClientFactory.Create(new NetworkSettings());
+
+        Assert.Equal(HttpVersion.Version20, client.DefaultRequestVersion);
+        Assert.Equal(HttpVersionPolicy.RequestVersionOrLower, client.DefaultVersionPolicy);
+        Assert.Equal(Timeout.InfiniteTimeSpan, client.Timeout);
+
+        using var handler = AppHttpClientFactory.CreateHandler(new NetworkSettings());
+        Assert.True(handler.UseProxy);
+        Assert.Null(handler.Proxy);
+        Assert.Equal(TimeSpan.FromMinutes(30), handler.PooledConnectionIdleTimeout);
+        Assert.Equal(Timeout.InfiniteTimeSpan, handler.PooledConnectionLifetime);
+        Assert.True(handler.EnableMultipleHttp2Connections);
+        Assert.Equal(HttpKeepAlivePingPolicy.Always, handler.KeepAlivePingPolicy);
+    }
+
+    [Fact]
+    public void AppHttpClientFactory_AppliesCustomAndDisabledProxyModes()
+    {
+        using var custom = AppHttpClientFactory.CreateHandler(new NetworkSettings
+        {
+            ProxyMode = OutboundProxyMode.Custom,
+            CustomProxyUrl = "http://127.0.0.1:7890"
+        });
+        using var disabled = AppHttpClientFactory.CreateHandler(new NetworkSettings
+        {
+            ProxyMode = OutboundProxyMode.Disabled
+        });
+
+        Assert.True(custom.UseProxy);
+        Assert.NotNull(custom.Proxy);
+        Assert.Equal(new Uri("http://127.0.0.1:7890/"), custom.Proxy.GetProxy(new Uri("https://api.openai.com/")));
+        Assert.False(disabled.UseProxy);
+        Assert.Null(disabled.Proxy);
+    }
+
+    [Fact]
     public void LoadConfig_EnablesMiniStatusForOlderConfigFiles()
     {
         var paths = CreatePaths("mini-status-default");
@@ -144,6 +196,119 @@ public sealed class UiV2InfrastructureTests : IDisposable
         Assert.Equal("Disabled", service.State.StatusText);
         Assert.Equal(config.Proxy.Endpoint, service.State.Endpoint);
         Assert.False(File.Exists(paths.CodexConfigPath));
+    }
+
+    [Fact]
+    public async Task ProxyHostService_StartAsync_ReusesLocalHealthConnection()
+    {
+        var paths = CreatePaths("keepalive-proxy");
+        var catalog = new ModelPricingCatalog();
+        var calculator = new PriceCalculator(catalog);
+        var configStore = new ConfigurationStore(paths);
+        var config = new AppConfig
+        {
+            ActiveProviderId = "first",
+            Proxy =
+            {
+                Enabled = true,
+                Host = "127.0.0.1",
+                Port = GetAvailablePort()
+            },
+            Providers =
+            {
+                new ProviderConfig
+                {
+                    Id = "first",
+                    BaseUrl = "https://example.com/v1",
+                    Protocol = ProviderProtocol.OpenAiResponses,
+                    DefaultModel = "gpt-5.5"
+                }
+            }
+        };
+        using var authHttpClient = new HttpClient();
+        await using var service = new ProxyHostService(
+            new UsageMeter(calculator),
+            calculator,
+            new UsageLogWriter(paths),
+            new CodexConfigWriter(paths),
+            new ProviderAuthService(configStore, config, authHttpClient),
+            Array.Empty<IProviderProtocolAdapter>());
+
+        await service.StartAsync(config);
+
+        var connectCount = 0;
+        using var client = new HttpClient(new SocketsHttpHandler
+        {
+            UseProxy = false,
+            ConnectCallback = async (context, cancellationToken) =>
+            {
+                Interlocked.Increment(ref connectCount);
+                var socket = new Socket(SocketType.Stream, ProtocolType.Tcp)
+                {
+                    NoDelay = true
+                };
+                await socket.ConnectAsync(context.DnsEndPoint, cancellationToken);
+                return new NetworkStream(socket, ownsSocket: true);
+            }
+        });
+
+        using var first = await client.GetAsync($"http://127.0.0.1:{config.Proxy.Port}/health");
+        using var second = await client.GetAsync($"http://127.0.0.1:{config.Proxy.Port}/health");
+
+        Assert.True(first.IsSuccessStatusCode);
+        Assert.True(second.IsSuccessStatusCode);
+        Assert.Equal(HttpVersion.Version11, first.Version);
+        Assert.Equal(HttpVersion.Version11, second.Version);
+        Assert.False(first.Headers.ConnectionClose.GetValueOrDefault());
+        Assert.False(second.Headers.ConnectionClose.GetValueOrDefault());
+        Assert.Equal(1, connectCount);
+    }
+
+    [Fact]
+    public async Task ProxyHostService_RestartAsync_PublishesStartingWithoutTransientStopped()
+    {
+        var paths = CreatePaths("restart-proxy");
+        var catalog = new ModelPricingCatalog();
+        var calculator = new PriceCalculator(catalog);
+        var configStore = new ConfigurationStore(paths);
+        var config = new AppConfig
+        {
+            ActiveProviderId = "first",
+            Proxy =
+            {
+                Enabled = true,
+                Host = "127.0.0.1",
+                Port = GetAvailablePort()
+            },
+            Providers =
+            {
+                new ProviderConfig
+                {
+                    Id = "first",
+                    BaseUrl = "https://example.com/v1",
+                    Protocol = ProviderProtocol.OpenAiResponses,
+                    DefaultModel = "gpt-5.5"
+                }
+            }
+        };
+        using var httpClient = new HttpClient();
+        await using var service = new ProxyHostService(
+            new UsageMeter(calculator),
+            calculator,
+            new UsageLogWriter(paths),
+            new CodexConfigWriter(paths),
+            new ProviderAuthService(configStore, config, httpClient),
+            Array.Empty<IProviderProtocolAdapter>());
+        var statuses = new List<string>();
+        service.StateChanged += (_, state) => statuses.Add(state.StatusText);
+
+        await service.RestartAsync(config);
+
+        Assert.True(service.State.IsRunning);
+        Assert.Equal("Running", service.State.StatusText);
+        Assert.Equal("Starting", statuses.First());
+        Assert.DoesNotContain("Stopped", statuses);
+        Assert.Contains("Running", statuses);
     }
 
     [Theory]
@@ -378,6 +543,37 @@ public sealed class UiV2InfrastructureTests : IDisposable
     }
 
     [Fact]
+    public async Task UsageLogWriter_BufferedAppend_FlushesOnDispose()
+    {
+        var paths = CreatePaths("usage-buffered-write");
+        var timestamp = new DateTimeOffset(2026, 5, 12, 12, 0, 0, TimeSpan.Zero);
+        var writer = new UsageLogWriter(paths);
+
+        writer.AppendBuffered(new UsageLogRecord
+        {
+            Timestamp = timestamp,
+            ProviderId = "openai",
+            RequestModel = "gpt-5.5",
+            BilledModel = "gpt-5.5",
+            Usage = new UsageTokens(10, 0, 0, 5, 0),
+            EstimatedCost = 0.01m,
+            DurationMs = 20,
+            StatusCode = 200
+        });
+        await writer.DisposeAsync();
+
+        var localDate = timestamp.ToLocalTime().Date;
+        var expectedPath = Path.Combine(
+            paths.UsageLogDirectory,
+            $"{localDate:yyyy}",
+            $"{localDate:MM}",
+            $"usage-{localDate:yyyy-MM-dd}.jsonl");
+
+        Assert.True(File.Exists(expectedPath));
+        Assert.Contains("\"providerId\":\"openai\"", File.ReadAllText(expectedPath));
+    }
+
+    [Fact]
     public void UsageLogReader_ReadsPartitionedAndLegacyLogs()
     {
         var paths = CreatePaths("usage-legacy-compatible");
@@ -526,6 +722,74 @@ public sealed class UiV2InfrastructureTests : IDisposable
     }
 
     [Fact]
+    public async Task ProviderAuthService_CoalescesConcurrentOAuthRefreshes()
+    {
+        var paths = CreatePaths("oauth-single-flight");
+        var refreshRequests = 0;
+        using var httpClient = new HttpClient(new AsyncHandler(async (_, cancellationToken) =>
+        {
+            Interlocked.Increment(ref refreshRequests);
+            await Task.Delay(50, cancellationToken);
+            return new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent(
+                    """{"access_token":"new-token","refresh_token":"new-refresh","expires_in":3600}""")
+            };
+        }));
+        var provider = new ProviderConfig
+        {
+            Id = "oauth",
+            AuthMode = ProviderAuthMode.OAuth,
+            OAuth = new ProviderOAuthSettings
+            {
+                TokenUrl = "https://auth.local/token",
+                ClientId = "client"
+            },
+            ActiveAccountId = "account"
+        };
+        provider.OAuthAccounts.Add(new OAuthAccountConfig
+        {
+            Id = "account",
+            AccessToken = "old-token",
+            RefreshToken = "refresh-token",
+            ExpiresAt = DateTimeOffset.UtcNow.AddMinutes(-1),
+            IsEnabled = true
+        });
+        var config = new AppConfig
+        {
+            ActiveProviderId = provider.Id,
+            Providers = { provider }
+        };
+        var service = new ProviderAuthService(new ConfigurationStore(paths), config, httpClient);
+
+        var tokens = await Task.WhenAll(
+            Enumerable.Range(0, 8)
+                .Select(_ => service.ResolveAccessTokenAsync(provider, forceRefresh: false, CancellationToken.None)));
+
+        Assert.All(tokens, token => Assert.Equal("new-token", token));
+        Assert.Equal(1, refreshRequests);
+    }
+
+    [Fact]
+    public async Task ResponsesConversationStateStore_PrunesOldestEntriesWhenCapacityIsExceeded()
+    {
+        var store = new ResponsesConversationStateStore(maxStates: 2, timeToLive: TimeSpan.FromHours(1));
+        using var first = JsonDocument.Parse("""{"id":"first"}""");
+        using var second = JsonDocument.Parse("""{"id":"second"}""");
+        using var third = JsonDocument.Parse("""{"id":"third"}""");
+
+        store.Save("first", [first.RootElement]);
+        await Task.Delay(5);
+        store.Save("second", [second.RootElement]);
+        await Task.Delay(5);
+        store.Save("third", [third.RootElement]);
+
+        Assert.False(store.TryGet("first", out _));
+        Assert.True(store.TryGet("second", out _));
+        Assert.True(store.TryGet("third", out _));
+    }
+
+    [Fact]
     public void PricingRoundtrip_PreservesDisplayNameAndIconSlug()
     {
         var paths = CreatePaths("pricing");
@@ -580,5 +844,29 @@ public sealed class UiV2InfrastructureTests : IDisposable
         return new AppPaths(
             Path.Combine(_tempDirectory, scenario, "appdata"),
             Path.Combine(_tempDirectory, scenario, "codex"));
+    }
+
+    private static int GetAvailablePort()
+    {
+        var listener = new TcpListener(IPAddress.Loopback, 0);
+        listener.Start();
+        var port = ((IPEndPoint)listener.LocalEndpoint).Port;
+        listener.Stop();
+        return port;
+    }
+
+    private sealed class AsyncHandler : HttpMessageHandler
+    {
+        private readonly Func<HttpRequestMessage, CancellationToken, Task<HttpResponseMessage>> _handler;
+
+        public AsyncHandler(Func<HttpRequestMessage, CancellationToken, Task<HttpResponseMessage>> handler)
+        {
+            _handler = handler;
+        }
+
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            return _handler(request, cancellationToken);
+        }
     }
 }
