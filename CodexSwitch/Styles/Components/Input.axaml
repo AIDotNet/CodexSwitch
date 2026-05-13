@@ -145,6 +145,50 @@
                 <Setter Property="IsVisible" Value="True"/>
             </Style>
         </ControlTheme>
+
+        <ControlTheme x:Key="CsComboBoxItemTheme" TargetType="ComboBoxItem">
+            <Setter Property="MinHeight" Value="32"/>
+            <Setter Property="Padding" Value="10,6"/>
+            <Setter Property="FontSize" Value="14"/>
+            <Setter Property="FontWeight" Value="Medium"/>
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Foreground" Value="{StaticResource CsPopoverForegroundBrush}"/>
+            <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
+            <Setter Property="Template">
+                <ControlTemplate>
+                    <Border Name="PART_ItemRoot"
+                            Background="{TemplateBinding Background}"
+                            CornerRadius="{StaticResource CsRadiusSm}"
+                            MinHeight="{TemplateBinding MinHeight}">
+                        <Border.Transitions>
+                            <Transitions>
+                                <BrushTransition Property="Background" Duration="0:0:0.10"/>
+                            </Transitions>
+                        </Border.Transitions>
+                        <ContentPresenter Margin="{TemplateBinding Padding}"
+                                          Content="{TemplateBinding Content}"
+                                          ContentTemplate="{TemplateBinding ContentTemplate}"
+                                          Foreground="{TemplateBinding Foreground}"
+                                          HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                          VerticalAlignment="{TemplateBinding VerticalContentAlignment}"/>
+                    </Border>
+                </ControlTemplate>
+            </Setter>
+
+            <Style Selector="^:pointerover">
+                <Setter Property="Background" Value="{StaticResource CsAccentBrush}"/>
+                <Setter Property="Foreground" Value="{StaticResource CsAccentForegroundBrush}"/>
+            </Style>
+            <Style Selector="^:selected">
+                <Setter Property="Background" Value="{StaticResource CsAccentBrush}"/>
+                <Setter Property="Foreground" Value="{StaticResource CsAccentForegroundBrush}"/>
+            </Style>
+            <Style Selector="^:selected:pointerover">
+                <Setter Property="Background" Value="{StaticResource CsAccentBrush}"/>
+                <Setter Property="Foreground" Value="{StaticResource CsAccentForegroundBrush}"/>
+            </Style>
+        </ControlTheme>
     </Styles.Resources>
 
     <Style Selector="TextBox.cs-input">
@@ -184,6 +228,8 @@
         <Setter Property="BorderBrush" Value="{StaticResource CsInputBrush}"/>
         <Setter Property="BorderThickness" Value="1"/>
         <Setter Property="CornerRadius" Value="{StaticResource CsRadiusMd}"/>
+        <Setter Property="ItemContainerTheme" Value="{StaticResource CsComboBoxItemTheme}"/>
+        <Setter Property="MaxDropDownHeight" Value="280"/>
         <Setter Property="Transitions">
             <Transitions>
                 <BrushTransition Property="Background" Duration="0:0:0.12"/>
@@ -196,8 +242,23 @@
         <Setter Property="BorderBrush" Value="{StaticResource CsRingBrush}"/>
         <Setter Property="Background" Value="{StaticResource CsInputFocusBackgroundBrush}"/>
     </Style>
+    <Style Selector="ComboBox.cs-select:pointerover">
+        <Setter Property="BorderBrush" Value="{StaticResource CsHoverBorderBrush}"/>
+    </Style>
     <Style Selector="ComboBox.cs-select:disabled">
         <Setter Property="Opacity" Value="0.5"/>
+    </Style>
+    <Style Selector="ComboBox.cs-select /template/ Popup#PART_Popup Border#PopupBorder">
+        <Setter Property="Background" Value="{StaticResource CsPopoverBrush}"/>
+        <Setter Property="BorderBrush" Value="{StaticResource CsBorderBrush}"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="CornerRadius" Value="{StaticResource CsRadiusMd}"/>
+        <Setter Property="Padding" Value="4"/>
+        <Setter Property="BoxShadow" Value="0 10 28 0 #66000000"/>
+    </Style>
+    <Style Selector="ComboBox.cs-select /template/ Popup#PART_Popup ScrollViewer">
+        <Setter Property="Background" Value="Transparent"/>
+        <Setter Property="Padding" Value="0"/>
     </Style>
 
     <Style Selector="CheckBox.cs-switch">

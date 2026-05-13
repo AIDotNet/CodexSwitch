@@ -30,7 +30,7 @@ public static class ProviderTemplateCatalog
             Website = "https://api.routin.ai",
             BaseUrl = "https://api.routin.ai/v1",
             Protocol = ProviderProtocol.OpenAiResponses,
-            DefaultModel = "gpt-5.5",
+            DefaultModel = CodexSwitchDefaults.ManagedCodexModel,
             IconSlug = "openai",
             FastMode = true,
             ServiceTier = "priority",
@@ -45,7 +45,7 @@ public static class ProviderTemplateCatalog
             Website = "https://api.routin.ai",
             BaseUrl = "https://api.routin.ai/plan/v1",
             Protocol = ProviderProtocol.OpenAiResponses,
-            DefaultModel = "gpt-5.5",
+            DefaultModel = CodexSwitchDefaults.ManagedCodexModel,
             IconSlug = "openai",
             FastMode = true,
             ServiceTier = "priority",
@@ -60,7 +60,7 @@ public static class ProviderTemplateCatalog
             Website = "https://platform.openai.com",
             BaseUrl = "https://api.openai.com/v1",
             Protocol = ProviderProtocol.OpenAiResponses,
-            DefaultModel = "gpt-5.5",
+            DefaultModel = CodexSwitchDefaults.ManagedCodexModel,
             IconSlug = "openai",
             Models = BuiltInModelCatalog.OpenAiOfficialModels
         },
@@ -84,8 +84,8 @@ public static class ProviderTemplateCatalog
             DisplayName = "DeepSeek",
             Description = "Official DeepSeek OpenAI-compatible chat API",
             Website = "https://platform.deepseek.com",
-            BaseUrl = "https://api.deepseek.com",
-            Protocol = ProviderProtocol.OpenAiChat,
+            BaseUrl = "https://api.deepseek.com/anthropic",
+            Protocol = ProviderProtocol.AnthropicMessages,
             DefaultModel = "deepseek-v4-flash",
             IconSlug = "deepseek",
             Models = BuiltInModelCatalog.DeepSeekModels
@@ -199,16 +199,17 @@ public static class ProviderTemplateCatalog
             ApiKey = "",
             AuthMode = template.AuthMode,
             Protocol = template.Protocol,
-            DefaultModel = template.IsCustom ? "gpt-5.5" : template.DefaultModel,
+            DefaultModel = template.IsCustom ? CodexSwitchDefaults.ManagedCodexModel : template.DefaultModel,
             OverrideRequestModel = false,
             ServiceTier = template.ServiceTier,
             OAuth = CloneOAuth(template.OAuth),
             RequestOverrides = CloneOverrides(template.RequestOverrides),
+            UsageQuery = CreateDefaultUsageQuery(template),
             Cost = new ProviderCostSettings { FastMode = template.FastMode }
         };
 
         var models = template.IsCustom
-            ? [new ProviderTemplateModel { Id = "gpt-5.5", Protocol = ProviderProtocol.OpenAiResponses }]
+            ? [new ProviderTemplateModel { Id = CodexSwitchDefaults.ManagedCodexModel, Protocol = ProviderProtocol.OpenAiResponses }]
             : template.Models;
 
         foreach (var model in models)
@@ -224,6 +225,7 @@ public static class ProviderTemplateCatalog
             });
         }
 
+        EnsureDefaultModelConversion(provider);
         return provider;
     }
 
@@ -243,10 +245,42 @@ public static class ProviderTemplateCatalog
         provider.ServiceTier = seeded.ServiceTier;
         provider.OAuth = seeded.OAuth;
         provider.RequestOverrides = seeded.RequestOverrides;
+        provider.UsageQuery = UsageQueryTemplateCatalog.CloneQuery(seeded.UsageQuery);
         provider.Cost = seeded.Cost;
         provider.Models.Clear();
         foreach (var model in seeded.Models)
             provider.Models.Add(model);
+
+        provider.ModelConversions ??= [];
+        provider.ModelConversions.Clear();
+        foreach (var conversion in seeded.ModelConversions)
+            provider.ModelConversions.Add(CloneConversion(conversion));
+    }
+
+    public static void EnsureDefaultModelConversion(ProviderConfig provider)
+    {
+        provider.ModelConversions ??= [];
+        var existing = provider.ModelConversions.FirstOrDefault(IsDefaultModelConversion);
+        if (existing is not null)
+        {
+            existing.SourceModel = CodexSwitchDefaults.ManagedCodexModel;
+            existing.TargetModel = null;
+            existing.UseDefaultModel = true;
+            return;
+        }
+
+        provider.ModelConversions.Add(new ModelConversionConfig
+        {
+            SourceModel = CodexSwitchDefaults.ManagedCodexModel,
+            UseDefaultModel = true,
+            Enabled = true
+        });
+    }
+
+    public static bool IsDefaultModelConversion(ModelConversionConfig conversion)
+    {
+        return conversion.UseDefaultModel &&
+            string.Equals(conversion.SourceModel, CodexSwitchDefaults.ManagedCodexModel, StringComparison.OrdinalIgnoreCase);
     }
 
     public static bool IsChatGptCodexBackend(string? baseUrl)
@@ -282,6 +316,17 @@ public static class ProviderTemplateCatalog
         };
     }
 
+    private static ProviderUsageQueryConfig CreateDefaultUsageQuery(ProviderTemplate template)
+    {
+        if (string.Equals(template.BuiltinId, RoutinAiBuiltinId, StringComparison.OrdinalIgnoreCase))
+            return UsageQueryTemplateCatalog.CreateQuery(UsageQueryTemplateCatalog.RoutinAiApiKeyTemplateId);
+
+        if (string.Equals(template.BuiltinId, RoutinAiPlanBuiltinId, StringComparison.OrdinalIgnoreCase))
+            return UsageQueryTemplateCatalog.CreateQuery(UsageQueryTemplateCatalog.RoutinAiPlanTemplateId);
+
+        return UsageQueryTemplateCatalog.CreateQuery(UsageQueryTemplateCatalog.CustomTemplateId);
+    }
+
     private static ProviderRequestOverrides? CloneOverrides(ProviderRequestOverrides? source)
     {
         if (source is null)
@@ -298,6 +343,17 @@ public static class ProviderTemplateCatalog
             clone.OmitBodyKeys.Add(key);
 
         return clone;
+    }
+
+    private static ModelConversionConfig CloneConversion(ModelConversionConfig source)
+    {
+        return new ModelConversionConfig
+        {
+            SourceModel = source.SourceModel,
+            TargetModel = source.TargetModel,
+            UseDefaultModel = source.UseDefaultModel,
+            Enabled = source.Enabled
+        };
     }
 
     private static string MakeUniqueId(string seed, IEnumerable<string> existingIds)

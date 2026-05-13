@@ -14,6 +14,17 @@ public sealed class I18nLanguageOption
     public string DisplayName { get; set; } = "";
 
     public string NativeName { get; set; } = "";
+
+    public override string ToString()
+    {
+        if (!string.IsNullOrWhiteSpace(NativeName))
+            return NativeName;
+
+        if (!string.IsNullOrWhiteSpace(DisplayName))
+            return DisplayName;
+
+        return Code;
+    }
 }
 
 public sealed class I18nLanguageResource

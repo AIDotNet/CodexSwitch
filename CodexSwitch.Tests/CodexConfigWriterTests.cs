@@ -76,6 +76,106 @@ public sealed class CodexConfigWriterTests : IDisposable
     }
 
     [Fact]
+    public void Apply_PreserveCodexAppAuth_RestoresCapturedAuth()
+    {
+        var appRoot = Path.Combine(_tempDirectory, "preserve-appdata");
+        var codexRoot = Path.Combine(_tempDirectory, "preserve-codex");
+        var paths = new AppPaths(appRoot, codexRoot);
+        Directory.CreateDirectory(paths.CodexDirectory);
+        var originalAuth = "{\"auth_mode\":\"chatgpt\",\"tokens\":{\"access_token\":\"chatgpt-token\"}}\n";
+        File.WriteAllText(paths.CodexAuthPath, originalAuth);
+
+        var writer = new CodexConfigWriter(paths);
+        writer.Apply(new AppConfig
+        {
+            Proxy =
+            {
+                Host = "127.0.0.1",
+                Port = 12785,
+                InboundApiKey = "local-secret"
+            }
+        });
+
+        Assert.Contains("\"auth_mode\": \"apikey\"", File.ReadAllText(paths.CodexAuthPath), StringComparison.Ordinal);
+
+        writer.Apply(new AppConfig
+        {
+            Proxy =
+            {
+                Host = "127.0.0.1",
+                Port = 12785,
+                InboundApiKey = "local-secret",
+                PreserveCodexAppAuth = true
+            }
+        });
+
+        Assert.Equal(originalAuth, File.ReadAllText(paths.CodexAuthPath));
+        Assert.Contains("model_provider = \"meteor-ai\"", File.ReadAllText(paths.CodexConfigPath), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Apply_PreserveCodexAppAuth_DeletesManagedAuthWhenNoOriginalAuth()
+    {
+        var appRoot = Path.Combine(_tempDirectory, "preserve-delete-appdata");
+        var codexRoot = Path.Combine(_tempDirectory, "preserve-delete-codex");
+        var paths = new AppPaths(appRoot, codexRoot);
+
+        var writer = new CodexConfigWriter(paths);
+        writer.Apply(new AppConfig
+        {
+            Proxy =
+            {
+                InboundApiKey = "local-secret"
+            }
+        });
+
+        Assert.True(File.Exists(paths.CodexAuthPath));
+
+        writer.Apply(new AppConfig
+        {
+            Proxy =
+            {
+                InboundApiKey = "local-secret",
+                PreserveCodexAppAuth = true
+            }
+        });
+
+        Assert.False(File.Exists(paths.CodexAuthPath));
+        Assert.Contains("model_provider = \"meteor-ai\"", File.ReadAllText(paths.CodexConfigPath), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Apply_UseFakeCodexAppAuth_WritesFakeAuthAndRestoresOriginal()
+    {
+        var appRoot = Path.Combine(_tempDirectory, "fake-auth-appdata");
+        var codexRoot = Path.Combine(_tempDirectory, "fake-auth-codex");
+        var paths = new AppPaths(appRoot, codexRoot);
+        Directory.CreateDirectory(paths.CodexDirectory);
+        var originalAuth = "{\"auth_mode\":\"chatgpt\",\"tokens\":{\"access_token\":\"real-token-placeholder\"}}\n";
+        File.WriteAllText(paths.CodexAuthPath, originalAuth);
+
+        var writer = new CodexConfigWriter(paths);
+        writer.Apply(new AppConfig
+        {
+            Proxy =
+            {
+                InboundApiKey = "local-secret",
+                UseFakeCodexAppAuth = true
+            }
+        });
+
+        var fakeAuth = File.ReadAllText(paths.CodexAuthPath);
+        Assert.Contains("\"auth_mode\": \"chatgpt\"", fakeAuth, StringComparison.Ordinal);
+        Assert.Contains("Fake Codex App auth fixture", fakeAuth, StringComparison.Ordinal);
+        Assert.Contains("fake-refresh-token-for-local-test-only", fakeAuth, StringComparison.Ordinal);
+        Assert.DoesNotContain("real-token-placeholder", fakeAuth, StringComparison.Ordinal);
+
+        writer.RestoreOriginal();
+
+        Assert.Equal(originalAuth, File.ReadAllText(paths.CodexAuthPath));
+    }
+
+    [Fact]
     public void RestoreOriginal_RestoresOriginalCodexFiles()
     {
         var appRoot = Path.Combine(_tempDirectory, "restore-appdata");

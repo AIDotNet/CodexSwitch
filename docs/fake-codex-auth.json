@@ -1,0 +1,17 @@
+{
+  "_note": "Fake Codex App auth fixture for local UI/schema testing only. These tokens are intentionally invalid and will not authenticate with OpenAI services.",
+  "auth_mode": "chatgpt",
+  "tokens": {
+    "id_token": "eyJhbGciOiJub25lIiwidHlwIjoiSldUIn0.eyJzdWIiOiJmYWtlLWNoYXRncHQtdXNlciIsImVtYWlsIjoiZmFrZS1jb2RleEBleGFtcGxlLmludmFsaWQiLCJleHAiOjQwNzA5MDg4MDAsImh0dHBzOi8vYXBpLm9wZW5haS5jb20vYXV0aCI6eyJjaGF0Z3B0X3BsYW5fdHlwZSI6InBsdXMiLCJhY2NvdW50X2lkIjoiZmFrZS1hY2NvdW50IiwiY2hhdGdwdF91c2VyX2lkIjoiZmFrZS1jaGF0Z3B0LXVzZXIifX0.fake-signature",
+    "access_token": "eyJhbGciOiJub25lIiwidHlwIjoiSldUIn0.eyJzdWIiOiJmYWtlLWNoYXRncHQtdXNlciIsImVtYWlsIjoiZmFrZS1jb2RleEBleGFtcGxlLmludmFsaWQiLCJleHAiOjQwNzA5MDg4MDAsImh0dHBzOi8vYXBpLm9wZW5haS5jb20vYXV0aCI6eyJjaGF0Z3B0X3BsYW5fdHlwZSI6InBsdXMiLCJhY2NvdW50X2lkIjoiZmFrZS1hY2NvdW50IiwiY2hhdGdwdF91c2VyX2lkIjoiZmFrZS1jaGF0Z3B0LXVzZXIifX0.fake-signature",
+    "refresh_token": "fake-refresh-token-for-local-test-only",
+    "token_type": "Bearer",
+    "expires_in": 315360000
+  },
+  "accessToken": "fake-access-token-for-local-test-only",
+  "refreshToken": "fake-refresh-token-for-local-test-only",
+  "chatgptPlanType": "plus",
+  "account_id": "fake-account",
+  "chatgpt_user_id": "fake-chatgpt-user",
+  "last_refresh": "2026-05-13T00:00:00Z"
+}

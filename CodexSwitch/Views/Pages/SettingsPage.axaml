@@ -112,6 +112,7 @@
                               IsVisible="{Binding IsGeneralSettingsVisible}">
                     <StackPanel Spacing="12">
                         <ui:CsSwitch Content="{i18n:Tr settings.desktop.startWithWindows}"
+                                     IsEnabled="{Binding IsStartWithWindowsSupported}"
                                      IsChecked="{Binding StartWithWindows}"/>
                         <ui:CsSwitch Content="{i18n:Tr settings.desktop.openCodexDefault}"
                                      IsChecked="{Binding DefaultClientAppIsCodex}"/>
@@ -140,9 +141,15 @@
                 <ui:CsSection Title="{i18n:Tr settings.auth.title}"
                               Description="{i18n:Tr settings.auth.description}"
                               IsVisible="{Binding IsAuthSettingsVisible}">
-                    <ui:CsField Label="{i18n:Tr settings.auth.inboundApiKey}">
-                        <ui:CsInput Text="{Binding InboundApiKey}"/>
-                    </ui:CsField>
+                    <StackPanel Spacing="12">
+                        <ui:CsSwitch Content="{i18n:Tr settings.auth.preserveCodexAppAuth}"
+                                     IsChecked="{Binding PreserveCodexAppAuth}"/>
+                        <ui:CsSwitch Content="{i18n:Tr settings.auth.useFakeCodexAppAuth}"
+                                     IsChecked="{Binding UseFakeCodexAppAuth}"/>
+                        <ui:CsField Label="{i18n:Tr settings.auth.inboundApiKey}">
+                            <ui:CsInput Text="{Binding InboundApiKey}"/>
+                        </ui:CsField>
+                    </StackPanel>
                 </ui:CsSection>
 
                 <StackPanel IsVisible="{Binding IsAdvancedSettingsVisible}"

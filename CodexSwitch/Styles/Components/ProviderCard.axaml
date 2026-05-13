@@ -1,7 +1,7 @@
 <Styles xmlns="https://github.com/avaloniaui"
         xmlns:ui="using:CodexSwitch.Controls">
     <Style Selector="ui|CsProviderCard">
-        <Setter Property="MinHeight" Value="86"/>
+        <Setter Property="MinHeight" Value="104"/>
         <Setter Property="Padding" Value="16"/>
         <Setter Property="Background" Value="{StaticResource CsCardBrush}"/>
         <Setter Property="Foreground" Value="{StaticResource CsForegroundBrush}"/>
@@ -47,5 +47,60 @@
     <Style Selector="ui|CsProviderCard.active:pressed">
         <Setter Property="Background" Value="{StaticResource CsProviderCardActivePressedBrush}"/>
         <Setter Property="BorderBrush" Value="#0A84FF"/>
+    </Style>
+
+    <Style Selector="Border.provider-usage">
+        <Setter Property="Padding" Value="10,7"/>
+        <Setter Property="Background" Value="#B3171717"/>
+        <Setter Property="BorderBrush" Value="{StaticResource CsBorderBrush}"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="CornerRadius" Value="{StaticResource CsRadiusMd}"/>
+        <Setter Property="Transitions">
+            <Transitions>
+                <BrushTransition Property="Background" Duration="0:0:0.14"/>
+                <BrushTransition Property="BorderBrush" Duration="0:0:0.14"/>
+            </Transitions>
+        </Setter>
+    </Style>
+    <Style Selector="Border.provider-usage:pointerover">
+        <Setter Property="Background" Value="#CC171717"/>
+        <Setter Property="BorderBrush" Value="{StaticResource CsHoverBorderBrush}"/>
+    </Style>
+    <Style Selector="Border.provider-usage.success">
+        <Setter Property="BorderBrush" Value="#33FFFFFF"/>
+    </Style>
+    <Style Selector="Border.provider-usage.error">
+        <Setter Property="BorderBrush" Value="#55FF6467"/>
+    </Style>
+    <Style Selector="Border.provider-usage.refreshing">
+        <Setter Property="BorderBrush" Value="#4D5277FF"/>
+    </Style>
+
+    <Style Selector="Border.usage-status-dot">
+        <Setter Property="Width" Value="6"/>
+        <Setter Property="Height" Value="6"/>
+        <Setter Property="CornerRadius" Value="999"/>
+        <Setter Property="Background" Value="{StaticResource CsMutedForegroundBrush}"/>
+    </Style>
+    <Style Selector="Border.usage-status-dot.success">
+        <Setter Property="Background" Value="{StaticResource CsSuccessBrush}"/>
+    </Style>
+    <Style Selector="Border.usage-status-dot.error">
+        <Setter Property="Background" Value="{StaticResource CsDestructiveBrush}"/>
+    </Style>
+    <Style Selector="Border.usage-status-dot.refreshing">
+        <Setter Property="Background" Value="{StaticResource CsSidebarPrimaryBrush}"/>
+    </Style>
+
+    <Style Selector="ui|CsText.provider-usage-summary">
+        <Setter Property="Foreground" Value="{StaticResource CsForegroundBrush}"/>
+        <Setter Property="FontSize" Value="11"/>
+        <Setter Property="FontWeight" Value="SemiBold"/>
+        <Setter Property="LineHeight" Value="15"/>
+    </Style>
+    <Style Selector="ui|CsText.provider-usage-meta">
+        <Setter Property="Foreground" Value="{StaticResource CsMutedForegroundBrush}"/>
+        <Setter Property="FontSize" Value="10"/>
+        <Setter Property="LineHeight" Value="14"/>
     </Style>
 </Styles>

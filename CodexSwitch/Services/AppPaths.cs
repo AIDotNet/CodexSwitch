@@ -13,9 +13,11 @@ public sealed class AppPaths
         ConfigPath = Path.Combine(root, "config.json");
         PricingPath = Path.Combine(root, "model-pricing.json");
         UsageLogPath = Path.Combine(root, "usage-log.jsonl");
+        UsageLogDirectory = Path.Combine(root, "usage-logs");
         IconDirectory = Path.Combine(root, "icons");
         BackupDirectory = Path.Combine(root, "backups");
         CodexRestoreStatePath = Path.Combine(root, "codex-restore-state.json");
+        Directory.CreateDirectory(UsageLogDirectory);
         Directory.CreateDirectory(IconDirectory);
         Directory.CreateDirectory(BackupDirectory);
 
@@ -34,6 +36,8 @@ public sealed class AppPaths
     public string PricingPath { get; }
 
     public string UsageLogPath { get; }
+
+    public string UsageLogDirectory { get; }
 
     public string IconDirectory { get; }
 

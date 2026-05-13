@@ -26,9 +26,17 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
     private readonly HttpClient _sharedHttpClient;
     private readonly IconCacheService _iconCacheService;
     private readonly ProviderAuthService _providerAuthService;
+    private readonly ProviderUsageQueryService _providerUsageQueryService;
     private readonly CodexOAuthLoginService _codexOAuthLoginService;
+    private readonly StartupRegistrationService _startupRegistrationService;
     private readonly ProxyHostService _proxyHostService;
     private readonly UpdateCheckService _updateCheckService;
+    private readonly DispatcherTimer _usageQueryTimer;
+    private readonly Dictionary<string, ProviderUsageQueryResult> _providerUsageResults = new(StringComparer.OrdinalIgnoreCase);
+    private readonly HashSet<string> _refreshingUsageProviders = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, ProviderUsageFailureState> _providerUsageFailures = new(StringComparer.OrdinalIgnoreCase);
+    private static readonly object BrushCacheSync = new();
+    private static readonly Dictionary<string, IBrush> BrushCache = new(StringComparer.OrdinalIgnoreCase);
     private AppConfig _config;
     private ModelPricingCatalog _pricing;
     private string _returnPage = "Providers";
@@ -38,6 +46,10 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
     private string? _providerPendingDeleteId;
     private bool _isRefreshingSettingsFields;
     private bool _isLoadingProviderFields;
+    private bool _hasUsageDashboardSnapshot;
+    private UsageTimeRange _lastUsageDashboardRange;
+    private DateTimeOffset _lastUsageWindowAnchor;
+    private UsageLogSourceSnapshot _lastUsageSourceSnapshot;
 
     [ObservableProperty]
     private string _currentPage = "Providers";
@@ -100,6 +112,66 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
     private string _selectedServiceTier = "";
 
     [ObservableProperty]
+    private bool _selectedUsageQueryEnabled;
+
+    [ObservableProperty]
+    private string _selectedUsageQueryTemplateId = UsageQueryTemplateCatalog.CustomTemplateId;
+
+    [ObservableProperty]
+    private string _selectedUsageQueryMethod = "GET";
+
+    [ObservableProperty]
+    private string _selectedUsageQueryUrl = "";
+
+    [ObservableProperty]
+    private string _selectedUsageQueryHeaders = "";
+
+    [ObservableProperty]
+    private string _selectedUsageQueryBody = "";
+
+    [ObservableProperty]
+    private int _selectedUsageQueryTimeoutSeconds = 20;
+
+    [ObservableProperty]
+    private string _selectedUsageQuerySuccessPath = "";
+
+    [ObservableProperty]
+    private string _selectedUsageQueryErrorPath = "";
+
+    [ObservableProperty]
+    private string _selectedUsageQueryErrorMessagePath = "";
+
+    [ObservableProperty]
+    private string _selectedUsageQueryRemainingPath = "";
+
+    [ObservableProperty]
+    private string _selectedUsageQueryUnitPath = "";
+
+    [ObservableProperty]
+    private string _selectedUsageQueryUnit = "";
+
+    [ObservableProperty]
+    private string _selectedUsageQueryTotalPath = "";
+
+    [ObservableProperty]
+    private string _selectedUsageQueryUsedPath = "";
+
+    [ObservableProperty]
+    private string _selectedUsageQueryUnlimitedPath = "";
+
+    [ObservableProperty]
+    private string _selectedUsageQueryPlanNamePath = "";
+
+    [ObservableProperty]
+    private string _selectedUsageQueryDailyResetPath = "";
+
+    [ObservableProperty]
+    private string _selectedUsageQueryWeeklyResetPath = "";
+
+    [ObservableProperty]
+    private string _usageQueryTestResult = "";
+
+    [ObservableProperty]
     private long _requestCount;
 
     [ObservableProperty]
@@ -137,6 +209,12 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
 
     [ObservableProperty]
     private bool _proxyEnabled = true;
+
+    [ObservableProperty]
+    private bool _preserveCodexAppAuth;
+
+    [ObservableProperty]
+    private bool _useFakeCodexAppAuth;
 
     [ObservableProperty]
     private long _billingUnitTokens = 1_000_000;
@@ -261,6 +339,8 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
         _usageLogWriter = new UsageLogWriter(_paths);
         _usageLogReader = new UsageLogReader(_paths);
         _codexConfigWriter = new CodexConfigWriter(_paths);
+        _startupRegistrationService = new StartupRegistrationService();
+        SyncStartupRegistrationFromConfig();
 
         _sharedHttpClient = new HttpClient(new SocketsHttpHandler
         {
@@ -269,8 +349,11 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
         });
         _iconCacheService = new IconCacheService(_paths, _sharedHttpClient);
         _providerAuthService = new ProviderAuthService(_store, _config, _sharedHttpClient);
+        _providerUsageQueryService = new ProviderUsageQueryService(_sharedHttpClient, _providerAuthService);
         _codexOAuthLoginService = new CodexOAuthLoginService(_sharedHttpClient);
         _updateCheckService = new UpdateCheckService(_sharedHttpClient);
+        _usageQueryTimer = new DispatcherTimer { Interval = TimeSpan.FromMinutes(10) };
+        _usageQueryTimer.Tick += (_, _) => _ = RefreshProviderUsageQueriesAsync();
         ProxyStatus = T("proxy.starting");
         LatestVersionTag = T("update.noReleaseYet");
         LatestReleasePublishedAtText = T("update.notPublished");
@@ -289,8 +372,10 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
 
         ClientApps = [];
         ProviderTemplates = [];
+        UsageQueryTemplates = [];
         ProviderRows = [];
         ModelRows = [];
+        ModelConversionRows = [];
         PricingRows = [];
         ModelCatalogRows = [];
         UsageMetrics = [];
@@ -299,6 +384,7 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
         ModelUsageRows = [];
         TrendPoints = [];
         ProtocolOptions = Enum.GetValues<ProviderProtocol>();
+        UsageQueryMethods = ["GET", "POST"];
 
         SelectClientAppCommand = new RelayCommand<ClientAppItem>(SelectClientApp);
         ShowProvidersCommand = new RelayCommand(() => CurrentPage = "Providers");
@@ -317,6 +403,8 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
         EditProviderCommand = new RelayCommand<ProviderListItem>(OpenEditProvider);
         AddProviderCommand = new RelayCommand(OpenAddProvider);
         SelectProviderTemplateCommand = new RelayCommand<ProviderTemplateItem>(SelectProviderTemplate);
+        SelectUsageQueryTemplateCommand = new RelayCommand<UsageQueryTemplateItem>(SelectUsageQueryTemplate);
+        TestProviderUsageQueryCommand = new AsyncRelayCommand(TestProviderUsageQueryAsync);
         LoginCodexOAuthCommand = new AsyncRelayCommand(LoginCodexOAuthAsync);
         RequestRemoveProviderCommand = new RelayCommand<ProviderListItem>(RequestRemoveProvider);
         CancelRemoveProviderCommand = new RelayCommand(() => IsDeleteProviderDialogOpen = false);
@@ -328,6 +416,8 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
         SaveProviderCommand = new AsyncRelayCommand(SaveProviderDialogAsync);
         AddProviderModelCommand = new RelayCommand(AddProviderModel);
         RemoveProviderModelCommand = new RelayCommand<ModelEditorItem>(RemoveProviderModel);
+        AddModelConversionCommand = new RelayCommand(AddModelConversion);
+        RemoveModelConversionCommand = new RelayCommand<ModelConversionEditorItem>(RemoveModelConversion);
         AddPricingModelCommand = new RelayCommand(OpenAddModel);
         EditPricingModelCommand = new RelayCommand<ModelCatalogItem>(OpenEditModel);
         RequestRemovePricingModelCommand = new RelayCommand<ModelCatalogItem>(RequestRemovePricingModel);
@@ -345,15 +435,17 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
         _proxyHostService.StateChanged += (_, state) => ApplyProxyState(state);
 
         RefreshProviderTemplates();
+        RefreshUsageQueryTemplates();
         RefreshClientApps();
         RefreshProviderRows();
         RefreshSettingsFields();
         RefreshPricingRows();
         RefreshModelCatalogRows();
-        RefreshUsageDashboard();
         SelectProvider(ProviderRows.FirstOrDefault(row => row.IsActive) ?? ProviderRows.FirstOrDefault());
         _ = EnsureIconsAsync();
         _ = CheckForUpdatesAsync(true);
+        _usageQueryTimer.Start();
+        _ = RefreshProviderUsageQueriesAsync();
         _ = _config.Proxy.Enabled
             ? RestartProxyAsync()
             : _proxyHostService.StartAsync(_config);
@@ -363,9 +455,13 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
 
     public ObservableCollection<ProviderTemplateItem> ProviderTemplates { get; }
 
+    public ObservableCollection<UsageQueryTemplateItem> UsageQueryTemplates { get; }
+
     public ObservableCollection<ProviderListItem> ProviderRows { get; }
 
     public ObservableCollection<ModelEditorItem> ModelRows { get; }
+
+    public ObservableCollection<ModelConversionEditorItem> ModelConversionRows { get; }
 
     public ObservableCollection<ModelPricingEditorItem> PricingRows { get; }
 
@@ -382,6 +478,8 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
     public ObservableCollection<UsageTrendPoint> TrendPoints { get; }
 
     public ProviderProtocol[] ProtocolOptions { get; }
+
+    public string[] UsageQueryMethods { get; }
 
     public IReadOnlyList<I18nLanguageOption> SupportedLanguages => _i18n.Languages;
 
@@ -419,6 +517,10 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
 
     public IRelayCommand<ProviderTemplateItem> SelectProviderTemplateCommand { get; }
 
+    public IRelayCommand<UsageQueryTemplateItem> SelectUsageQueryTemplateCommand { get; }
+
+    public IAsyncRelayCommand TestProviderUsageQueryCommand { get; }
+
     public IAsyncRelayCommand LoginCodexOAuthCommand { get; }
 
     public IRelayCommand<ProviderListItem> RequestRemoveProviderCommand { get; }
@@ -440,6 +542,10 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
     public IRelayCommand AddProviderModelCommand { get; }
 
     public IRelayCommand<ModelEditorItem> RemoveProviderModelCommand { get; }
+
+    public IRelayCommand AddModelConversionCommand { get; }
+
+    public IRelayCommand<ModelConversionEditorItem> RemoveModelConversionCommand { get; }
 
     public IRelayCommand AddPricingModelCommand { get; }
 
@@ -467,6 +573,7 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
 
     public async ValueTask DisposeAsync()
     {
+        _usageQueryTimer.Stop();
         await _proxyHostService.DisposeAsync();
         _sharedHttpClient.Dispose();
     }
@@ -524,6 +631,9 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
 
     private async Task RefreshUsageDashboardAsync()
     {
+        if (!IsUsagePageVisible)
+            return;
+
         if (IsUsageRefreshing)
             return;
 
@@ -597,9 +707,12 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
         _config.Proxy.Port = ProxyPort <= 0 ? 12785 : ProxyPort;
         _config.Proxy.InboundApiKey = InboundApiKey.Trim();
         _config.Proxy.Enabled = ProxyEnabled;
+        _config.Proxy.PreserveCodexAppAuth = PreserveCodexAppAuth;
+        _config.Proxy.UseFakeCodexAppAuth = UseFakeCodexAppAuth;
         _config.Ui.Language = string.IsNullOrWhiteSpace(UiLanguage) ? _i18n.DefaultLanguageCode : UiLanguage.Trim();
         _config.Ui.Theme = AppThemeService.Normalize(UiTheme);
         UiTheme = _config.Ui.Theme;
+        var startupStatusMessage = ApplyStartupRegistrationSetting();
         _config.Ui.StartWithWindows = StartWithWindows;
         _config.Ui.DefaultApp = DefaultClientAppIsCodex ? ClientAppKind.Codex : ClientAppKind.ClaudeCode;
 
@@ -616,7 +729,64 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
             await RestartProxyAsync();
         else
             await StopProxyAsync();
-        StatusMessage = successMessage;
+        StatusMessage = startupStatusMessage ?? successMessage;
+    }
+
+    private void SyncStartupRegistrationFromConfig()
+    {
+        if (!_startupRegistrationService.IsSupported)
+        {
+            _config.Ui.StartWithWindows = false;
+            return;
+        }
+
+        try
+        {
+            _startupRegistrationService.SetEnabled(_config.Ui.StartWithWindows);
+        }
+        catch
+        {
+            _config.Ui.StartWithWindows = ReadStartupRegistrationSetting();
+        }
+    }
+
+    private bool ReadStartupRegistrationSetting()
+    {
+        if (!_startupRegistrationService.IsSupported)
+            return false;
+
+        try
+        {
+            return _startupRegistrationService.IsEnabled();
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = F("status.startupRegistrationFailed", ex.Message);
+            return false;
+        }
+    }
+
+    private string? ApplyStartupRegistrationSetting()
+    {
+        if (!_startupRegistrationService.IsSupported)
+        {
+            if (!StartWithWindows)
+                return null;
+
+            StartWithWindows = false;
+            return T("status.startupUnsupported");
+        }
+
+        try
+        {
+            _startupRegistrationService.SetEnabled(StartWithWindows);
+            return null;
+        }
+        catch (Exception ex)
+        {
+            StartWithWindows = ReadStartupRegistrationSetting();
+            return F("status.startupRegistrationFailed", ex.Message);
+        }
     }
 
     private async Task RestartProxyAsync()
@@ -698,6 +868,32 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
             : F("status.providerTemplateApplied", template.DisplayName);
     }
 
+    private void SelectUsageQueryTemplate(UsageQueryTemplateItem? template)
+    {
+        if (template is null)
+            return;
+
+        SelectedUsageQueryTemplateId = template.Id;
+        foreach (var item in UsageQueryTemplates)
+            item.IsSelected = string.Equals(item.Id, template.Id, StringComparison.OrdinalIgnoreCase);
+
+        LoadUsageQueryFields(UsageQueryTemplateCatalog.CreateQuery(template.Id));
+        UsageQueryTestResult = "";
+        StatusMessage = template.Id == UsageQueryTemplateCatalog.CustomTemplateId
+            ? T("status.usageQueryTemplateCustom")
+            : F("status.usageQueryTemplateApplied", template.DisplayName);
+    }
+
+    private async Task TestProviderUsageQueryAsync()
+    {
+        var provider = BuildProviderForUsageQueryTest();
+        var result = await _providerUsageQueryService.QueryAsync(provider, CancellationToken.None);
+        UsageQueryTestResult = FormatUsageQueryTestResult(result);
+        StatusMessage = result.IsSuccess
+            ? T("status.usageQueryTestSucceeded")
+            : F("status.usageQueryTestFailed", result.Message ?? T("usageQuery.status.invalid"));
+    }
+
     private void OpenEditProvider(ProviderListItem? row)
     {
         if (row is null)
@@ -736,6 +932,7 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
         provider.Protocol = SelectedProtocol;
         provider.OverrideRequestModel = SelectedOverrideModel;
         provider.ServiceTier = string.IsNullOrWhiteSpace(SelectedServiceTier) ? null : SelectedServiceTier.Trim();
+        provider.UsageQuery = BuildSelectedUsageQuery();
         provider.Cost ??= new ProviderCostSettings();
         provider.Cost.FastMode = SelectedFastMode;
         provider.Models.Clear();
@@ -767,6 +964,22 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
             });
         }
 
+        provider.ModelConversions.Clear();
+        foreach (var row in ModelConversionRows)
+        {
+            if (string.IsNullOrWhiteSpace(row.SourceModel))
+                continue;
+
+            var useDefaultModel = row.IsDefault || row.UseDefaultModel;
+            provider.ModelConversions.Add(new ModelConversionConfig
+            {
+                SourceModel = row.IsDefault ? CodexSwitchDefaults.ManagedCodexModel : row.SourceModel.Trim(),
+                TargetModel = useDefaultModel || string.IsNullOrWhiteSpace(row.TargetModel) ? null : row.TargetModel.Trim(),
+                UseDefaultModel = useDefaultModel,
+                Enabled = row.Enabled
+            });
+        }
+
         if (isNew)
         {
             _config.Providers.Add(provider);
@@ -779,6 +992,7 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
         SelectProvider(ProviderRows.FirstOrDefault(row => row.Id == provider.Id));
         IsProviderDialogOpen = false;
         StatusMessage = isNew ? T("status.providerAdded") : T("status.providerSaved");
+        await RefreshProviderUsageQueryAsync(provider.Id);
         if (_config.Proxy.Enabled && string.Equals(_config.ActiveProviderId, provider.Id, StringComparison.OrdinalIgnoreCase))
             await RestartProxyAsync();
     }
@@ -798,7 +1012,9 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
             SelectedOverrideModel = provider.OverrideRequestModel;
             SelectedServiceTier = provider.ServiceTier ?? "";
             SelectedFastMode = provider.Cost?.FastMode ?? _config.GlobalCost.FastMode;
+            LoadUsageQueryFields(provider.UsageQuery ?? UsageQueryTemplateCatalog.CreateQuery(UsageQueryTemplateCatalog.CustomTemplateId));
             ModelRows.Clear();
+            ModelConversionRows.Clear();
 
             foreach (var model in provider.Models)
             {
@@ -811,6 +1027,30 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
                     ServiceTier = model.ServiceTier ?? "",
                     FastMode = model.Cost?.FastMode ?? provider.Cost?.FastMode ?? _config.GlobalCost.FastMode,
                     RemoveCommand = RemoveProviderModelCommand
+                });
+            }
+
+            var conversions = provider.ModelConversions.ToList();
+            if (!conversions.Any(ProviderTemplateCatalog.IsDefaultModelConversion))
+            {
+                conversions.Insert(0, new ModelConversionConfig
+                {
+                    SourceModel = CodexSwitchDefaults.ManagedCodexModel,
+                    UseDefaultModel = true,
+                    Enabled = true
+                });
+            }
+
+            foreach (var conversion in conversions)
+            {
+                ModelConversionRows.Add(new ModelConversionEditorItem
+                {
+                    SourceModel = conversion.SourceModel,
+                    TargetModel = conversion.TargetModel ?? "",
+                    UseDefaultModel = conversion.UseDefaultModel,
+                    Enabled = conversion.Enabled,
+                    IsDefault = ProviderTemplateCatalog.IsDefaultModelConversion(conversion),
+                    RemoveCommand = RemoveModelConversionCommand
                 });
             }
 
@@ -830,6 +1070,236 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
         {
             _isLoadingProviderFields = false;
         }
+    }
+
+    private void LoadUsageQueryFields(ProviderUsageQueryConfig query)
+    {
+        var normalized = UsageQueryTemplateCatalog.CloneQuery(query);
+        SelectedUsageQueryEnabled = normalized.Enabled;
+        SelectedUsageQueryTemplateId = normalized.TemplateId;
+        SelectedUsageQueryMethod = normalized.Method;
+        SelectedUsageQueryUrl = normalized.Url;
+        SelectedUsageQueryHeaders = FormatHeaders(normalized.Headers);
+        SelectedUsageQueryBody = normalized.JsonBody ?? "";
+        SelectedUsageQueryTimeoutSeconds = normalized.TimeoutSeconds;
+        SelectedUsageQuerySuccessPath = normalized.Extractor.SuccessPath ?? "";
+        SelectedUsageQueryErrorPath = normalized.Extractor.ErrorPath ?? "";
+        SelectedUsageQueryErrorMessagePath = normalized.Extractor.ErrorMessagePath ?? "";
+        SelectedUsageQueryRemainingPath = normalized.Extractor.RemainingPath ?? "";
+        SelectedUsageQueryUnitPath = normalized.Extractor.UnitPath ?? "";
+        SelectedUsageQueryUnit = normalized.Extractor.Unit ?? "";
+        SelectedUsageQueryTotalPath = normalized.Extractor.TotalPath ?? "";
+        SelectedUsageQueryUsedPath = normalized.Extractor.UsedPath ?? "";
+        SelectedUsageQueryUnlimitedPath = normalized.Extractor.UnlimitedPath ?? "";
+        SelectedUsageQueryPlanNamePath = normalized.Extractor.PlanNamePath ?? "";
+        SelectedUsageQueryDailyResetPath = normalized.Extractor.DailyResetPath ?? "";
+        SelectedUsageQueryWeeklyResetPath = normalized.Extractor.WeeklyResetPath ?? "";
+        UsageQueryTestResult = "";
+
+        foreach (var item in UsageQueryTemplates)
+            item.IsSelected = string.Equals(item.Id, SelectedUsageQueryTemplateId, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private ProviderUsageQueryConfig BuildSelectedUsageQuery()
+    {
+        return new ProviderUsageQueryConfig
+        {
+            Enabled = SelectedUsageQueryEnabled,
+            TemplateId = string.IsNullOrWhiteSpace(SelectedUsageQueryTemplateId)
+                ? UsageQueryTemplateCatalog.CustomTemplateId
+                : SelectedUsageQueryTemplateId.Trim(),
+            Method = string.IsNullOrWhiteSpace(SelectedUsageQueryMethod) ? "GET" : SelectedUsageQueryMethod.Trim().ToUpperInvariant(),
+            Url = SelectedUsageQueryUrl.Trim(),
+            Headers = ParseHeaders(SelectedUsageQueryHeaders),
+            JsonBody = string.IsNullOrWhiteSpace(SelectedUsageQueryBody) ? null : SelectedUsageQueryBody.Trim(),
+            TimeoutSeconds = SelectedUsageQueryTimeoutSeconds <= 0 ? 20 : SelectedUsageQueryTimeoutSeconds,
+            Extractor = new ProviderUsageExtractorConfig
+            {
+                SuccessPath = NullIfWhiteSpace(SelectedUsageQuerySuccessPath),
+                ErrorPath = NullIfWhiteSpace(SelectedUsageQueryErrorPath),
+                ErrorMessagePath = NullIfWhiteSpace(SelectedUsageQueryErrorMessagePath),
+                RemainingPath = NullIfWhiteSpace(SelectedUsageQueryRemainingPath),
+                UnitPath = NullIfWhiteSpace(SelectedUsageQueryUnitPath),
+                Unit = NullIfWhiteSpace(SelectedUsageQueryUnit),
+                TotalPath = NullIfWhiteSpace(SelectedUsageQueryTotalPath),
+                UsedPath = NullIfWhiteSpace(SelectedUsageQueryUsedPath),
+                UnlimitedPath = NullIfWhiteSpace(SelectedUsageQueryUnlimitedPath),
+                PlanNamePath = NullIfWhiteSpace(SelectedUsageQueryPlanNamePath),
+                DailyResetPath = NullIfWhiteSpace(SelectedUsageQueryDailyResetPath),
+                WeeklyResetPath = NullIfWhiteSpace(SelectedUsageQueryWeeklyResetPath)
+            }
+        };
+    }
+
+    private ProviderConfig BuildProviderForUsageQueryTest()
+    {
+        var provider = FindSelectedProvider() ?? new ProviderConfig();
+        return new ProviderConfig
+        {
+            Id = string.IsNullOrWhiteSpace(provider.Id) ? "preview" : provider.Id,
+            BuiltinId = provider.BuiltinId,
+            DisplayName = string.IsNullOrWhiteSpace(SelectedProviderName) ? provider.DisplayName : SelectedProviderName.Trim(),
+            BaseUrl = SelectedBaseUrl.Trim(),
+            ApiKey = SelectedApiKey.Trim(),
+            AuthMode = provider.AuthMode,
+            ActiveAccountId = provider.ActiveAccountId,
+            OAuth = provider.OAuth,
+            OAuthAccounts = provider.OAuthAccounts,
+            UsageQuery = BuildSelectedUsageQuery()
+        };
+    }
+
+    private string FormatUsageQueryTestResult(ProviderUsageQueryResult result)
+    {
+        if (!result.IsSuccess)
+            return result.Message ?? T("usageQuery.status.invalid");
+
+        var amount = result.IsUnlimited
+            ? T("usageQuery.unlimited")
+            : DisplayFormatters.FormatUsageAmount(result.Remaining ?? 0m, result.Unit);
+        var lines = new List<string> { F("usageQuery.remaining", amount) };
+        var detail = FormatUsageDetail(result);
+        if (!string.IsNullOrWhiteSpace(detail))
+            lines.Add(detail);
+        var reset = FormatResetText(result);
+        if (!string.IsNullOrWhiteSpace(reset))
+            lines.Add(reset);
+        lines.Add(FormatCheckedAt(result.CheckedAt));
+        return string.Join(Environment.NewLine, lines);
+    }
+
+    private async Task RefreshProviderUsageQueriesAsync()
+    {
+        var providerIds = _config.Providers
+            .Where(provider => provider.UsageQuery?.Enabled == true && HasUsageQueryCredential(provider))
+            .Select(provider => provider.Id)
+            .ToArray();
+
+        foreach (var providerId in providerIds)
+            await RefreshProviderUsageQueryAsync(providerId);
+    }
+
+    private async Task RefreshProviderUsageQueryAsync(string providerId)
+    {
+        var provider = _config.Providers.FirstOrDefault(item =>
+            string.Equals(item.Id, providerId, StringComparison.OrdinalIgnoreCase));
+        if (provider is null || provider.UsageQuery?.Enabled != true)
+        {
+            _providerUsageResults.Remove(providerId);
+            _refreshingUsageProviders.Remove(providerId);
+            _providerUsageFailures.Remove(providerId);
+            RefreshProviderRows();
+            return;
+        }
+
+        if (!HasUsageQueryCredential(provider))
+        {
+            _providerUsageResults.Remove(providerId);
+            _refreshingUsageProviders.Remove(providerId);
+            _providerUsageFailures.Remove(providerId);
+            RefreshProviderRows();
+            return;
+        }
+
+        if (ShouldSkipProviderUsageQuery(providerId))
+        {
+            RefreshProviderRows();
+            return;
+        }
+
+        if (!_refreshingUsageProviders.Add(providerId))
+            return;
+
+        await Dispatcher.UIThread.InvokeAsync(RefreshProviderRows);
+        try
+        {
+            var result = await _providerUsageQueryService.QueryAsync(provider, CancellationToken.None);
+            _providerUsageResults[providerId] = result;
+            RecordProviderUsageQueryResult(providerId, result);
+        }
+        finally
+        {
+            _refreshingUsageProviders.Remove(providerId);
+            await Dispatcher.UIThread.InvokeAsync(RefreshProviderRows);
+        }
+    }
+
+    private bool ShouldSkipProviderUsageQuery(string providerId)
+    {
+        if (!_providerUsageFailures.TryGetValue(providerId, out var failure))
+            return false;
+
+        if (failure.IsSuspended)
+            return true;
+
+        return failure.ShouldSkip(DateTimeOffset.Now);
+    }
+
+    private void RecordProviderUsageQueryResult(string providerId, ProviderUsageQueryResult result)
+    {
+        if (result.IsSuccess)
+        {
+            _providerUsageFailures.Remove(providerId);
+            return;
+        }
+
+        if (result.Status is not (ProviderUsageQueryStatus.InvalidResponse or ProviderUsageQueryStatus.RequestFailed))
+            return;
+
+        if (!_providerUsageFailures.TryGetValue(providerId, out var failure))
+        {
+            failure = new ProviderUsageFailureState();
+            _providerUsageFailures[providerId] = failure;
+        }
+
+        failure.RecordFailure(result.CheckedAt);
+    }
+
+    private static bool HasUsageQueryCredential(ProviderConfig provider)
+    {
+        var query = provider.UsageQuery;
+        if (query is null)
+            return false;
+
+        if (provider.AuthMode != ProviderAuthMode.OAuth)
+            return !string.IsNullOrWhiteSpace(provider.ApiKey);
+
+        if (!ProviderUsageQueryService.UsesApiKeyPlaceholder(query))
+            return true;
+
+        return provider.OAuthAccounts.Any(account =>
+            account.IsEnabled &&
+            !string.IsNullOrWhiteSpace(account.AccessToken) &&
+            (string.IsNullOrWhiteSpace(provider.ActiveAccountId) ||
+                string.Equals(account.Id, provider.ActiveAccountId, StringComparison.OrdinalIgnoreCase)));
+    }
+
+    private static string FormatHeaders(Dictionary<string, string> headers)
+    {
+        return string.Join(Environment.NewLine, headers.Select(header => $"{header.Key}: {header.Value}"));
+    }
+
+    private static Dictionary<string, string> ParseHeaders(string value)
+    {
+        var headers = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var line in value.Split(["\r\n", "\n"], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        {
+            var separator = line.IndexOf(':', StringComparison.Ordinal);
+            if (separator <= 0)
+                continue;
+
+            var name = line[..separator].Trim();
+            var headerValue = line[(separator + 1)..].Trim();
+            if (!string.IsNullOrWhiteSpace(name))
+                headers[name] = headerValue;
+        }
+
+        return headers;
+    }
+
+    private static string? NullIfWhiteSpace(string value)
+    {
+        return string.IsNullOrWhiteSpace(value) ? null : value.Trim();
     }
 
     private void AddProviderModel()
@@ -853,6 +1323,28 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
 
         ModelRows.Remove(row);
         StatusMessage = T("status.modelRouteRemoved");
+    }
+
+    private void AddModelConversion()
+    {
+        ModelConversionRows.Add(new ModelConversionEditorItem
+        {
+            SourceModel = MakeUniqueId("codex-model", ModelConversionRows.Select(row => row.SourceModel)),
+            TargetModel = SelectedDefaultModel.Trim(),
+            UseDefaultModel = false,
+            Enabled = true,
+            RemoveCommand = RemoveModelConversionCommand
+        });
+        StatusMessage = T("status.modelConversionAdded");
+    }
+
+    private void RemoveModelConversion(ModelConversionEditorItem? row)
+    {
+        if (row is null || row.IsDefault)
+            return;
+
+        ModelConversionRows.Remove(row);
+        StatusMessage = T("status.modelConversionRemoved");
     }
 
     private async Task LoginCodexOAuthAsync()
@@ -917,6 +1409,9 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
 
         var wasActive = string.Equals(provider.Id, _config.ActiveProviderId, StringComparison.OrdinalIgnoreCase);
         _config.Providers.Remove(provider);
+        _providerUsageResults.Remove(provider.Id);
+        _refreshingUsageProviders.Remove(provider.Id);
+        _providerUsageFailures.Remove(provider.Id);
         if (wasActive)
             _config.ActiveProviderId = _config.Providers.FirstOrDefault()?.Id ?? "";
 
@@ -1192,6 +1687,22 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
         }
     }
 
+    private void RefreshUsageQueryTemplates()
+    {
+        UsageQueryTemplates.Clear();
+        foreach (var template in UsageQueryTemplateCatalog.VisibleTemplates)
+        {
+            UsageQueryTemplates.Add(new UsageQueryTemplateItem
+            {
+                Id = template.Id,
+                DisplayName = template.DisplayName,
+                Description = template.Description,
+                IsSelected = string.Equals(template.Id, SelectedUsageQueryTemplateId, StringComparison.OrdinalIgnoreCase),
+                SelectCommand = SelectUsageQueryTemplateCommand
+            });
+        }
+    }
+
     private void RefreshProviderRows()
     {
         ConfigurationStore.EnsureValidDefaults(_config);
@@ -1201,6 +1712,7 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
             var iconSlug = provider.IconSlug ?? (provider.Protocol == ProviderProtocol.AnthropicMessages ? "claude" : "openai");
             var activeAccount = provider.OAuthAccounts.FirstOrDefault(account =>
                 string.Equals(account.Id, provider.ActiveAccountId, StringComparison.OrdinalIgnoreCase));
+            var usage = CreateProviderUsageDisplay(provider);
             var row = new ProviderListItem
             {
                 Id = provider.Id,
@@ -1219,6 +1731,15 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
                 ModelsText = provider.Models.Count == 0
                     ? provider.DefaultModel
                     : string.Join(", ", provider.Models.Select(model => $"{model.Id}:{model.Protocol}")),
+                UsageSummary = usage.Summary,
+                UsageMeta = usage.Meta,
+                UsageResetText = usage.ResetText,
+                UsageToolTip = usage.ToolTip,
+                HasUsageInfo = usage.HasUsageInfo,
+                HasUsageResetText = usage.HasResetText,
+                IsUsageRefreshing = usage.IsRefreshing,
+                IsUsageError = usage.IsError,
+                IsUsageValid = usage.IsValid,
                 IsActive = string.Equals(provider.Id, _config.ActiveProviderId, StringComparison.OrdinalIgnoreCase),
                 IsSelected = string.Equals(provider.Id, SelectedProviderId, StringComparison.OrdinalIgnoreCase),
                 SelectCommand = SelectProviderCommand,
@@ -1247,6 +1768,143 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
         ActiveProviderId = _config.ActiveProviderId;
     }
 
+    private ProviderUsageDisplay CreateProviderUsageDisplay(ProviderConfig provider)
+    {
+        var enabled = provider.UsageQuery?.Enabled == true;
+        var refreshing = _refreshingUsageProviders.Contains(provider.Id);
+        if (!enabled || !HasUsageQueryCredential(provider))
+            return ProviderUsageDisplay.Hidden;
+
+        if (refreshing)
+        {
+            return new ProviderUsageDisplay(
+                T("usageQuery.status.refreshing"),
+                T("usageQuery.status.refreshing"),
+                "",
+                T("usageQuery.status.refreshing"),
+                true,
+                false,
+                true,
+                false,
+                false);
+        }
+
+        if (!_providerUsageResults.TryGetValue(provider.Id, out var result))
+        {
+            return new ProviderUsageDisplay(
+                T("usageQuery.status.pending"),
+                T("usageQuery.status.pending"),
+                "",
+                T("usageQuery.status.pending"),
+                true,
+                false,
+                false,
+                false,
+                false);
+        }
+
+        if (result.IsSuccess)
+        {
+            var amount = result.IsUnlimited
+                ? T("usageQuery.unlimited")
+                : DisplayFormatters.FormatUsageAmount(result.Remaining ?? 0m, result.Unit);
+            var summary = F("usageQuery.remaining", amount);
+            var metaParts = new List<string> { T("usageQuery.status.valid"), FormatCheckedAt(result.CheckedAt) };
+            if (!string.IsNullOrWhiteSpace(result.PlanName))
+                metaParts.Insert(0, result.PlanName!);
+
+            var resetText = FormatResetText(result);
+            var toolTip = string.Join(Environment.NewLine, new[]
+            {
+                summary,
+                FormatUsageDetail(result),
+                resetText,
+                FormatCheckedAt(result.CheckedAt)
+            }.Where(text => !string.IsNullOrWhiteSpace(text)));
+
+            return new ProviderUsageDisplay(
+                summary,
+                string.Join(" · ", metaParts),
+                resetText,
+                toolTip,
+                true,
+                !string.IsNullOrWhiteSpace(resetText),
+                false,
+                false,
+                true);
+        }
+
+        if (result.Status == ProviderUsageQueryStatus.NoSubscription)
+        {
+            var summary = T("usageQuery.status.noSubscription");
+            return new ProviderUsageDisplay(
+                summary,
+                FormatCheckedAt(result.CheckedAt),
+                "",
+                result.Message ?? summary,
+                true,
+                false,
+                false,
+                false,
+                false);
+        }
+
+        var status = result.Status == ProviderUsageQueryStatus.RequestFailed
+            ? T("usageQuery.status.failed")
+            : T("usageQuery.status.invalid");
+        var meta = FormatUsageFailureMeta(provider.Id, result);
+        var error = string.IsNullOrWhiteSpace(result.Message) ? status : result.Message!;
+        return new ProviderUsageDisplay(
+            status,
+            meta,
+            "",
+            error,
+            true,
+            false,
+            false,
+            true,
+            false);
+    }
+
+    private string FormatUsageFailureMeta(string providerId, ProviderUsageQueryResult result)
+    {
+        if (!_providerUsageFailures.TryGetValue(providerId, out var failure))
+            return FormatCheckedAt(result.CheckedAt);
+
+        if (failure.IsSuspended)
+            return F("usageQuery.status.paused", failure.ConsecutiveFailures);
+
+        var next = failure.NextAttemptAt.ToLocalTime().ToString("MM/dd HH:mm", CultureInfo.InvariantCulture);
+        return F("usageQuery.status.backoff", next, failure.ConsecutiveFailures);
+    }
+
+    private static string FormatCheckedAt(DateTimeOffset checkedAt)
+    {
+        return checkedAt.ToLocalTime().ToString("MM/dd HH:mm", CultureInfo.InvariantCulture);
+    }
+
+    private string FormatUsageDetail(ProviderUsageQueryResult result)
+    {
+        var parts = new List<string>();
+        if (result.Used is not null)
+            parts.Add(F("usageQuery.used", DisplayFormatters.FormatUsageAmount(result.Used.Value, result.Unit)));
+        if (result.Total is not null)
+            parts.Add(F("usageQuery.total", DisplayFormatters.FormatUsageAmount(result.Total.Value, result.Unit)));
+        if (!string.IsNullOrWhiteSpace(result.Extra))
+            parts.Add(result.Extra!);
+        return string.Join(" · ", parts);
+    }
+
+    private string FormatResetText(ProviderUsageQueryResult result)
+    {
+        var parts = new List<string>();
+        if (!string.IsNullOrWhiteSpace(result.DailyReset))
+            parts.Add(F("usageQuery.dailyReset", result.DailyReset));
+        if (!string.IsNullOrWhiteSpace(result.WeeklyReset))
+            parts.Add(F("usageQuery.weeklyReset", result.WeeklyReset));
+        return string.Join(" · ", parts);
+    }
+
     private void RefreshSettingsFields()
     {
         _isRefreshingSettingsFields = true;
@@ -1256,12 +1914,15 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
             ProxyPort = _config.Proxy.Port;
             InboundApiKey = _config.Proxy.InboundApiKey;
             ProxyEnabled = _config.Proxy.Enabled;
+            PreserveCodexAppAuth = _config.Proxy.PreserveCodexAppAuth;
+            UseFakeCodexAppAuth = _config.Proxy.UseFakeCodexAppAuth;
             Endpoint = _config.Proxy.Endpoint;
             UiLanguage = _i18n.GetLanguage(_config.Ui.Language).Code;
             SelectedLanguage = _i18n.GetLanguage(UiLanguage);
             UiTheme = AppThemeService.Normalize(_config.Ui.Theme);
             _config.Ui.Theme = UiTheme;
-            StartWithWindows = _config.Ui.StartWithWindows;
+            StartWithWindows = ReadStartupRegistrationSetting();
+            _config.Ui.StartWithWindows = StartWithWindows;
             SelectedClientApp = _config.Ui.DefaultApp;
             DefaultClientAppIsCodex = _config.Ui.DefaultApp == ClientAppKind.Codex;
             BillingUnitTokens = _pricing.BillingUnitTokens;
@@ -1329,9 +1990,45 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
         OnPropertyChanged(nameof(ModelCatalogCountText));
     }
 
-    private void RefreshUsageDashboard()
+    private void RefreshUsageDashboard(bool force = false)
     {
-        var dashboard = _usageLogReader.Read(UsageTimeRange);
+        if (!IsUsagePageVisible)
+        {
+            UnloadUsageDashboard();
+            return;
+        }
+
+        var now = DateTimeOffset.Now;
+        var sourceSnapshot = _usageLogReader.GetSourceSnapshot(UsageTimeRange, now);
+        var windowAnchor = GetUsageWindowAnchor(UsageTimeRange, now);
+        if (!force &&
+            _hasUsageDashboardSnapshot &&
+            _lastUsageDashboardRange == UsageTimeRange &&
+            _lastUsageWindowAnchor == windowAnchor &&
+            _lastUsageSourceSnapshot == sourceSnapshot)
+        {
+            OnPropertyChanged(nameof(UsageRangeCaption));
+            OnPropertyChanged(nameof(UsageTrendGranularity));
+            ApplySnapshot(_usageMeter.Snapshot);
+            return;
+        }
+
+        var dashboard = _usageLogReader.Read(UsageTimeRange, now);
+        _hasUsageDashboardSnapshot = true;
+        _lastUsageDashboardRange = UsageTimeRange;
+        _lastUsageWindowAnchor = windowAnchor;
+        _lastUsageSourceSnapshot = dashboard.SourceSnapshot;
+        var totalTokens = dashboard.InputTokens +
+            dashboard.CachedInputTokens +
+            dashboard.CacheCreationInputTokens +
+            dashboard.OutputTokens +
+            dashboard.ReasoningOutputTokens;
+        var cachedTokens = dashboard.CachedInputTokens + dashboard.CacheCreationInputTokens;
+        var cacheHitRate = DisplayFormatters.CalculateCacheHitRate(
+            dashboard.InputTokens,
+            dashboard.CachedInputTokens,
+            dashboard.CacheCreationInputTokens);
+
         UsageMetrics.Clear();
         UsageMetrics.Add(CreateUsageMetric(
             T("usage.metric.requests"),
@@ -1347,19 +2044,25 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
             "#153B2D"));
         UsageMetrics.Add(CreateUsageMetric(
             T("usage.metric.tokens"),
-            DisplayFormatters.FormatTokenCount(dashboard.InputTokens + dashboard.CachedInputTokens + dashboard.CacheCreationInputTokens + dashboard.OutputTokens + dashboard.ReasoningOutputTokens),
+            DisplayFormatters.FormatTokenCount(totalTokens),
             LucideIconKind.Layers2,
             "#A78BFA",
             "#31254D"));
         UsageMetrics.Add(CreateUsageMetric(
             T("usage.metric.cachedTokens"),
-            DisplayFormatters.FormatTokenCount(dashboard.CachedInputTokens + dashboard.CacheCreationInputTokens),
+            DisplayFormatters.FormatTokenCount(cachedTokens),
             LucideIconKind.DatabaseZap,
             "#FBBF24",
             "#453516"));
+        UsageMetrics.Add(CreateUsageMetric(
+            T("usage.metric.cacheHitRate"),
+            DisplayFormatters.FormatPercentage(cacheHitRate),
+            LucideIconKind.BadgePercent,
+            "#22D3EE",
+            "#123C46"));
 
         UsageLogRows.Clear();
-        foreach (var record in dashboard.Logs.Take(80))
+        foreach (var record in dashboard.Logs)
             UsageLogRows.Add(UsageLogItem.From(record));
 
         ProviderUsageRows.Clear();
@@ -1379,6 +2082,29 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
         ApplySnapshot(_usageMeter.Snapshot);
     }
 
+    private void UnloadUsageDashboard()
+    {
+        if (!_hasUsageDashboardSnapshot &&
+            UsageMetrics.Count == 0 &&
+            UsageLogRows.Count == 0 &&
+            ProviderUsageRows.Count == 0 &&
+            ModelUsageRows.Count == 0 &&
+            TrendPoints.Count == 0)
+        {
+            return;
+        }
+
+        UsageMetrics.Clear();
+        UsageLogRows.Clear();
+        ProviderUsageRows.Clear();
+        ModelUsageRows.Clear();
+        TrendPoints.Clear();
+        _hasUsageDashboardSnapshot = false;
+        _lastUsageDashboardRange = default;
+        _lastUsageWindowAnchor = default;
+        _lastUsageSourceSnapshot = default;
+    }
+
     private static UsageMetricItem CreateUsageMetric(
         string label,
         string value,
@@ -1390,8 +2116,29 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
             label,
             value,
             icon,
-            Brush.Parse(foreground),
-            Brush.Parse(background));
+            GetCachedBrush(foreground),
+            GetCachedBrush(background));
+    }
+
+    private static IBrush GetCachedBrush(string value)
+    {
+        lock (BrushCacheSync)
+        {
+            if (BrushCache.TryGetValue(value, out var brush))
+                return brush;
+
+            brush = Brush.Parse(value);
+            BrushCache[value] = brush;
+            return brush;
+        }
+    }
+
+    private static DateTimeOffset GetUsageWindowAnchor(UsageTimeRange range, DateTimeOffset now)
+    {
+        var localNow = now.ToLocalTime();
+        return range == UsageTimeRange.Last24Hours
+            ? new DateTimeOffset(localNow.Year, localNow.Month, localNow.Day, localNow.Hour, 0, 0, localNow.Offset)
+            : new DateTimeOffset(localNow.Year, localNow.Month, localNow.Day, 0, 0, 0, localNow.Offset);
     }
 
     private ProviderConfig? FindSelectedProvider()
@@ -1567,7 +2314,12 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
         if (IsModelDialogOpen)
             ModelDialogTitle = string.IsNullOrWhiteSpace(_editingModelId) ? T("modelDialog.addTitle") : T("modelDialog.editTitle");
 
-        RefreshUsageDashboard();
+        if (IsUsagePageVisible)
+            RefreshUsageDashboard(force: true);
+        else
+            UnloadUsageDashboard();
+        RefreshUsageQueryTemplates();
+        RefreshProviderRows();
         RefreshModelCatalogRows();
         OnPropertyChanged(nameof(SupportedLanguages));
         OnPropertyChanged(nameof(WorkspaceTitle));
@@ -1638,6 +2390,11 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
         OnPropertyChanged(nameof(IsSettingsPageVisible));
         OnPropertyChanged(nameof(IsClaudePageVisible));
         OnPropertyChanged(nameof(WorkspaceTitle));
+
+        if (value == "Usage")
+            RefreshUsageDashboard();
+        else
+            UnloadUsageDashboard();
     }
 
     partial void OnSettingsTabChanged(string value)
@@ -1662,7 +2419,10 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
         OnPropertyChanged(nameof(IsUsageRange24HoursSelected));
         OnPropertyChanged(nameof(IsUsageRange7DaysSelected));
         OnPropertyChanged(nameof(IsUsageRange30DaysSelected));
-        RefreshUsageDashboard();
+        if (IsUsagePageVisible)
+            RefreshUsageDashboard();
+        else
+            _hasUsageDashboardSnapshot = false;
     }
 
     partial void OnIsUsageRefreshingChanged(bool value)
@@ -1710,6 +2470,18 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
     partial void OnPricingCurrencyChanged(string value)
     {
         OnPropertyChanged(nameof(PricingUnitText));
+    }
+
+    partial void OnPreserveCodexAppAuthChanged(bool value)
+    {
+        if (!_isRefreshingSettingsFields && value)
+            UseFakeCodexAppAuth = false;
+    }
+
+    partial void OnUseFakeCodexAppAuthChanged(bool value)
+    {
+        if (!_isRefreshingSettingsFields && value)
+            PreserveCodexAppAuth = false;
     }
 
     public bool IsProvidersPageVisible => CurrentPage == "Providers";
@@ -1762,6 +2534,8 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
 
     public bool CanOpenLatestRelease => !string.IsNullOrWhiteSpace(LatestReleaseUrl);
 
+    public bool IsStartWithWindowsSupported => _startupRegistrationService.IsSupported;
+
     public string CodexIconPath => _iconCacheService.GetIconPath("codex-color");
 
     public string ClaudeCodeIconPath => _iconCacheService.GetIconPath("claudecode-color");
@@ -1778,7 +2552,7 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
 
     public string CodexAuthFilePath => _paths.CodexAuthPath;
 
-    public string UsageLogFilePath => _paths.UsageLogPath;
+    public string UsageLogFilePath => _paths.UsageLogDirectory;
 
     public bool IsProxyAlert => !_config.Proxy.Enabled || !_proxyHostService.State.IsRunning || _proxyHostService.State.Error is not null;
 
@@ -1859,6 +2633,24 @@ public sealed partial class ProviderListItem : ObservableObject
 
     public bool IsActive { get; set; }
 
+    public string UsageSummary { get; set; } = "";
+
+    public string UsageMeta { get; set; } = "";
+
+    public string UsageResetText { get; set; } = "";
+
+    public string UsageToolTip { get; set; } = "";
+
+    public bool HasUsageInfo { get; set; }
+
+    public bool HasUsageResetText { get; set; }
+
+    public bool IsUsageRefreshing { get; set; }
+
+    public bool IsUsageError { get; set; }
+
+    public bool IsUsageValid { get; set; }
+
     public IRelayCommand<ProviderListItem>? SelectCommand { get; init; }
 
     public IRelayCommand<ProviderListItem>? EditCommand { get; init; }
@@ -1887,6 +2679,62 @@ public sealed partial class ProviderTemplateItem : ObservableObject
 
     [ObservableProperty]
     private bool _isSelected;
+}
+
+public sealed partial class UsageQueryTemplateItem : ObservableObject
+{
+    public string Id { get; init; } = "";
+
+    public string DisplayName { get; init; } = "";
+
+    public string Description { get; init; } = "";
+
+    public IRelayCommand<UsageQueryTemplateItem>? SelectCommand { get; init; }
+
+    [ObservableProperty]
+    private bool _isSelected;
+}
+
+public sealed record ProviderUsageDisplay(
+    string Summary,
+    string Meta,
+    string ResetText,
+    string ToolTip,
+    bool HasUsageInfo,
+    bool HasResetText,
+    bool IsRefreshing,
+    bool IsError,
+    bool IsValid)
+{
+    public static ProviderUsageDisplay Hidden { get; } = new("", "", "", "", false, false, false, false, false);
+}
+
+public sealed class ProviderUsageFailureState
+{
+    public const int MaxFailuresBeforeSuspend = 5;
+
+    public int ConsecutiveFailures { get; set; }
+
+    public DateTimeOffset LastFailureAt { get; set; }
+
+    public DateTimeOffset NextAttemptAt { get; set; }
+
+    public bool IsSuspended { get; set; }
+
+    public bool ShouldSkip(DateTimeOffset now)
+    {
+        return IsSuspended || now < NextAttemptAt;
+    }
+
+    public void RecordFailure(DateTimeOffset checkedAt)
+    {
+        ConsecutiveFailures++;
+        LastFailureAt = checkedAt;
+        IsSuspended = ConsecutiveFailures >= MaxFailuresBeforeSuspend;
+        NextAttemptAt = IsSuspended
+            ? DateTimeOffset.MaxValue
+            : checkedAt.AddMinutes(10 * (ConsecutiveFailures + 1));
+    }
 }
 
 public sealed partial class OAuthAccountListItem : ObservableObject
@@ -1934,6 +2782,38 @@ public sealed partial class ModelEditorItem : ObservableObject
     public IRelayCommand<ModelEditorItem>? RemoveCommand { get; init; }
 
     public ProviderProtocol[] ProtocolOptions { get; } = Enum.GetValues<ProviderProtocol>();
+}
+
+public sealed partial class ModelConversionEditorItem : ObservableObject
+{
+    [ObservableProperty]
+    private string _sourceModel = "";
+
+    [ObservableProperty]
+    private string _targetModel = "";
+
+    [ObservableProperty]
+    private bool _useDefaultModel;
+
+    [ObservableProperty]
+    private bool _enabled = true;
+
+    public bool IsDefault { get; init; }
+
+    public bool CanRemove => !IsDefault;
+
+    public bool CanEditSource => !IsDefault;
+
+    public bool CanEditUseDefaultModel => !IsDefault;
+
+    public bool CanEditTarget => !UseDefaultModel;
+
+    public IRelayCommand<ModelConversionEditorItem>? RemoveCommand { get; init; }
+
+    partial void OnUseDefaultModelChanged(bool value)
+    {
+        OnPropertyChanged(nameof(CanEditTarget));
+    }
 }
 
 public sealed partial class ModelPricingEditorItem : ObservableObject
@@ -2014,6 +2894,13 @@ public sealed record UsageMetricItem(
 
 public sealed class UsageLogItem
 {
+    private static readonly IBrush SuccessStatusForeground = Brush.Parse("#86EFAC");
+    private static readonly IBrush SuccessStatusBackground = Brush.Parse("#14351F");
+    private static readonly IBrush SuccessStatusBorder = Brush.Parse("#255E35");
+    private static readonly IBrush FailedStatusForeground = Brush.Parse("#FCA5A5");
+    private static readonly IBrush FailedStatusBackground = Brush.Parse("#35191C");
+    private static readonly IBrush FailedStatusBorder = Brush.Parse("#71343B");
+
     public string Time { get; init; } = "";
 
     public string Provider { get; init; } = "";
@@ -2034,11 +2921,11 @@ public sealed class UsageLogItem
 
     public string Status { get; init; } = "";
 
-    public IBrush StatusForeground { get; init; } = Brush.Parse("#86EFAC");
+    public IBrush StatusForeground { get; init; } = SuccessStatusForeground;
 
-    public IBrush StatusBackground { get; init; } = Brush.Parse("#14351F");
+    public IBrush StatusBackground { get; init; } = SuccessStatusBackground;
 
-    public IBrush StatusBorder { get; init; } = Brush.Parse("#255E35");
+    public IBrush StatusBorder { get; init; } = SuccessStatusBorder;
 
     public static UsageLogItem From(UsageLogRecord record)
     {
@@ -2055,9 +2942,9 @@ public sealed class UsageLogItem
             Cost = DisplayFormatters.FormatCost(record.EstimatedCost),
             Duration = record.DurationMs + "ms",
             Status = record.StatusCode.ToString(CultureInfo.InvariantCulture),
-            StatusForeground = Brush.Parse(failed ? "#FCA5A5" : "#86EFAC"),
-            StatusBackground = Brush.Parse(failed ? "#35191C" : "#14351F"),
-            StatusBorder = Brush.Parse(failed ? "#71343B" : "#255E35")
+            StatusForeground = failed ? FailedStatusForeground : SuccessStatusForeground,
+            StatusBackground = failed ? FailedStatusBackground : SuccessStatusBackground,
+            StatusBorder = failed ? FailedStatusBorder : SuccessStatusBorder
         };
     }
 }

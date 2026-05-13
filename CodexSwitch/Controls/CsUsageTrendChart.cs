@@ -1,3 +1,4 @@
+using System.Collections.Specialized;
 using System.Globalization;
 using Avalonia.Input;
 using Avalonia.Media;
@@ -13,13 +14,35 @@ public sealed class CsUsageTrendChart : Control
     private static readonly TimeSpan ChartAnimationDuration = TimeSpan.FromMilliseconds(520);
     private static readonly Typeface LabelTypeface = new("Inter", FontStyle.Normal, FontWeight.Normal, FontStretch.Normal);
     private static readonly Typeface EmphasisTypeface = new("Inter", FontStyle.Normal, FontWeight.SemiBold, FontStretch.Normal);
+    private static readonly IBrush PlotBackgroundBrush = Brush("#0AFFFFFF");
+    private static readonly IBrush AxisBrush = Brush("#8AA3A3A3");
+    private static readonly IBrush TooltipBackgroundBrush = Brush("#F0202023");
+    private static readonly IBrush TooltipTextBrush = Brush("#F5FFFFFF");
+    private static readonly IBrush TooltipMutedBrush = Brush("#AFA3A3A3");
+    private static readonly IBrush BreakdownTextBrush = Brush("#D7E0E0E0");
+    private static readonly IBrush MarkerBrush = Brush("#E8FFFFFF");
+    private static readonly IBrush CostBrush = Brush("#F472B6");
+    private static readonly IBrush EmptyTextBrush = Brush("#9CA3AF");
+    private static readonly IBrush RefreshOverlayBrush = Brush("#133B82F6");
+    private static readonly IBrush RefreshBarBrush = Brush("#8059A7FF");
+    private static readonly IBrush RefreshTextBrush = Brush("#B9D7EAFF");
+    private static readonly Pen PlotBorderPen = new(Brush("#12FFFFFF"), 1);
+    private static readonly Pen GridPen = new(Brush("#18FFFFFF"), 1);
+    private static readonly Pen VerticalGridPen = new(Brush("#0FFFFFFF"), 1);
+    private static readonly Pen TotalTokenPen = new(Brush("#B7D1FF"), 2);
+    private static readonly Pen CostPen = new(CostBrush, 2);
+    private static readonly Pen PointerLinePen = new(Brush("#44FFFFFF"), 1);
+    private static readonly Pen MarkerBorderPen = new(Brush("#2F81F7"), 2);
+    private static readonly Pen CostMarkerBorderPen = new(Brush("#22000000"), 1);
+    private static readonly Pen TooltipBorderPen = new(Brush("#33FFFFFF"), 1);
+    private static readonly Pen EmptyLinePen = new(Brush("#3B82F6"), 1.5);
     private static readonly ChartSeries[] TokenSeries =
     [
-        new("input", Color.Parse("#60A5FA"), point => point.InputTokens),
-        new("cached", Color.Parse("#A78BFA"), point => point.CachedInputTokens),
-        new("cache-write", Color.Parse("#F59E0B"), point => point.CacheCreationInputTokens),
-        new("output", Color.Parse("#34D399"), point => point.OutputTokens),
-        new("reasoning", Color.Parse("#22D3EE"), point => point.ReasoningOutputTokens)
+        CreateSeries("input", "#60A5FA", point => point.InputTokens),
+        CreateSeries("cached", "#A78BFA", point => point.CachedInputTokens),
+        CreateSeries("cache-write", "#F59E0B", point => point.CacheCreationInputTokens),
+        CreateSeries("output", "#34D399", point => point.OutputTokens),
+        CreateSeries("reasoning", "#22D3EE", point => point.ReasoningOutputTokens)
     ];
 
     public static readonly StyledProperty<IEnumerable<UsageTrendPoint>?> ItemsSourceProperty =
@@ -48,6 +71,9 @@ public sealed class CsUsageTrendChart : Control
     public static readonly StyledProperty<string> CacheCreationInputLabelProperty =
         AvaloniaProperty.Register<CsUsageTrendChart, string>(nameof(CacheCreationInputLabel), "Cache write");
 
+    public static readonly StyledProperty<string> CacheHitRateLabelProperty =
+        AvaloniaProperty.Register<CsUsageTrendChart, string>(nameof(CacheHitRateLabel), "Cache hit rate");
+
     public static readonly StyledProperty<string> OutputLabelProperty =
         AvaloniaProperty.Register<CsUsageTrendChart, string>(nameof(OutputLabel), "Output");
 
@@ -63,11 +89,36 @@ public sealed class CsUsageTrendChart : Control
     public static readonly StyledProperty<string> RefreshingTextProperty =
         AvaloniaProperty.Register<CsUsageTrendChart, string>(nameof(RefreshingText), "Refreshing");
 
+    private readonly Geometry?[] _bandGeometries = new Geometry?[TokenSeries.Length];
+    private UsageTrendPoint[] _items = [];
+    private long[] _totalTokens = [];
+    private long[][] _seriesLower = [];
+    private long[][] _seriesUpper = [];
+    private bool[] _seriesHasValue = [];
+    private int[] _xAxisIndexes = [];
+    private TextLayout[] _leftAxisLabels = [];
+    private TextLayout[] _rightAxisLabels = [];
+    private TextLayout[] _xAxisLabels = [];
+    private Point[] _totalTokenPoints = [];
+    private Point[] _costPoints = [];
+    private Geometry? _totalTokenGeometry;
+    private Geometry? _costGeometry;
+    private INotifyCollectionChanged? _observedItemsSource;
     private Point? _pointerPosition;
     private Point? _targetPointerPosition;
     private DispatcherTimer? _animationTimer;
     private DateTimeOffset _chartAnimationStartedAt = DateTimeOffset.UtcNow;
     private DateTimeOffset _refreshStartedAt = DateTimeOffset.UtcNow;
+    private Rect _cachedPlot;
+    private double _cachedProgress = -1d;
+    private long _tokenMax = 1;
+    private decimal _costMax;
+    private bool _hasUsage;
+    private bool _hasCost;
+    private bool _dataDirty = true;
+    private bool _axisLabelsDirty = true;
+    private bool _geometryDirty = true;
+    private bool _collectionRefreshQueued;
     private double _chartProgress = 1d;
     private double _hoverProgress;
     private double _targetHoverProgress;
@@ -83,14 +134,20 @@ public sealed class CsUsageTrendChart : Control
             InputLabelProperty,
             CachedInputLabelProperty,
             CacheCreationInputLabelProperty,
+            CacheHitRateLabelProperty,
             OutputLabelProperty,
             ReasoningLabelProperty,
             EmptyTextProperty,
             IsRefreshingProperty,
             RefreshingTextProperty);
 
-        ItemsSourceProperty.Changed.AddClassHandler<CsUsageTrendChart>((chart, _) => chart.StartChartAnimation());
-        GranularityProperty.Changed.AddClassHandler<CsUsageTrendChart>((chart, _) => chart.StartChartAnimation());
+        ItemsSourceProperty.Changed.AddClassHandler<CsUsageTrendChart>((chart, args) =>
+            chart.OnItemsSourceChanged(args.OldValue as IEnumerable<UsageTrendPoint>, args.NewValue as IEnumerable<UsageTrendPoint>));
+        GranularityProperty.Changed.AddClassHandler<CsUsageTrendChart>((chart, _) =>
+        {
+            chart._axisLabelsDirty = true;
+            chart.StartChartAnimation();
+        });
         IsRefreshingProperty.Changed.AddClassHandler<CsUsageTrendChart>((chart, args) => chart.OnIsRefreshingChanged(args.NewValue is true));
     }
 
@@ -149,6 +206,12 @@ public sealed class CsUsageTrendChart : Control
         set => SetValue(CacheCreationInputLabelProperty, value);
     }
 
+    public string CacheHitRateLabel
+    {
+        get => GetValue(CacheHitRateLabelProperty);
+        set => SetValue(CacheHitRateLabelProperty, value);
+    }
+
     public string OutputLabel
     {
         get => GetValue(OutputLabelProperty);
@@ -191,26 +254,58 @@ public sealed class CsUsageTrendChart : Control
         if (plot.Width <= 12 || plot.Height <= 12)
             return;
 
-        var items = ItemsSource?.ToArray() ?? [];
-        var tokenMax = NiceTokenMax(items.Length == 0 ? 0 : items.Max(TotalTokens));
-        var costMax = NiceCostMax(items.Length == 0 ? 0m : items.Max(item => item.Cost));
-        var hasUsage = items.Any(item => TotalTokens(item) > 0 || item.Cost > 0m || item.Requests > 0);
-        var chartProgress = EaseOutCubic(_chartProgress);
+        EnsureDataCache();
+        if (_axisLabelsDirty)
+            RebuildAxisLabels();
 
-        DrawPlotFrame(context, plot, items, tokenMax, costMax);
+        var chartProgress = EaseOutCubic(_chartProgress);
+        if (_geometryDirty || !SameRect(_cachedPlot, plot) || Math.Abs(_cachedProgress - chartProgress) > 0.0001d)
+            RebuildGeometryCache(plot, chartProgress);
+
+        DrawPlotFrame(context, plot);
         DrawRefreshOverlay(context, plot);
 
-        if (!hasUsage)
+        if (!_hasUsage)
         {
             DrawEmptyState(context, plot);
             return;
         }
 
-        DrawStackedTokens(context, plot, items, tokenMax, chartProgress);
-        DrawTotalTokenLine(context, plot, items, tokenMax, chartProgress);
-        if (costMax > 0m && items.Any(item => item.Cost > 0m))
-            DrawCostLine(context, plot, items, costMax, chartProgress);
-        DrawPointerDetails(context, plot, items, tokenMax, costMax);
+        DrawTokenBands(context);
+        DrawTokenAndCostLines(context, chartProgress);
+        DrawPointerDetails(context, plot);
+    }
+
+    private void OnItemsSourceChanged(IEnumerable<UsageTrendPoint>? oldValue, IEnumerable<UsageTrendPoint>? newValue)
+    {
+        if (ReferenceEquals(oldValue, newValue))
+            return;
+
+        if (_observedItemsSource is not null)
+            _observedItemsSource.CollectionChanged -= OnItemsSourceCollectionChanged;
+
+        _observedItemsSource = newValue as INotifyCollectionChanged;
+        if (_observedItemsSource is not null)
+            _observedItemsSource.CollectionChanged += OnItemsSourceCollectionChanged;
+
+        MarkDataDirty();
+        StartChartAnimation();
+    }
+
+    private void OnItemsSourceCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
+    {
+        MarkDataDirty();
+        if (_collectionRefreshQueued)
+            return;
+
+        _collectionRefreshQueued = true;
+        Dispatcher.UIThread.Post(
+            () =>
+            {
+                _collectionRefreshQueued = false;
+                StartChartAnimation();
+            },
+            DispatcherPriority.Render);
     }
 
     private void OnPointerMoved(object? sender, PointerEventArgs args)
@@ -231,14 +326,25 @@ public sealed class CsUsageTrendChart : Control
     protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
     {
         base.OnDetachedFromVisualTree(e);
+        if (_observedItemsSource is not null)
+            _observedItemsSource.CollectionChanged -= OnItemsSourceCollectionChanged;
+        _observedItemsSource = null;
         _animationTimer?.Stop();
         _animationTimer = null;
+    }
+
+    private void MarkDataDirty()
+    {
+        _dataDirty = true;
+        _axisLabelsDirty = true;
+        _geometryDirty = true;
     }
 
     private void StartChartAnimation()
     {
         _chartAnimationStartedAt = DateTimeOffset.UtcNow;
         _chartProgress = 0d;
+        _geometryDirty = true;
         EnsureAnimationTimer();
         InvalidateVisual();
     }
@@ -268,12 +374,15 @@ public sealed class CsUsageTrendChart : Control
     {
         var elapsed = DateTimeOffset.UtcNow - _chartAnimationStartedAt;
         _chartProgress = Math.Clamp(elapsed.TotalMilliseconds / ChartAnimationDuration.TotalMilliseconds, 0d, 1d);
-        _hoverProgress = Lerp(_hoverProgress, _targetHoverProgress, 0.22d);
+        _hoverProgress = Lerp(_hoverProgress, _targetHoverProgress, 0.28d);
         if (_targetPointerPosition is { } target)
         {
             _pointerPosition = _pointerPosition is { } current
-                ? new Point(Lerp(current.X, target.X, 0.26d), Lerp(current.Y, target.Y, 0.26d))
+                ? new Point(Lerp(current.X, target.X, 0.38d), Lerp(current.Y, target.Y, 0.32d))
                 : target;
+
+            if (_pointerPosition is { } pointer && IsClose(pointer, target, 0.35d))
+                _pointerPosition = target;
         }
 
         if (Math.Abs(_hoverProgress - _targetHoverProgress) < 0.015d)
@@ -288,250 +397,294 @@ public sealed class CsUsageTrendChart : Control
 
         InvalidateVisual();
 
-        if (_chartProgress >= 1d && !IsRefreshing && Math.Abs(_hoverProgress - _targetHoverProgress) <= 0d)
+        if (_chartProgress >= 1d && !IsRefreshing && HoverSettled() && PointerSettled())
         {
             _animationTimer?.Stop();
             _animationTimer = null;
         }
     }
 
-    private void DrawPlotFrame(
-        DrawingContext context,
-        Rect plot,
-        IReadOnlyList<UsageTrendPoint> items,
-        long tokenMax,
-        decimal costMax)
+    private void EnsureDataCache()
     {
-        context.DrawRectangle(Brush("#0AFFFFFF"), new Pen(Brush("#12FFFFFF"), 1), plot, 8, 8);
+        if (!_dataDirty)
+            return;
 
-        var gridPen = new Pen(Brush("#18FFFFFF"), 1);
-        var axisBrush = Brush("#8AA3A3A3");
+        _items = ItemsSource switch
+        {
+            null => [],
+            UsageTrendPoint[] array => array,
+            ICollection<UsageTrendPoint> collection => ToArray(collection),
+            IReadOnlyCollection<UsageTrendPoint> collection => ToArray(collection),
+            var source => source.ToArray()
+        };
+
+        var count = _items.Length;
+        _totalTokens = new long[count];
+        _seriesLower = new long[TokenSeries.Length][];
+        _seriesUpper = new long[TokenSeries.Length][];
+        _seriesHasValue = new bool[TokenSeries.Length];
+
+        var cumulative = new long[count];
+        for (var seriesIndex = 0; seriesIndex < TokenSeries.Length; seriesIndex++)
+        {
+            var lower = new long[count];
+            var upper = new long[count];
+            var hasSeriesValue = false;
+            var series = TokenSeries[seriesIndex];
+
+            for (var index = 0; index < count; index++)
+            {
+                var value = Math.Max(0, series.ValueSelector(_items[index]));
+                lower[index] = cumulative[index];
+                upper[index] = cumulative[index] + value;
+                cumulative[index] = upper[index];
+                hasSeriesValue |= value > 0;
+            }
+
+            _seriesLower[seriesIndex] = lower;
+            _seriesUpper[seriesIndex] = upper;
+            _seriesHasValue[seriesIndex] = hasSeriesValue;
+        }
+
+        var tokenMax = 0L;
+        var costMax = 0m;
+        var hasUsage = false;
+        var hasCost = false;
+        for (var index = 0; index < count; index++)
+        {
+            var item = _items[index];
+            var total = cumulative[index];
+            _totalTokens[index] = total;
+            tokenMax = Math.Max(tokenMax, total);
+            costMax = Math.Max(costMax, item.Cost);
+            hasCost |= item.Cost > 0m;
+            hasUsage |= total > 0 || item.Cost > 0m || item.Requests > 0;
+        }
+
+        _tokenMax = NiceTokenMax(tokenMax);
+        _costMax = NiceCostMax(costMax);
+        _hasUsage = hasUsage;
+        _hasCost = hasCost;
+        _xAxisIndexes = SelectXAxisIndexes(count);
+        _dataDirty = false;
+        _axisLabelsDirty = true;
+        _geometryDirty = true;
+    }
+
+    private void RebuildAxisLabels()
+    {
+        _leftAxisLabels = new TextLayout[5];
+        for (var index = 0; index <= 4; index++)
+        {
+            var value = (long)Math.Round(_tokenMax * (4 - index) / 4d);
+            _leftAxisLabels[index] = CreateTextLayout(DisplayFormatters.FormatTokenCount(value), 11, AxisBrush, TextAlignment.Right);
+        }
+
+        _rightAxisLabels = _costMax > 0m
+            ? [
+                CreateTextLayout(DisplayFormatters.FormatCost(_costMax), 11, AxisBrush),
+                CreateTextLayout(DisplayFormatters.FormatCost(0m), 11, AxisBrush)
+            ]
+            : [];
+
+        _xAxisLabels = new TextLayout[_xAxisIndexes.Length];
+        for (var index = 0; index < _xAxisIndexes.Length; index++)
+        {
+            var itemIndex = _xAxisIndexes[index];
+            _xAxisLabels[index] = CreateTextLayout(FormatTimestamp(_items[itemIndex].Timestamp, compact: true), 11, AxisBrush, TextAlignment.Center);
+        }
+
+        _axisLabelsDirty = false;
+    }
+
+    private void RebuildGeometryCache(Rect plot, double progress)
+    {
+        Array.Clear(_bandGeometries);
+        _totalTokenGeometry = null;
+        _costGeometry = null;
+        _totalTokenPoints = [];
+        _costPoints = [];
+
+        if (_hasUsage)
+        {
+            for (var index = 0; index < TokenSeries.Length; index++)
+            {
+                if (_seriesHasValue[index])
+                {
+                    _bandGeometries[index] = BuildBandGeometry(
+                        plot,
+                        _seriesLower[index],
+                        _seriesUpper[index],
+                        _tokenMax,
+                        progress);
+                }
+            }
+
+            _totalTokenPoints = CreateTokenPoints(plot, progress);
+            _totalTokenGeometry = BuildLineGeometry(_totalTokenPoints);
+            if (_hasCost && _costMax > 0m)
+            {
+                _costPoints = CreateCostPoints(plot, progress);
+                _costGeometry = BuildLineGeometry(_costPoints);
+            }
+        }
+
+        _cachedPlot = plot;
+        _cachedProgress = progress;
+        _geometryDirty = false;
+    }
+
+    private void DrawPlotFrame(DrawingContext context, Rect plot)
+    {
+        context.DrawRectangle(PlotBackgroundBrush, PlotBorderPen, plot, 8, 8);
+
         for (var index = 0; index <= 4; index++)
         {
             var y = plot.Top + plot.Height * index / 4d;
-            context.DrawLine(gridPen, new Point(plot.Left, y), new Point(plot.Right, y));
-
-            var value = (long)Math.Round(tokenMax * (4 - index) / 4d);
-            DrawText(
-                context,
-                DisplayFormatters.FormatTokenCount(value),
-                new Point(plot.Left - 10, y - 8),
-                11,
-                axisBrush,
-                TextAlignment.Right);
+            context.DrawLine(GridPen, new Point(plot.Left, y), new Point(plot.Right, y));
+            if (index < _leftAxisLabels.Length)
+                DrawTextLayout(context, _leftAxisLabels[index], new Point(plot.Left - 10, y - 8), TextAlignment.Right);
         }
 
-        if (costMax > 0m)
+        if (_rightAxisLabels.Length == 2)
         {
-            DrawText(
-                context,
-                DisplayFormatters.FormatCost(costMax),
-                new Point(plot.Right + 10, plot.Top - 8),
-                11,
-                axisBrush);
-            DrawText(
-                context,
-                DisplayFormatters.FormatCost(0m),
-                new Point(plot.Right + 10, plot.Bottom - 8),
-                11,
-                axisBrush);
+            DrawTextLayout(context, _rightAxisLabels[0], new Point(plot.Right + 10, plot.Top - 8));
+            DrawTextLayout(context, _rightAxisLabels[1], new Point(plot.Right + 10, plot.Bottom - 8));
         }
 
-        if (items.Count == 0)
+        for (var index = 0; index < _xAxisIndexes.Length; index++)
+        {
+            var itemIndex = _xAxisIndexes[index];
+            var x = GetX(plot, _items.Length, itemIndex);
+            context.DrawLine(VerticalGridPen, new Point(x, plot.Top), new Point(x, plot.Bottom));
+            if (index < _xAxisLabels.Length)
+                DrawTextLayout(context, _xAxisLabels[index], new Point(x, plot.Bottom + 10), TextAlignment.Center);
+        }
+    }
+
+    private void DrawTokenBands(DrawingContext context)
+    {
+        for (var index = 0; index < _bandGeometries.Length; index++)
+        {
+            if (_bandGeometries[index] is { } geometry)
+                context.DrawGeometry(TokenSeries[index].FillBrush, null, geometry);
+        }
+    }
+
+    private void DrawTokenAndCostLines(DrawingContext context, double progress)
+    {
+        if (_totalTokenGeometry is not null)
+            context.DrawGeometry(null, TotalTokenPen, _totalTokenGeometry);
+
+        if (_costGeometry is null)
             return;
 
-        foreach (var index in SelectXAxisIndexes(items.Count))
+        context.DrawGeometry(null, CostPen, _costGeometry);
+        var radius = 1.4 + 1.2 * progress;
+        for (var index = 0; index < _costPoints.Length; index++)
         {
-            var x = GetX(plot, items.Count, index);
-            context.DrawLine(new Pen(Brush("#0FFFFFFF"), 1), new Point(x, plot.Top), new Point(x, plot.Bottom));
-            DrawText(
-                context,
-                FormatTimestamp(items[index].Timestamp, compact: true),
-                new Point(x, plot.Bottom + 10),
-                11,
-                axisBrush,
-                TextAlignment.Center);
+            if (_items[index].Cost > 0m)
+                context.DrawEllipse(CostBrush, null, _costPoints[index], radius, radius);
         }
     }
 
-    private static void DrawStackedTokens(
-        DrawingContext context,
-        Rect plot,
-        IReadOnlyList<UsageTrendPoint> items,
-        long tokenMax,
-        double progress)
+    private void DrawPointerDetails(DrawingContext context, Rect plot)
     {
-        var cumulative = new long[items.Count];
-        foreach (var series in TokenSeries)
-        {
-            var upper = new long[items.Count];
-            var hasValue = false;
-            for (var index = 0; index < items.Count; index++)
-            {
-                var value = Math.Max(0, series.ValueSelector(items[index]));
-                upper[index] = cumulative[index] + value;
-                hasValue |= value > 0;
-            }
-
-            if (hasValue)
-                DrawBand(context, plot, items.Count, cumulative, upper, tokenMax, series.Color, progress);
-
-            for (var index = 0; index < items.Count; index++)
-                cumulative[index] = upper[index];
-        }
-    }
-
-    private static void DrawBand(
-        DrawingContext context,
-        Rect plot,
-        int count,
-        IReadOnlyList<long> lower,
-        IReadOnlyList<long> upper,
-        long tokenMax,
-        Color color,
-        double progress)
-    {
-        if (count == 0)
+        if (_pointerPosition is not { } pointer || _hoverProgress <= 0.01d || _items.Length == 0)
             return;
 
-        var upperPoints = new Point[count];
-        var lowerPoints = new Point[count];
-        for (var index = 0; index < count; index++)
-        {
-            upperPoints[index] = new Point(GetX(plot, count, index), GetAnimatedY(plot, upper[index], tokenMax, progress));
-            lowerPoints[index] = new Point(GetX(plot, count, index), GetAnimatedY(plot, lower[index], tokenMax, progress));
-        }
-
-        var geometry = new StreamGeometry();
-        using (var ctx = geometry.Open())
-        {
-            ctx.BeginFigure(upperPoints[0], isFilled: true);
-            AddSmoothSegments(ctx, upperPoints);
-            var reversedLower = lowerPoints.Reverse().ToArray();
-            ctx.LineTo(reversedLower[0]);
-            AddSmoothSegments(ctx, reversedLower);
-            ctx.EndFigure(isClosed: true);
-        }
-
-        context.DrawGeometry(new SolidColorBrush(Color.FromArgb(58, color.R, color.G, color.B)), null, geometry);
-    }
-
-    private static void DrawTotalTokenLine(
-        DrawingContext context,
-        Rect plot,
-        IReadOnlyList<UsageTrendPoint> items,
-        long tokenMax,
-        double progress)
-    {
-        var points = CreatePoints(plot, items, tokenMax, progress, TotalTokens);
-        DrawSmoothPolyline(context, points, new Pen(Brush("#B7D1FF"), 2));
-    }
-
-    private static void DrawCostLine(
-        DrawingContext context,
-        Rect plot,
-        IReadOnlyList<UsageTrendPoint> items,
-        decimal costMax,
-        double progress)
-    {
-        if (items.Count == 0 || costMax <= 0m)
+        var hitPointer = _targetPointerPosition ?? pointer;
+        if (!plot.Contains(hitPointer))
             return;
 
-        var points = new Point[items.Count];
-        for (var index = 0; index < items.Count; index++)
-        {
-            var normalized = Math.Clamp((double)(items[index].Cost / costMax), 0d, 1d);
-            var y = plot.Bottom - plot.Height * normalized;
-            points[index] = new Point(GetX(plot, items.Count, index), Lerp(plot.Bottom, y, progress));
-        }
-
-        DrawSmoothPolyline(context, points, new Pen(Brush("#F472B6"), 2));
-        foreach (var point in points.Where((_, index) => items[index].Cost > 0m))
-            context.DrawEllipse(Brush("#F472B6"), null, point, 1.4 + 1.2 * progress, 1.4 + 1.2 * progress);
-    }
-
-    private void DrawPointerDetails(
-        DrawingContext context,
-        Rect plot,
-        IReadOnlyList<UsageTrendPoint> items,
-        long tokenMax,
-        decimal costMax)
-    {
-        if (_pointerPosition is not { } pointer || _hoverProgress <= 0.01d || !plot.Contains(pointer) || items.Count == 0)
-            return;
-
-        var index = GetNearestIndex(plot, items.Count, pointer.X);
-        var item = items[index];
-        var x = GetX(plot, items.Count, index);
-        var totalY = GetY(plot, TotalTokens(item), tokenMax);
+        var followPoint = new Point(
+            Math.Clamp(pointer.X, plot.Left, plot.Right),
+            Math.Clamp(pointer.Y, plot.Top, plot.Bottom));
+        var index = GetNearestIndex(plot, _items.Length, hitPointer.X);
+        var item = _items[index];
+        var x = GetX(plot, _items.Length, index);
+        var totalY = GetY(plot, _totalTokens[index], _tokenMax);
         using var opacity = context.PushOpacity(EaseOutCubic(_hoverProgress));
 
-        context.DrawLine(new Pen(Brush("#44FFFFFF"), 1), new Point(x, plot.Top), new Point(x, plot.Bottom));
+        context.DrawLine(PointerLinePen, new Point(followPoint.X, plot.Top), new Point(followPoint.X, plot.Bottom));
         var markerRadius = 2.5 + 2d * EaseOutBack(_hoverProgress);
-        context.DrawEllipse(Brush("#E8FFFFFF"), new Pen(Brush("#2F81F7"), 2), new Point(x, totalY), markerRadius, markerRadius);
+        context.DrawEllipse(MarkerBrush, MarkerBorderPen, new Point(x, totalY), markerRadius, markerRadius);
 
-        if (costMax > 0m && item.Cost > 0m)
+        if (_costMax > 0m && item.Cost > 0m)
         {
-            var costY = plot.Bottom - plot.Height * Math.Clamp((double)(item.Cost / costMax), 0d, 1d);
+            var costY = plot.Bottom - plot.Height * Math.Clamp((double)(item.Cost / _costMax), 0d, 1d);
             var costRadius = 2.2 + 1.8d * EaseOutBack(_hoverProgress);
-            context.DrawEllipse(Brush("#F472B6"), new Pen(Brush("#22000000"), 1), new Point(x, costY), costRadius, costRadius);
+            context.DrawEllipse(CostBrush, CostMarkerBorderPen, new Point(x, costY), costRadius, costRadius);
         }
 
-        DrawTooltip(context, plot, x, item);
+        DrawTooltip(context, plot, followPoint, item, _totalTokens[index]);
     }
 
-    private void DrawTooltip(DrawingContext context, Rect plot, double anchorX, UsageTrendPoint item)
+    private void DrawTooltip(DrawingContext context, Rect plot, Point anchor, UsageTrendPoint item, long totalTokens)
     {
         const double width = 210;
-        const double height = 156;
-        var left = Math.Clamp(anchorX + 12, plot.Left, plot.Right - width);
-        if (anchorX > plot.Right - width - 16)
-            left = Math.Clamp(anchorX - width - 12, plot.Left, plot.Right - width);
-
-        var top = plot.Top + 12;
+        const double height = 174;
+        const double gutter = 14;
+        var left = anchor.X <= plot.Center.X
+            ? anchor.X + gutter
+            : anchor.X - width - gutter;
+        var minLeft = plot.Left + 8;
+        var maxLeft = Math.Max(minLeft, plot.Right - width - 8);
+        var minTop = plot.Top + 8;
+        var maxTop = Math.Max(minTop, plot.Bottom - height - 8);
+        left = Math.Clamp(left, minLeft, maxLeft);
+        var top = Math.Clamp(anchor.Y - height / 2d, minTop, maxTop);
         var rect = new Rect(left, top, width, height);
-        context.DrawRectangle(Brush("#F0202023"), new Pen(Brush("#33FFFFFF"), 1), rect, 8, 8);
+        var cacheHitRate = DisplayFormatters.CalculateCacheHitRate(
+            item.InputTokens,
+            item.CachedInputTokens,
+            item.CacheCreationInputTokens);
+        context.DrawRectangle(TooltipBackgroundBrush, TooltipBorderPen, rect, 8, 8);
 
-        var text = Brush("#F5FFFFFF");
-        var muted = Brush("#AFA3A3A3");
-        DrawText(context, FormatTimestamp(item.Timestamp, compact: false), new Point(left + 12, top + 10), 12, text, TextAlignment.Left, EmphasisTypeface);
-        DrawText(context, $"{TokensLabel}: {DisplayFormatters.FormatTokenCount(TotalTokens(item))}", new Point(left + 12, top + 32), 11, muted);
-        DrawText(context, $"{RequestsLabel}: {item.Requests:N0}", new Point(left + 12, top + 50), 11, muted);
-        DrawText(context, $"{CostLabel}: {DisplayFormatters.FormatCost(item.Cost)}", new Point(left + 12, top + 68), 11, muted);
-        DrawBreakdownRow(context, left + 12, top + 92, TokenSeries[0].Color, InputLabel, item.InputTokens);
-        DrawBreakdownRow(context, left + 12, top + 110, TokenSeries[1].Color, CachedInputLabel, item.CachedInputTokens);
-        DrawBreakdownRow(context, left + 12, top + 128, TokenSeries[2].Color, CacheCreationInputLabel, item.CacheCreationInputTokens);
-        DrawBreakdownRow(context, left + 112, top + 92, TokenSeries[3].Color, OutputLabel, item.OutputTokens);
-        DrawBreakdownRow(context, left + 112, top + 110, TokenSeries[4].Color, ReasoningLabel, item.ReasoningOutputTokens);
+        DrawText(context, FormatTimestamp(item.Timestamp, compact: false), new Point(left + 12, top + 10), 12, TooltipTextBrush, TextAlignment.Left, EmphasisTypeface);
+        DrawText(context, $"{TokensLabel}: {DisplayFormatters.FormatTokenCount(totalTokens)}", new Point(left + 12, top + 32), 11, TooltipMutedBrush);
+        DrawText(context, $"{RequestsLabel}: {item.Requests:N0}", new Point(left + 12, top + 50), 11, TooltipMutedBrush);
+        DrawText(context, $"{CostLabel}: {DisplayFormatters.FormatCost(item.Cost)}", new Point(left + 12, top + 68), 11, TooltipMutedBrush);
+        DrawText(
+            context,
+            $"{CacheHitRateLabel}: {DisplayFormatters.FormatPercentage(cacheHitRate)}",
+            new Point(left + 12, top + 86),
+            11,
+            TooltipMutedBrush);
+        DrawBreakdownRow(context, left + 12, top + 110, TokenSeries[0].StrokeBrush, InputLabel, item.InputTokens);
+        DrawBreakdownRow(context, left + 12, top + 128, TokenSeries[1].StrokeBrush, CachedInputLabel, item.CachedInputTokens);
+        DrawBreakdownRow(context, left + 12, top + 146, TokenSeries[2].StrokeBrush, CacheCreationInputLabel, item.CacheCreationInputTokens);
+        DrawBreakdownRow(context, left + 112, top + 110, TokenSeries[3].StrokeBrush, OutputLabel, item.OutputTokens);
+        DrawBreakdownRow(context, left + 112, top + 128, TokenSeries[4].StrokeBrush, ReasoningLabel, item.ReasoningOutputTokens);
     }
 
     private static void DrawBreakdownRow(
         DrawingContext context,
         double x,
         double y,
-        Color color,
+        IBrush brush,
         string label,
         long value)
     {
-        context.DrawEllipse(new SolidColorBrush(color), null, new Point(x + 4, y + 7), 3.5, 3.5);
+        context.DrawEllipse(brush, null, new Point(x + 4, y + 7), 3.5, 3.5);
         DrawText(
             context,
             $"{label}: {DisplayFormatters.FormatTokenCount(value)}",
             new Point(x + 13, y),
             10.5,
-            Brush("#D7E0E0E0"));
+            BreakdownTextBrush);
     }
 
     private void DrawEmptyState(DrawingContext context, Rect plot)
     {
         var y = plot.Bottom;
-        context.DrawLine(new Pen(Brush("#3B82F6"), 1.5), new Point(plot.Left, y), new Point(plot.Right, y));
+        context.DrawLine(EmptyLinePen, new Point(plot.Left, y), new Point(plot.Right, y));
         DrawText(
             context,
             EmptyText,
             new Point(plot.Center.X, plot.Center.Y - 8),
             12,
-            Brush("#9CA3AF"),
+            EmptyTextBrush,
             TextAlignment.Center,
             EmphasisTypeface);
     }
@@ -545,65 +698,119 @@ public sealed class CsUsageTrendChart : Control
         var phase = elapsed.TotalMilliseconds % 1100d / 1100d;
         var barWidth = Math.Max(72, plot.Width * 0.22d);
         var x = plot.Left - barWidth + (plot.Width + barWidth * 2d) * EaseInOutSine(phase);
-        context.DrawRectangle(Brush("#133B82F6"), null, plot, 8, 8);
-        context.DrawRectangle(Brush("#8059A7FF"), null, new Rect(x, plot.Top, barWidth, 2.4));
+        context.DrawRectangle(RefreshOverlayBrush, null, plot, 8, 8);
+        context.DrawRectangle(RefreshBarBrush, null, new Rect(x, plot.Top, barWidth, 2.4));
         DrawText(
             context,
             RefreshingText,
             new Point(plot.Right - 8, plot.Top + 8),
             11,
-            Brush("#B9D7EAFF"),
+            RefreshTextBrush,
             TextAlignment.Right,
             EmphasisTypeface);
     }
 
-    private static Point[] CreatePoints(
+    private Geometry? BuildBandGeometry(
         Rect plot,
-        IReadOnlyList<UsageTrendPoint> items,
+        IReadOnlyList<long> lower,
+        IReadOnlyList<long> upper,
         long tokenMax,
-        double progress,
-        Func<UsageTrendPoint, long> valueSelector)
+        double progress)
     {
-        var points = new Point[items.Count];
-        for (var index = 0; index < items.Count; index++)
-            points[index] = new Point(GetX(plot, items.Count, index), GetAnimatedY(plot, valueSelector(items[index]), tokenMax, progress));
+        var count = _items.Length;
+        if (count == 0)
+            return null;
+
+        var upperPoints = new Point[count];
+        var lowerPoints = new Point[count];
+        for (var index = 0; index < count; index++)
+        {
+            var x = GetX(plot, count, index);
+            upperPoints[index] = new Point(x, GetAnimatedY(plot, upper[index], tokenMax, progress));
+            lowerPoints[index] = new Point(x, GetAnimatedY(plot, lower[index], tokenMax, progress));
+        }
+
+        var geometry = new StreamGeometry();
+        using (var ctx = geometry.Open())
+        {
+            ctx.BeginFigure(upperPoints[0], isFilled: true);
+            AddSmoothSegments(ctx, upperPoints, 0, count - 1, 1);
+            ctx.LineTo(lowerPoints[count - 1]);
+            AddSmoothSegments(ctx, lowerPoints, count - 1, 0, -1);
+            ctx.EndFigure(isClosed: true);
+        }
+
+        return geometry;
+    }
+
+    private Point[] CreateTokenPoints(Rect plot, double progress)
+    {
+        var points = new Point[_items.Length];
+        for (var index = 0; index < _items.Length; index++)
+            points[index] = new Point(GetX(plot, _items.Length, index), GetAnimatedY(plot, _totalTokens[index], _tokenMax, progress));
 
         return points;
     }
 
-    private static void DrawSmoothPolyline(DrawingContext context, IReadOnlyList<Point> points, Pen pen)
+    private Point[] CreateCostPoints(Rect plot, double progress)
+    {
+        var points = new Point[_items.Length];
+        for (var index = 0; index < _items.Length; index++)
+        {
+            var normalized = Math.Clamp((double)(_items[index].Cost / _costMax), 0d, 1d);
+            var y = plot.Bottom - plot.Height * normalized;
+            points[index] = new Point(GetX(plot, _items.Length, index), Lerp(plot.Bottom, y, progress));
+        }
+
+        return points;
+    }
+
+    private static Geometry? BuildLineGeometry(IReadOnlyList<Point> points)
     {
         if (points.Count < 2)
-            return;
+            return null;
 
         var geometry = new StreamGeometry();
         using (var ctx = geometry.Open())
         {
             ctx.BeginFigure(points[0], isFilled: false);
-            AddSmoothSegments(ctx, points);
+            AddSmoothSegments(ctx, points, 0, points.Count - 1, 1);
             ctx.EndFigure(isClosed: false);
         }
 
-        context.DrawGeometry(null, pen, geometry);
+        return geometry;
     }
 
-    private static void AddSmoothSegments(StreamGeometryContext context, IReadOnlyList<Point> points)
+    private static void AddSmoothSegments(
+        StreamGeometryContext context,
+        IReadOnlyList<Point> points,
+        int startIndex,
+        int endIndex,
+        int step)
     {
-        if (points.Count < 2)
+        if (points.Count < 2 || startIndex == endIndex)
             return;
 
-        for (var index = 0; index < points.Count - 1; index++)
+        for (var index = startIndex; index != endIndex; index += step)
         {
-            var previous = index == 0 ? points[index] : points[index - 1];
+            var nextIndex = index + step;
+            var previousIndex = index == startIndex ? index : index - step;
+            var afterNextIndex = nextIndex == endIndex ? nextIndex : nextIndex + step;
+            var previous = points[previousIndex];
             var current = points[index];
-            var next = points[index + 1];
-            var afterNext = index + 2 < points.Count ? points[index + 2] : next;
+            var next = points[nextIndex];
+            var afterNext = points[afterNextIndex];
             var control1 = new Point(
-                current.X + (next.X - previous.X) / 6d,
-                current.Y + (next.Y - previous.Y) / 6d);
+                current.X + (next.X - previous.X) * 0.23d,
+                current.Y + (next.Y - previous.Y) * 0.23d);
             var control2 = new Point(
-                next.X - (afterNext.X - current.X) / 6d,
-                next.Y - (afterNext.Y - current.Y) / 6d);
+                next.X - (afterNext.X - current.X) * 0.23d,
+                next.Y - (afterNext.Y - current.Y) * 0.23d);
+
+            var minY = Math.Min(current.Y, next.Y);
+            var maxY = Math.Max(current.Y, next.Y);
+            control1 = new Point(control1.X, Math.Clamp(control1.Y, minY, maxY));
+            control2 = new Point(control2.X, Math.Clamp(control2.Y, minY, maxY));
             context.CubicBezierTo(control1, control2, next);
         }
     }
@@ -617,13 +824,19 @@ public sealed class CsUsageTrendChart : Control
         TextAlignment alignment = TextAlignment.Left,
         Typeface? typeface = null)
     {
-        var layout = new TextLayout(
-            text,
-            typeface ?? LabelTypeface,
-            fontSize,
-            brush,
-            textAlignment: alignment,
-            textWrapping: TextWrapping.NoWrap);
+        DrawTextLayout(
+            context,
+            CreateTextLayout(text, fontSize, brush, alignment, typeface),
+            origin,
+            alignment);
+    }
+
+    private static void DrawTextLayout(
+        DrawingContext context,
+        TextLayout layout,
+        Point origin,
+        TextAlignment alignment = TextAlignment.Left)
+    {
         var x = alignment switch
         {
             TextAlignment.Center => origin.X - layout.Width / 2d,
@@ -633,13 +846,37 @@ public sealed class CsUsageTrendChart : Control
         layout.Draw(context, new Point(Math.Round(x), Math.Round(origin.Y)));
     }
 
-    private static IEnumerable<int> SelectXAxisIndexes(int count)
+    private static TextLayout CreateTextLayout(
+        string text,
+        double fontSize,
+        IBrush brush,
+        TextAlignment alignment = TextAlignment.Left,
+        Typeface? typeface = null)
     {
-        if (count <= 1)
+        return new TextLayout(
+            text,
+            typeface ?? LabelTypeface,
+            fontSize,
+            brush,
+            textAlignment: alignment,
+            textWrapping: TextWrapping.NoWrap);
+    }
+
+    private static int[] SelectXAxisIndexes(int count)
+    {
+        if (count <= 0)
+            return [];
+
+        if (count == 1)
             return [0];
 
         if (count <= 8)
-            return Enumerable.Range(0, count);
+        {
+            var indexes = new int[count];
+            for (var index = 0; index < count; index++)
+                indexes[index] = index;
+            return indexes;
+        }
 
         return [0, count / 4, count / 2, count * 3 / 4, count - 1];
     }
@@ -679,15 +916,6 @@ public sealed class CsUsageTrendChart : Control
         return Lerp(plot.Bottom, GetY(plot, value, max), progress);
     }
 
-    private static long TotalTokens(UsageTrendPoint point)
-    {
-        return point.InputTokens +
-            point.CachedInputTokens +
-            point.CacheCreationInputTokens +
-            point.OutputTokens +
-            point.ReasoningOutputTokens;
-    }
-
     private static long NiceTokenMax(long value)
     {
         if (value <= 0)
@@ -725,9 +953,65 @@ public sealed class CsUsageTrendChart : Control
         return (decimal)(niceFraction * exponent);
     }
 
+    private static ChartSeries CreateSeries(
+        string name,
+        string hexColor,
+        Func<UsageTrendPoint, long> valueSelector)
+    {
+        var color = Color.Parse(hexColor);
+        return new ChartSeries(
+            name,
+            new SolidColorBrush(color),
+            new SolidColorBrush(Color.FromArgb(58, color.R, color.G, color.B)),
+            valueSelector);
+    }
+
+    private static UsageTrendPoint[] ToArray(ICollection<UsageTrendPoint> collection)
+    {
+        var array = new UsageTrendPoint[collection.Count];
+        collection.CopyTo(array, 0);
+        return array;
+    }
+
+    private static UsageTrendPoint[] ToArray(IReadOnlyCollection<UsageTrendPoint> collection)
+    {
+        var array = new UsageTrendPoint[collection.Count];
+        var index = 0;
+        foreach (var item in collection)
+            array[index++] = item;
+        return array;
+    }
+
     private static IBrush Brush(string value)
     {
         return new SolidColorBrush(Color.Parse(value));
+    }
+
+    private static bool SameRect(Rect left, Rect right)
+    {
+        return Math.Abs(left.X - right.X) < 0.01d &&
+            Math.Abs(left.Y - right.Y) < 0.01d &&
+            Math.Abs(left.Width - right.Width) < 0.01d &&
+            Math.Abs(left.Height - right.Height) < 0.01d;
+    }
+
+    private bool HoverSettled()
+    {
+        return Math.Abs(_hoverProgress - _targetHoverProgress) <= 0d;
+    }
+
+    private bool PointerSettled()
+    {
+        return _pointerPosition is null ||
+            _targetPointerPosition is null ||
+            IsClose(_pointerPosition.Value, _targetPointerPosition.Value, 0.35d);
+    }
+
+    private static bool IsClose(Point current, Point target, double tolerance)
+    {
+        var dx = current.X - target.X;
+        var dy = current.Y - target.Y;
+        return dx * dx + dy * dy <= tolerance * tolerance;
     }
 
     private static double EaseOutCubic(double value)
@@ -755,6 +1039,7 @@ public sealed class CsUsageTrendChart : Control
 
     private sealed record ChartSeries(
         string Name,
-        Color Color,
+        IBrush StrokeBrush,
+        IBrush FillBrush,
         Func<UsageTrendPoint, long> ValueSelector);
 }

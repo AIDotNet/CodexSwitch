@@ -6,6 +6,28 @@
              xmlns:lucide="using:Lucide.Avalonia"
              x:Class="CodexSwitch.Views.Pages.UsagePage"
              x:DataType="vm:MainWindowViewModel">
+    <UserControl.Styles>
+        <Style Selector="ListBox.usage-table-list">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderBrush" Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Padding" Value="0"/>
+        </Style>
+        <Style Selector="ListBox.usage-table-list ListBoxItem">
+            <Setter Property="Padding" Value="0"/>
+            <Setter Property="Margin" Value="0"/>
+            <Setter Property="Focusable" Value="False"/>
+            <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+            <Setter Property="Template">
+                <ControlTemplate>
+                    <ContentPresenter Content="{TemplateBinding Content}"
+                                      ContentTemplate="{TemplateBinding ContentTemplate}"
+                                      HorizontalAlignment="Stretch"/>
+                </ControlTemplate>
+            </Setter>
+        </Style>
+    </UserControl.Styles>
+
     <ScrollViewer>
         <Grid Margin="24,12,24,24"
               RowDefinitions="Auto,Auto,Auto,Auto"
@@ -37,7 +59,7 @@
             <ItemsControl Grid.Row="1" ItemsSource="{Binding UsageMetrics}">
                 <ItemsControl.ItemsPanel>
                     <ItemsPanelTemplate>
-                        <UniformGrid Columns="4"/>
+                        <UniformGrid Columns="5"/>
                     </ItemsPanelTemplate>
                 </ItemsControl.ItemsPanel>
                 <ItemsControl.ItemTemplate>
@@ -137,6 +159,7 @@
                                           InputLabel="{i18n:Tr usage.chart.input}"
                                           CachedInputLabel="{i18n:Tr usage.chart.cached}"
                                           CacheCreationInputLabel="{i18n:Tr usage.chart.cacheWrite}"
+                                          CacheHitRateLabel="{i18n:Tr usage.metric.cacheHitRate}"
                                           OutputLabel="{i18n:Tr usage.chart.output}"
                                           ReasoningLabel="{i18n:Tr usage.chart.reasoning}"
                                           EmptyText="{i18n:Tr usage.chart.empty}"
@@ -185,8 +208,18 @@
                                     <ui:CsTableHead Grid.Column="9" Content="{i18n:Tr usage.table.status}"/>
                                 </Grid>
                             </ui:CsTableHeader>
-                            <ItemsControl Grid.Row="1" ItemsSource="{Binding UsageLogRows}">
-                                <ItemsControl.ItemTemplate>
+                            <ListBox Grid.Row="1"
+                                     Classes="usage-table-list"
+                                     ItemsSource="{Binding UsageLogRows}"
+                                     MaxHeight="372"
+                                     ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                                     ScrollViewer.VerticalScrollBarVisibility="Auto">
+                                <ListBox.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <VirtualizingStackPanel/>
+                                    </ItemsPanelTemplate>
+                                </ListBox.ItemsPanel>
+                                <ListBox.ItemTemplate>
                                     <DataTemplate x:DataType="vm:UsageLogItem">
                                         <ui:CsTableRow>
                                             <Grid ColumnDefinitions="1.05*,1.1*,1.15*,0.72*,0.76*,0.78*,0.66*,0.72*,0.72*,0.58*" ColumnSpacing="8">
@@ -263,8 +296,8 @@
                                             </Grid>
                                         </ui:CsTableRow>
                                     </DataTemplate>
-                                </ItemsControl.ItemTemplate>
-                            </ItemsControl>
+                                </ListBox.ItemTemplate>
+                            </ListBox>
                         </Grid>
                     </ui:CsTable>
                 </ui:CsPanel>

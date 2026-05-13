@@ -53,13 +53,13 @@
                                   RowSpacing="12">
                                 <ui:CsText Text="{i18n:Tr providerDialog.connection}" Classes="heading"/>
                                 <ui:CsField Grid.Row="1" Label="{i18n:Tr providerDialog.name}">
-                                    <ui:CsInput Text="{Binding SelectedProviderName}"/>
+                                    <ui:CsInput Text="{Binding SelectedProviderName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
                                 </ui:CsField>
                                 <ui:CsField Grid.Row="1" Grid.Column="1" Label="{i18n:Tr providerDialog.defaultModel}">
-                                    <ui:CsInput Text="{Binding SelectedDefaultModel}"/>
+                                    <ui:CsInput Text="{Binding SelectedDefaultModel, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
                                 </ui:CsField>
                                 <ui:CsField Grid.Row="2" Label="{i18n:Tr providerDialog.baseUrl}">
-                                    <ui:CsInput Text="{Binding SelectedBaseUrl}"/>
+                                    <ui:CsInput Text="{Binding SelectedBaseUrl, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
                                 </ui:CsField>
                                 <ui:CsField Grid.Row="2" Grid.Column="1" Label="{i18n:Tr providerDialog.apiKey}">
                                     <ui:CsInput Text="{Binding SelectedApiKey, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" PasswordChar="*"/>
@@ -75,10 +75,10 @@
                                 <ui:CsText Text="{i18n:Tr providerDialog.protocolRouting}" Classes="heading"/>
                                 <ui:CsField Grid.Row="1" Label="{i18n:Tr providerDialog.protocol}">
                                     <ui:CsSelect ItemsSource="{Binding ProtocolOptions}"
-                                                 SelectedItem="{Binding SelectedProtocol}"/>
+                                                 SelectedItem="{Binding SelectedProtocol, Mode=TwoWay}"/>
                                 </ui:CsField>
                                 <ui:CsField Grid.Row="1" Grid.Column="1" Label="{i18n:Tr providerDialog.serviceTier}">
-                                    <ui:CsInput Text="{Binding SelectedServiceTier}" PlaceholderText="{i18n:Tr providerDialog.serviceTierPlaceholder}"/>
+                                    <ui:CsInput Text="{Binding SelectedServiceTier, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" PlaceholderText="{i18n:Tr providerDialog.serviceTierPlaceholder}"/>
                                 </ui:CsField>
 
                                 <StackPanel Grid.Row="2"
@@ -86,9 +86,137 @@
                                             Orientation="Horizontal"
                                             Spacing="22">
                                     <ui:CsSwitch Content="{i18n:Tr providerDialog.overrideRequestModel}"
-                                                 IsChecked="{Binding SelectedOverrideModel}"/>
+                                                 IsChecked="{Binding SelectedOverrideModel, Mode=TwoWay}"/>
                                     <ui:CsSwitch Content="{i18n:Tr providerDialog.fastModePricing}"
-                                                 IsChecked="{Binding SelectedFastMode}"/>
+                                                 IsChecked="{Binding SelectedFastMode, Mode=TwoWay}"/>
+                                </StackPanel>
+                            </Grid>
+                        </Border>
+
+                        <Border Classes="dialog-section">
+                            <Grid RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto"
+                                  ColumnDefinitions="*,*"
+                                  ColumnSpacing="12"
+                                  RowSpacing="12">
+                                <Grid ColumnDefinitions="*,Auto" Grid.ColumnSpan="2">
+                                    <StackPanel Spacing="3">
+                                        <ui:CsText Text="{i18n:Tr usageQuery.title}" Classes="heading"/>
+                                        <ui:CsText Text="{i18n:Tr usageQuery.description}"
+                                                   Classes="muted"/>
+                                    </StackPanel>
+                                    <ui:CsSwitch Grid.Column="1"
+                                                 Content="{i18n:Tr usageQuery.enabled}"
+                                                 IsChecked="{Binding SelectedUsageQueryEnabled, Mode=TwoWay}"
+                                                 VerticalAlignment="Center"/>
+                                </Grid>
+
+                                <StackPanel Grid.Row="1" Grid.ColumnSpan="2" Spacing="8">
+                                    <ui:CsText Text="{i18n:Tr usageQuery.template}" Classes="muted"/>
+                                    <ItemsControl ItemsSource="{Binding UsageQueryTemplates}">
+                                        <ItemsControl.ItemsPanel>
+                                            <ItemsPanelTemplate>
+                                                <WrapPanel/>
+                                            </ItemsPanelTemplate>
+                                        </ItemsControl.ItemsPanel>
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate x:DataType="vm:UsageQueryTemplateItem">
+                                                <ui:CsButton Margin="0,0,8,8"
+                                                             Classes="outline compact"
+                                                             Classes.active="{Binding IsSelected}"
+                                                             Command="{Binding SelectCommand}"
+                                                             CommandParameter="{Binding}">
+                                                    <StackPanel Orientation="Horizontal" Spacing="7">
+                                                        <lucide:LucideIcon Kind="Activity" Size="14" StrokeWidth="2"/>
+                                                        <TextBlock Text="{Binding DisplayName}"/>
+                                                    </StackPanel>
+                                                </ui:CsButton>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                </StackPanel>
+
+                                <ui:CsField Grid.Row="2" Label="{i18n:Tr usageQuery.method}">
+                                    <ui:CsSelect ItemsSource="{Binding UsageQueryMethods}"
+                                                 SelectedItem="{Binding SelectedUsageQueryMethod, Mode=TwoWay}"/>
+                                </ui:CsField>
+                                <ui:CsField Grid.Row="2" Grid.Column="1" Label="{i18n:Tr usageQuery.timeout}">
+                                    <ui:CsInput Text="{Binding SelectedUsageQueryTimeoutSeconds, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                                </ui:CsField>
+                                <ui:CsField Grid.Row="3" Grid.ColumnSpan="2" Label="{i18n:Tr usageQuery.url}">
+                                    <ui:CsInput Text="{Binding SelectedUsageQueryUrl, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                PlaceholderText="origin/api/usage/token"/>
+                                </ui:CsField>
+                                <ui:CsField Grid.Row="4" Label="{i18n:Tr usageQuery.headers}">
+                                    <ui:CsTextarea Text="{Binding SelectedUsageQueryHeaders, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                   MinHeight="72"
+                                                   PlaceholderText="Authorization: Bearer apiKey"/>
+                                </ui:CsField>
+                                <ui:CsField Grid.Row="4" Grid.Column="1" Label="{i18n:Tr usageQuery.body}">
+                                    <ui:CsTextarea Text="{Binding SelectedUsageQueryBody, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                   MinHeight="72"
+                                                   PlaceholderText="optional JSON"/>
+                                </ui:CsField>
+
+                                <StackPanel Grid.Row="5" Grid.ColumnSpan="2" Spacing="12">
+                                    <Grid ColumnDefinitions="*,*,*"
+                                          RowDefinitions="Auto,Auto,Auto,Auto"
+                                          ColumnSpacing="10"
+                                          RowSpacing="10">
+                                        <ui:CsField Label="{i18n:Tr usageQuery.remainingPath}">
+                                            <ui:CsInput Text="{Binding SelectedUsageQueryRemainingPath, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" PlaceholderText="data.total_available"/>
+                                        </ui:CsField>
+                                        <ui:CsField Grid.Column="1" Label="{i18n:Tr usageQuery.unit}">
+                                            <ui:CsInput Text="{Binding SelectedUsageQueryUnit, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" PlaceholderText="tokens"/>
+                                        </ui:CsField>
+                                        <ui:CsField Grid.Column="2" Label="{i18n:Tr usageQuery.unitPath}">
+                                            <ui:CsInput Text="{Binding SelectedUsageQueryUnitPath, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                                        </ui:CsField>
+
+                                        <ui:CsField Grid.Row="1" Label="{i18n:Tr usageQuery.usedPath}">
+                                            <ui:CsInput Text="{Binding SelectedUsageQueryUsedPath, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" PlaceholderText="data.total_used"/>
+                                        </ui:CsField>
+                                        <ui:CsField Grid.Row="1" Grid.Column="1" Label="{i18n:Tr usageQuery.totalPath}">
+                                            <ui:CsInput Text="{Binding SelectedUsageQueryTotalPath, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" PlaceholderText="data.total_granted"/>
+                                        </ui:CsField>
+                                        <ui:CsField Grid.Row="1" Grid.Column="2" Label="{i18n:Tr usageQuery.unlimitedPath}">
+                                            <ui:CsInput Text="{Binding SelectedUsageQueryUnlimitedPath, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" PlaceholderText="data.unlimited_quota"/>
+                                        </ui:CsField>
+
+                                        <ui:CsField Grid.Row="2" Label="{i18n:Tr usageQuery.successPath}">
+                                            <ui:CsInput Text="{Binding SelectedUsageQuerySuccessPath, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                                        </ui:CsField>
+                                        <ui:CsField Grid.Row="2" Grid.Column="1" Label="{i18n:Tr usageQuery.errorPath}">
+                                            <ui:CsInput Text="{Binding SelectedUsageQueryErrorPath, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" PlaceholderText="error"/>
+                                        </ui:CsField>
+                                        <ui:CsField Grid.Row="2" Grid.Column="2" Label="{i18n:Tr usageQuery.errorMessagePath}">
+                                            <ui:CsInput Text="{Binding SelectedUsageQueryErrorMessagePath, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" PlaceholderText="message"/>
+                                        </ui:CsField>
+
+                                        <ui:CsField Grid.Row="3" Label="{i18n:Tr usageQuery.planPath}">
+                                            <ui:CsInput Text="{Binding SelectedUsageQueryPlanNamePath, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                                        </ui:CsField>
+                                        <ui:CsField Grid.Row="3" Grid.Column="1" Label="{i18n:Tr usageQuery.dailyResetPath}">
+                                            <ui:CsInput Text="{Binding SelectedUsageQueryDailyResetPath, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                                        </ui:CsField>
+                                        <ui:CsField Grid.Row="3" Grid.Column="2" Label="{i18n:Tr usageQuery.weeklyResetPath}">
+                                            <ui:CsInput Text="{Binding SelectedUsageQueryWeeklyResetPath, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                                        </ui:CsField>
+                                    </Grid>
+
+                                    <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10">
+                                        <ui:CsButton Classes="outline compact"
+                                                     Command="{Binding TestProviderUsageQueryCommand}">
+                                            <StackPanel Orientation="Horizontal" Spacing="7">
+                                                <lucide:LucideIcon Kind="Play" Size="14" StrokeWidth="2"/>
+                                                <TextBlock Text="{i18n:Tr usageQuery.test}"/>
+                                            </StackPanel>
+                                        </ui:CsButton>
+                                        <ui:CsText Grid.Column="1"
+                                                   Text="{Binding UsageQueryTestResult}"
+                                                   Classes="muted"
+                                                   TextWrapping="Wrap"
+                                                   VerticalAlignment="Center"/>
+                                    </Grid>
                                 </StackPanel>
                             </Grid>
                         </Border>
@@ -121,14 +249,14 @@
                                                       ColumnSpacing="10"
                                                       RowSpacing="10">
                                                     <ui:CsField Label="{i18n:Tr providerDialog.modelId}">
-                                                        <ui:CsInput Text="{Binding Id}"/>
+                                                        <ui:CsInput Text="{Binding Id, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
                                                     </ui:CsField>
                                                     <ui:CsField Grid.Column="1" Label="{i18n:Tr providerDialog.upstreamModel}">
-                                                        <ui:CsInput Text="{Binding UpstreamModel}"/>
+                                                        <ui:CsInput Text="{Binding UpstreamModel, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
                                                     </ui:CsField>
                                                     <ui:CsField Grid.Column="2" Label="{i18n:Tr providerDialog.protocol}">
                                                         <ui:CsSelect ItemsSource="{Binding ProtocolOptions}"
-                                                                     SelectedItem="{Binding Protocol}"/>
+                                                                     SelectedItem="{Binding Protocol, Mode=TwoWay}"/>
                                                     </ui:CsField>
                                                     <ui:CsIconButton Grid.Column="3"
                                                                      Classes="danger"
@@ -140,16 +268,78 @@
                                                     </ui:CsIconButton>
 
                                                     <ui:CsField Grid.Row="1" Label="{i18n:Tr providerDialog.displayName}">
-                                                        <ui:CsInput Text="{Binding DisplayName}"/>
+                                                        <ui:CsInput Text="{Binding DisplayName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
                                                     </ui:CsField>
                                                     <ui:CsField Grid.Row="1" Grid.Column="1" Label="{i18n:Tr providerDialog.serviceTier}">
-                                                        <ui:CsInput Text="{Binding ServiceTier}" PlaceholderText="{i18n:Tr providerDialog.serviceTierPlaceholder}"/>
+                                                        <ui:CsInput Text="{Binding ServiceTier, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" PlaceholderText="{i18n:Tr providerDialog.serviceTierPlaceholder}"/>
                                                     </ui:CsField>
                                                     <ui:CsSwitch Grid.Row="1"
                                                                  Grid.Column="2"
                                                                  Content="{i18n:Tr providerDialog.fastMode}"
-                                                                 IsChecked="{Binding FastMode}"
+                                                                 IsChecked="{Binding FastMode, Mode=TwoWay}"
                                                                  VerticalAlignment="Bottom"/>
+                                                </Grid>
+                                            </Border>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </Grid>
+                        </Border>
+
+                        <Border Classes="dialog-section">
+                            <Grid RowDefinitions="Auto,Auto"
+                                  RowSpacing="12">
+                                <Grid ColumnDefinitions="*,Auto">
+                                    <StackPanel Spacing="3">
+                                        <ui:CsText Text="{i18n:Tr providerDialog.modelConversions}" Classes="heading"/>
+                                        <ui:CsText Text="{i18n:Tr providerDialog.conversionsDescription}"
+                                                   Classes="muted"/>
+                                    </StackPanel>
+                                    <ui:CsButton Grid.Column="1"
+                                                 Classes="outline compact"
+                                                 Command="{Binding AddModelConversionCommand}">
+                                        <StackPanel Orientation="Horizontal" Spacing="7">
+                                            <lucide:LucideIcon Kind="Plus" Size="14" StrokeWidth="2"/>
+                                            <TextBlock Text="{i18n:Tr providerDialog.addConversion}"/>
+                                        </StackPanel>
+                                    </ui:CsButton>
+                                </Grid>
+
+                                <ItemsControl Grid.Row="1" ItemsSource="{Binding ModelConversionRows}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate x:DataType="vm:ModelConversionEditorItem">
+                                            <Border Classes="route-row" Margin="0,0,0,10">
+                                                <Grid RowDefinitions="Auto,Auto"
+                                                      ColumnDefinitions="1.2*,1.2*,Auto"
+                                                      ColumnSpacing="10"
+                                                      RowSpacing="10">
+                                                    <ui:CsField Label="{i18n:Tr providerDialog.conversionSourceModel}">
+                                                        <ui:CsInput Text="{Binding SourceModel, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                                    IsReadOnly="{Binding IsDefault}"/>
+                                                    </ui:CsField>
+                                                    <ui:CsField Grid.Column="1" Label="{i18n:Tr providerDialog.conversionTargetModel}">
+                                                        <ui:CsInput Text="{Binding TargetModel, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                                    IsEnabled="{Binding CanEditTarget}"
+                                                                    PlaceholderText="{i18n:Tr providerDialog.conversionDefaultTarget}"/>
+                                                    </ui:CsField>
+                                                    <ui:CsIconButton Grid.Column="2"
+                                                                     Classes="danger"
+                                                                     Command="{Binding #Root.DataContext.RemoveModelConversionCommand}"
+                                                                     CommandParameter="{Binding}"
+                                                                     IsEnabled="{Binding CanRemove}"
+                                                                     VerticalAlignment="Bottom"
+                                                                     ToolTip.Tip="{i18n:Tr providerDialog.removeConversion}">
+                                                        <lucide:LucideIcon Kind="Trash2" Size="15" StrokeWidth="2"/>
+                                                    </ui:CsIconButton>
+
+                                                    <ui:CsSwitch Grid.Row="1"
+                                                                 Content="{i18n:Tr providerDialog.conversionUseDefaultModel}"
+                                                                 IsChecked="{Binding UseDefaultModel, Mode=TwoWay}"
+                                                                 IsEnabled="{Binding CanEditUseDefaultModel}"/>
+                                                    <ui:CsSwitch Grid.Row="1"
+                                                                 Grid.Column="1"
+                                                                 Content="{i18n:Tr providerDialog.conversionEnabled}"
+                                                                 IsChecked="{Binding Enabled, Mode=TwoWay}"/>
                                                 </Grid>
                                             </Border>
                                         </DataTemplate>

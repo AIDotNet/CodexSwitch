@@ -44,6 +44,7 @@ flowchart LR
 - 本地模型价格目录，支持阶梯价格、缓存读取价格、Claude 缓存创建计费和 fast mode 倍率。
 - 用量仪表盘，包含请求日志、供应商统计、模型统计、24 小时、7 天、30 天趋势。
 - 自动写入受管理的 Codex 配置和 auth 文件，并支持备份与恢复。
+- 可选择保留 Codex App 的 ChatGPT 登录态，让依赖 ChatGPT 登录的插件能力在本地代理模式下继续可用。
 - 支持浅色、深色、跟随系统主题，以及本地化 UI 资源。
 - 应用内可检查 GitHub Release 更新。
 
@@ -103,6 +104,8 @@ dotnet run --project CodexSwitch/CodexSwitch.csproj
 
 代理启动时，CodexSwitch 会向用户的 `.codex` 目录写入受管理的 Codex 配置。代理停止时，会根据本地备份状态恢复原始 Codex 文件。
 
+如果需要使用 Codex App 插件，请先在 Codex App 中用 ChatGPT 登录，然后在 **设置 > 认证 > 保留 Codex App 的 ChatGPT 登录以支持插件** 中打开该选项，再应用代理配置。此模式下 CodexSwitch 仍会写入 `config.toml`，但会保留原来的 `auth.json` 登录态。
+
 ## 本地文件
 
 CodexSwitch 会把应用状态保存在用户的应用数据目录中。
@@ -113,12 +116,12 @@ CodexSwitch 会把应用状态保存在用户的应用数据目录中。
 | --- | --- |
 | `%APPDATA%\CodexSwitch\config.json` | 供应商、路由、UI、代理、OAuth 账号元数据和本地设置。 |
 | `%APPDATA%\CodexSwitch\model-pricing.json` | 可编辑的模型价格目录，用于成本估算。 |
-| `%APPDATA%\CodexSwitch\usage-log.jsonl` | 本地请求用量日志。 |
+| `%APPDATA%\CodexSwitch\usage-logs\yyyy\MM\usage-yyyy-MM-dd.jsonl` | 按日期分片的本地请求用量日志。 |
 | `%APPDATA%\CodexSwitch\icons\` | 缓存的供应商和模型图标。 |
 | `%APPDATA%\CodexSwitch\backups\` | 写入 Codex 配置和 auth 文件前创建的备份。 |
 | `%APPDATA%\CodexSwitch\codex-restore-state.json` | 用于恢复原始 Codex 文件的状态。 |
 | `%USERPROFILE%\.codex\config.toml` | 代理启用时写入的受管理 Codex 配置。 |
-| `%USERPROFILE%\.codex\auth.json` | 代理启用时写入的受管理 Codex auth 文件。 |
+| `%USERPROFILE%\.codex\auth.json` | 代理启用时写入的受管理 Codex auth 文件；开启 Codex App 登录态保留时不会覆盖。 |
 
 这些配置文件可能包含 API key 和 OAuth token，请按敏感文件处理。
 

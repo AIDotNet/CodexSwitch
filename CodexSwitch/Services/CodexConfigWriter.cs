@@ -8,8 +8,27 @@ public sealed class CodexConfigWriter
     private const string EndMarker = "# </codexswitch-managed>";
     private const string ManagedProviderId = "meteor-ai";
     private const string ManagedProviderName = "meteor-ai";
-    private const string ManagedModel = "gpt-5.5";
+    private const string ManagedModel = CodexSwitchDefaults.ManagedCodexModel;
     private const string DefaultInboundApiKey = "sk-codex";
+    private const string FakeCodexAppAuthJson = """
+{
+  "_note": "Fake Codex App auth fixture for local UI/schema testing only. These tokens are intentionally invalid and will not authenticate with OpenAI services.",
+  "auth_mode": "chatgpt",
+  "tokens": {
+    "id_token": "eyJhbGciOiJub25lIiwidHlwIjoiSldUIn0.eyJzdWIiOiJmYWtlLWNoYXRncHQtdXNlciIsImVtYWlsIjoiZmFrZS1jb2RleEBleGFtcGxlLmludmFsaWQiLCJleHAiOjQwNzA5MDg4MDAsImh0dHBzOi8vYXBpLm9wZW5haS5jb20vYXV0aCI6eyJjaGF0Z3B0X3BsYW5fdHlwZSI6InBsdXMiLCJhY2NvdW50X2lkIjoiZmFrZS1hY2NvdW50IiwiY2hhdGdwdF91c2VyX2lkIjoiZmFrZS1jaGF0Z3B0LXVzZXIifX0.fake-signature",
+    "access_token": "eyJhbGciOiJub25lIiwidHlwIjoiSldUIn0.eyJzdWIiOiJmYWtlLWNoYXRncHQtdXNlciIsImVtYWlsIjoiZmFrZS1jb2RleEBleGFtcGxlLmludmFsaWQiLCJleHAiOjQwNzA5MDg4MDAsImh0dHBzOi8vYXBpLm9wZW5haS5jb20vYXV0aCI6eyJjaGF0Z3B0X3BsYW5fdHlwZSI6InBsdXMiLCJhY2NvdW50X2lkIjoiZmFrZS1hY2NvdW50IiwiY2hhdGdwdF91c2VyX2lkIjoiZmFrZS1jaGF0Z3B0LXVzZXIifX0.fake-signature",
+    "refresh_token": "fake-refresh-token-for-local-test-only",
+    "token_type": "Bearer",
+    "expires_in": 315360000
+  },
+  "accessToken": "fake-access-token-for-local-test-only",
+  "refreshToken": "fake-refresh-token-for-local-test-only",
+  "chatgptPlanType": "plus",
+  "account_id": "fake-account",
+  "chatgpt_user_id": "fake-chatgpt-user",
+  "last_refresh": "2026-05-13T00:00:00Z"
+}
+""";
     private readonly AppPaths _paths;
 
     public CodexConfigWriter(AppPaths paths)
@@ -22,7 +41,12 @@ public sealed class CodexConfigWriter
         Directory.CreateDirectory(_paths.CodexDirectory);
         CaptureOriginalsIfNeeded();
         WriteConfigToml(config);
-        WriteAuthJson(config);
+        if (config.Proxy.UseFakeCodexAppAuth)
+            WriteFakeAuthJson();
+        else if (config.Proxy.PreserveCodexAppAuth)
+            RestoreOriginalAuthIfNeeded();
+        else
+            WriteAuthJson(config);
     }
 
     public void RestoreOriginal()
@@ -83,6 +107,8 @@ public sealed class CodexConfigWriter
         builder.AppendLine("external_migration = true");
         builder.AppendLine("goals = true");
         builder.AppendLine("prevent_idle_sleep = true");
+        builder.AppendLine("[windows]");
+        builder.AppendLine("sandbox = \"elevated\"");
 
         WriteTextIfChanged(_paths.CodexConfigPath, builder.ToString(), existing);
     }
@@ -99,6 +125,11 @@ public sealed class CodexConfigWriter
         };
         var json = JsonSerializer.Serialize(auth, CodexSwitchJsonContext.Default.CodexAuthFile);
         WriteTextIfChanged(_paths.CodexAuthPath, json + Environment.NewLine);
+    }
+
+    private void WriteFakeAuthJson()
+    {
+        WriteTextIfChanged(_paths.CodexAuthPath, FakeCodexAppAuthJson + Environment.NewLine);
     }
 
     private void CaptureOriginalsIfNeeded()
@@ -147,6 +178,23 @@ public sealed class CodexConfigWriter
 
         if (File.Exists(path))
             File.Delete(path);
+    }
+
+    private void RestoreOriginalAuthIfNeeded()
+    {
+        if (!File.Exists(_paths.CodexRestoreStatePath))
+            return;
+
+        CodexConfigRestoreState? state;
+        using (var stream = File.OpenRead(_paths.CodexRestoreStatePath))
+        {
+            state = JsonSerializer.Deserialize(stream, CodexSwitchJsonContext.Default.CodexConfigRestoreState);
+        }
+
+        if (state is null)
+            return;
+
+        RestoreFile(_paths.CodexAuthPath, state.AuthExisted, state.AuthJson);
     }
 
     private static string RemoveManagedBlock(string text)

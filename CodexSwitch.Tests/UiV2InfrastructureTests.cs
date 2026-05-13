@@ -1,4 +1,5 @@
 using System.Net.Http;
+using System.Text.Json;
 using CodexSwitch.Models;
 using CodexSwitch.Proxy;
 using CodexSwitch.Services;
@@ -125,6 +126,31 @@ public sealed class UiV2InfrastructureTests : IDisposable
         Assert.Equal(expected, DisplayFormatters.FormatTokenCount(value));
     }
 
+    [Theory]
+    [InlineData(0d, "0.0%")]
+    [InlineData(0.9342d, "93.4%")]
+    [InlineData(1d, "100.0%")]
+    public void FormatPercentage_UsesOneDecimalPlace(double value, string expected)
+    {
+        Assert.Equal(expected, DisplayFormatters.FormatPercentage(value));
+    }
+
+    [Theory]
+    [InlineData(700, 300, 0, 0.3d)]
+    [InlineData(700, 300, 100, 0.272727d)]
+    [InlineData(0, 0, 0, 0d)]
+    public void CalculateCacheHitRate_UsesAllInputTokenBuckets(
+        long inputTokens,
+        long cachedInputTokens,
+        long cacheCreationInputTokens,
+        double expected)
+    {
+        Assert.Equal(
+            expected,
+            DisplayFormatters.CalculateCacheHitRate(inputTokens, cachedInputTokens, cacheCreationInputTokens),
+            6);
+    }
+
     [Fact]
     public void UsageLogReader_AggregatesRequestsCostAndTokens()
     {
@@ -233,6 +259,113 @@ public sealed class UiV2InfrastructureTests : IDisposable
         Assert.Equal(300, dashboard.OutputTokens);
         Assert.DoesNotContain(dashboard.ProviderSummaries, summary => summary.ProviderId == "old");
         Assert.Equal(2, dashboard.TrendPoints.Count(point => point.Requests > 0));
+    }
+
+    [Fact]
+    public void UsageLogWriter_WritesDailyPartitionedFiles()
+    {
+        var paths = CreatePaths("usage-partitioned-write");
+        var timestamp = new DateTimeOffset(2026, 5, 12, 12, 0, 0, TimeSpan.Zero);
+        var writer = new UsageLogWriter(paths);
+
+        writer.Append(new UsageLogRecord
+        {
+            Timestamp = timestamp,
+            ProviderId = "openai",
+            RequestModel = "gpt-5.5",
+            BilledModel = "gpt-5.5",
+            Usage = new UsageTokens(10, 0, 0, 5, 0),
+            EstimatedCost = 0.01m,
+            DurationMs = 20,
+            StatusCode = 200
+        });
+
+        var localDate = timestamp.ToLocalTime().Date;
+        var expectedPath = Path.Combine(
+            paths.UsageLogDirectory,
+            $"{localDate:yyyy}",
+            $"{localDate:MM}",
+            $"usage-{localDate:yyyy-MM-dd}.jsonl");
+
+        Assert.False(File.Exists(paths.UsageLogPath));
+        Assert.True(File.Exists(expectedPath));
+        Assert.Contains("\"providerId\":\"openai\"", File.ReadAllText(expectedPath));
+    }
+
+    [Fact]
+    public void UsageLogReader_ReadsPartitionedAndLegacyLogs()
+    {
+        var paths = CreatePaths("usage-legacy-compatible");
+        var now = new DateTimeOffset(2026, 5, 13, 12, 0, 0, TimeSpan.Zero);
+        var legacyRecord = new UsageLogRecord
+        {
+            Timestamp = now.AddHours(-2),
+            ProviderId = "legacy",
+            RequestModel = "legacy-model",
+            BilledModel = "legacy-model",
+            Usage = new UsageTokens(100, 0, 0, 20, 0),
+            EstimatedCost = 0.02m,
+            DurationMs = 30,
+            StatusCode = 200
+        };
+        File.AppendAllText(
+            paths.UsageLogPath,
+            JsonSerializer.Serialize(
+                legacyRecord,
+                new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase }) + Environment.NewLine);
+
+        var writer = new UsageLogWriter(paths);
+        writer.Append(new UsageLogRecord
+        {
+            Timestamp = now.AddHours(-1),
+            ProviderId = "partitioned",
+            RequestModel = "gpt-5.5",
+            BilledModel = "gpt-5.5",
+            Usage = new UsageTokens(200, 0, 0, 40, 0),
+            EstimatedCost = 0.04m,
+            DurationMs = 40,
+            StatusCode = 200
+        });
+
+        var dashboard = new UsageLogReader(paths).Read(UsageTimeRange.Last24Hours, now);
+
+        Assert.Equal(2, dashboard.Requests);
+        Assert.Equal(300, dashboard.InputTokens);
+        Assert.Equal(60, dashboard.OutputTokens);
+        Assert.Contains(dashboard.ProviderSummaries, summary => summary.ProviderId == "legacy");
+        Assert.Contains(dashboard.ProviderSummaries, summary => summary.ProviderId == "partitioned");
+    }
+
+    [Fact]
+    public void UsageLogReader_LimitsRecentRowsWhileKeepingFullTotals()
+    {
+        var paths = CreatePaths("usage-recent-limit");
+        var writer = new UsageLogWriter(paths);
+        var now = new DateTimeOffset(2026, 5, 13, 12, 0, 0, TimeSpan.Zero);
+
+        for (var i = 0; i < 100; i++)
+        {
+            writer.Append(new UsageLogRecord
+            {
+                Timestamp = now.AddMinutes(-i),
+                ProviderId = "openai",
+                RequestModel = "gpt-5.5",
+                BilledModel = "gpt-5.5",
+                Usage = new UsageTokens(1, 0, 0, 1, 0),
+                EstimatedCost = 0.01m,
+                DurationMs = 10,
+                StatusCode = 200
+            });
+        }
+
+        var dashboard = new UsageLogReader(paths).Read(UsageTimeRange.Last24Hours, now);
+
+        Assert.Equal(100, dashboard.Requests);
+        Assert.Equal(100, dashboard.InputTokens);
+        Assert.Equal(100, dashboard.OutputTokens);
+        Assert.Equal(80, dashboard.Logs.Count);
+        Assert.Equal(now, dashboard.Logs.First().Timestamp);
+        Assert.Equal(now.AddMinutes(-79), dashboard.Logs.Last().Timestamp);
     }
 
     [Fact]

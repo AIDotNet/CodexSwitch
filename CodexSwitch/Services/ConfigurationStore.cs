@@ -74,11 +74,16 @@ public sealed class ConfigurationStore
         if (string.IsNullOrWhiteSpace(config.Ui.Language))
             config.Ui.Language = "zh-CN";
 
+        if (config.Proxy.UseFakeCodexAppAuth)
+            config.Proxy.PreserveCodexAppAuth = false;
+
         if (config.Providers.Count == 0)
             SeedDefaultProviders(config);
 
         MigrateBuiltInProviders(config);
         EnsureRequiredBuiltIns(config);
+        EnsureProviderModelConversions(config);
+        EnsureProviderUsageQueries(config);
 
         var activeExists = !string.IsNullOrWhiteSpace(config.ActiveProviderId) &&
             config.Providers.Any(provider => string.Equals(provider.Id, config.ActiveProviderId, StringComparison.OrdinalIgnoreCase));
@@ -167,7 +172,7 @@ public sealed class ConfigurationStore
         if (!HasProvider(config, ProviderTemplateCatalog.AnthropicBuiltinId, "https://api.anthropic.com/v1"))
             AddFromTemplate(config, ProviderTemplateCatalog.AnthropicBuiltinId);
 
-        if (!HasProvider(config, ProviderTemplateCatalog.DeepSeekBuiltinId, "https://api.deepseek.com"))
+        if (!HasProvider(config, ProviderTemplateCatalog.DeepSeekBuiltinId, "https://api.deepseek.com/anthropic"))
             AddFromTemplate(config, ProviderTemplateCatalog.DeepSeekBuiltinId);
 
         if (!HasProvider(config, ProviderTemplateCatalog.XiaomiBuiltinId, "https://api.xiaomimimo.com/v1"))
@@ -179,6 +184,7 @@ public sealed class ConfigurationStore
         foreach (var provider in config.Providers)
         {
             provider.Models ??= [];
+            provider.ModelConversions ??= [];
             provider.OAuthAccounts ??= [];
             if (IsBaseUrl(provider, "https://api.routin.ai/v1"))
             {
@@ -191,7 +197,7 @@ public sealed class ConfigurationStore
                 provider.IconSlug ??= "openai";
                 provider.AuthMode = ProviderAuthMode.ApiKey;
                 provider.Protocol = ProviderProtocol.OpenAiResponses;
-                provider.DefaultModel = string.IsNullOrWhiteSpace(provider.DefaultModel) ? "gpt-5.5" : provider.DefaultModel;
+                provider.DefaultModel = string.IsNullOrWhiteSpace(provider.DefaultModel) ? CodexSwitchDefaults.ManagedCodexModel : provider.DefaultModel;
                 provider.Cost ??= new ProviderCostSettings { FastMode = true };
                 SyncProviderTemplate(provider, ProviderTemplateCatalog.RoutinAiBuiltinId);
             }
@@ -203,7 +209,7 @@ public sealed class ConfigurationStore
                 provider.IconSlug ??= "openai";
                 provider.AuthMode = ProviderAuthMode.ApiKey;
                 provider.Protocol = ProviderProtocol.OpenAiResponses;
-                provider.DefaultModel = string.IsNullOrWhiteSpace(provider.DefaultModel) ? "gpt-5.5" : provider.DefaultModel;
+                provider.DefaultModel = string.IsNullOrWhiteSpace(provider.DefaultModel) ? CodexSwitchDefaults.ManagedCodexModel : provider.DefaultModel;
                 SyncProviderTemplate(provider, ProviderTemplateCatalog.RoutinAiPlanBuiltinId);
             }
             else if (IsBaseUrl(provider, "https://api.openai.com/v1"))
@@ -218,14 +224,14 @@ public sealed class ConfigurationStore
                 provider.IconSlug ??= "claude";
                 SyncProviderTemplate(provider, ProviderTemplateCatalog.AnthropicBuiltinId);
             }
-            else if (IsBaseUrl(provider, "https://api.deepseek.com"))
+            else if (IsBaseUrl(provider, "https://api.deepseek.com/anthropic"))
             {
                 provider.BuiltinId ??= ProviderTemplateCatalog.DeepSeekBuiltinId;
                 provider.DisplayName = string.IsNullOrWhiteSpace(provider.DisplayName) ? "DeepSeek" : provider.DisplayName;
                 provider.Website ??= "https://platform.deepseek.com";
                 provider.IconSlug ??= "deepseek";
                 provider.AuthMode = ProviderAuthMode.ApiKey;
-                provider.Protocol = ProviderProtocol.OpenAiChat;
+                provider.Protocol = ProviderProtocol.AnthropicMessages;
                 provider.DefaultModel = string.IsNullOrWhiteSpace(provider.DefaultModel) ? "deepseek-v4-flash" : provider.DefaultModel;
                 SyncProviderTemplate(provider, ProviderTemplateCatalog.DeepSeekBuiltinId);
             }
@@ -249,6 +255,66 @@ public sealed class ConfigurationStore
     private static void AddFromTemplate(AppConfig config, string templateId)
     {
         config.Providers.Add(ProviderTemplateCatalog.CreateProvider(templateId, config.Providers.Select(provider => provider.Id)));
+    }
+
+    private static void EnsureProviderModelConversions(AppConfig config)
+    {
+        foreach (var provider in config.Providers)
+            ProviderTemplateCatalog.EnsureDefaultModelConversion(provider);
+    }
+
+    private static void EnsureProviderUsageQueries(AppConfig config)
+    {
+        foreach (var provider in config.Providers)
+        {
+            provider.UsageQuery ??= UsageQueryTemplateCatalog.CreateQuery(UsageQueryTemplateCatalog.CustomTemplateId);
+            if (ShouldApplyRoutinAiApiKeyUsageQuery(provider))
+                provider.UsageQuery = UsageQueryTemplateCatalog.CreateQuery(UsageQueryTemplateCatalog.RoutinAiApiKeyTemplateId);
+            else if (ShouldApplyRoutinAiPlanUsageQuery(provider))
+                provider.UsageQuery = UsageQueryTemplateCatalog.CreateQuery(UsageQueryTemplateCatalog.RoutinAiPlanTemplateId);
+
+            provider.UsageQuery.Headers ??= new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            provider.UsageQuery.Extractor ??= new ProviderUsageExtractorConfig();
+            if (string.IsNullOrWhiteSpace(provider.UsageQuery.TemplateId))
+                provider.UsageQuery.TemplateId = UsageQueryTemplateCatalog.CustomTemplateId;
+            if (string.IsNullOrWhiteSpace(provider.UsageQuery.Method))
+                provider.UsageQuery.Method = "GET";
+            if (provider.UsageQuery.TimeoutSeconds <= 0)
+                provider.UsageQuery.TimeoutSeconds = 20;
+        }
+    }
+
+    private static bool ShouldApplyRoutinAiApiKeyUsageQuery(ProviderConfig provider)
+    {
+        if (!string.Equals(provider.BuiltinId, ProviderTemplateCatalog.RoutinAiBuiltinId, StringComparison.OrdinalIgnoreCase) &&
+            !IsBaseUrl(provider, "https://api.routin.ai/v1"))
+        {
+            return false;
+        }
+
+        return HasBlankCustomUsageQuery(provider.UsageQuery);
+    }
+
+    private static bool ShouldApplyRoutinAiPlanUsageQuery(ProviderConfig provider)
+    {
+        if (!string.Equals(provider.BuiltinId, ProviderTemplateCatalog.RoutinAiPlanBuiltinId, StringComparison.OrdinalIgnoreCase) &&
+            !IsBaseUrl(provider, "https://api.routin.ai/plan/v1"))
+        {
+            return false;
+        }
+
+        return HasBlankCustomUsageQuery(provider.UsageQuery);
+    }
+
+    private static bool HasBlankCustomUsageQuery(ProviderUsageQueryConfig? query)
+    {
+        if (query is null)
+            return true;
+
+        return !query.Enabled &&
+            (string.IsNullOrWhiteSpace(query.TemplateId) ||
+                string.Equals(query.TemplateId, UsageQueryTemplateCatalog.CustomTemplateId, StringComparison.OrdinalIgnoreCase)) &&
+            string.IsNullOrWhiteSpace(query.Url);
     }
 
     private static bool HasProvider(AppConfig config, string builtinId, string baseUrl)
@@ -290,6 +356,8 @@ public sealed class ConfigurationStore
         provider.Models ??= [];
         foreach (var templateModel in template.Models)
             UpsertModelRoute(provider.Models, templateModel);
+
+        ProviderTemplateCatalog.EnsureDefaultModelConversion(provider);
     }
 
     private static void UpsertModelRoute(Collection<ModelRouteConfig> routes, ProviderTemplateModel templateModel)

@@ -1,3 +1,4 @@
+using System.Text;
 using CodexSwitch.Models;
 using CodexSwitch.Proxy;
 using CodexSwitch.Serialization;
@@ -6,6 +7,7 @@ namespace CodexSwitch.Services;
 
 public sealed class UsageLogReader
 {
+    private const int RecentLogLimit = 80;
     private readonly AppPaths _paths;
 
     public UsageLogReader(AppPaths paths)
@@ -13,145 +15,190 @@ public sealed class UsageLogReader
         _paths = paths;
     }
 
+    public UsageLogSourceSnapshot GetSourceSnapshot()
+    {
+        return CreateSourceSnapshot(EnumerateAllLogFiles());
+    }
+
+    public UsageLogSourceSnapshot GetSourceSnapshot(
+        UsageTimeRange range,
+        DateTimeOffset? now = null)
+    {
+        var window = CreateWindow(range, now ?? DateTimeOffset.Now);
+        return GetSourceSnapshot(window);
+    }
+
     public UsageDashboard Read(
         UsageTimeRange range = UsageTimeRange.Last24Hours,
         DateTimeOffset? now = null)
     {
         var window = CreateWindow(range, now ?? DateTimeOffset.Now);
-        var records = ReadRecords()
-            .Where(record => record.Timestamp >= window.Start && record.Timestamp <= window.End)
-            .OrderByDescending(record => record.Timestamp)
-            .ToArray();
+        var sourceSnapshot = GetSourceSnapshot(window);
+        var accumulator = new UsageAccumulator(window);
 
-        var requests = records.Length;
-        var errors = records.LongCount(record => record.StatusCode >= 400);
-        var input = records.Sum(record => record.Usage.InputTokens);
-        var cached = records.Sum(record => record.Usage.CachedInputTokens);
-        var cacheCreation = records.Sum(record => record.Usage.CacheCreationInputTokens);
-        var output = records.Sum(record => record.Usage.OutputTokens);
-        var reasoning = records.Sum(record => record.Usage.ReasoningOutputTokens);
-        var cost = records.Sum(record => record.EstimatedCost);
-
-        return new UsageDashboard
+        foreach (var record in ReadRecordsFromFiles(EnumerateCandidateLogFiles(window)))
         {
-            Range = range,
-            Granularity = window.Granularity,
-            WindowStart = window.Start,
-            WindowEnd = window.End,
-            Requests = requests,
-            Errors = errors,
-            InputTokens = input,
-            CachedInputTokens = cached,
-            CacheCreationInputTokens = cacheCreation,
-            OutputTokens = output,
-            ReasoningOutputTokens = reasoning,
-            EstimatedCost = cost,
-            Logs = records,
-            ProviderSummaries = BuildProviderSummaries(records),
-            ModelSummaries = BuildModelSummaries(records),
-            TrendPoints = BuildTrend(records, window)
-        };
+            if (record.Timestamp < window.Start || record.Timestamp > window.End)
+                continue;
+
+            accumulator.Add(record);
+        }
+
+        return accumulator.ToDashboard(range, sourceSnapshot);
     }
 
-    private IEnumerable<UsageLogRecord> ReadRecords()
+    private UsageLogSourceSnapshot GetSourceSnapshot(UsageWindow window)
     {
-        if (!File.Exists(_paths.UsageLogPath))
-            yield break;
+        return CreateSourceSnapshot(EnumerateCandidateLogFiles(window));
+    }
 
-        foreach (var line in File.ReadLines(_paths.UsageLogPath))
+    private IEnumerable<string> EnumerateCandidateLogFiles(UsageWindow window)
+    {
+        if (File.Exists(_paths.UsageLogPath))
+            yield return _paths.UsageLogPath;
+
+        var startDate = window.Start.ToLocalTime().Date;
+        var endDate = window.End.ToLocalTime().Date;
+        for (var date = startDate; date <= endDate; date = date.AddDays(1))
         {
-            if (string.IsNullOrWhiteSpace(line))
+            var path = UsageLogFileLayout.GetPartitionPath(_paths, date);
+            if (File.Exists(path))
+                yield return path;
+        }
+    }
+
+    private IEnumerable<string> EnumerateAllLogFiles()
+    {
+        if (File.Exists(_paths.UsageLogPath))
+            yield return _paths.UsageLogPath;
+
+        foreach (var path in EnumeratePartitionLogFiles())
+            yield return path;
+    }
+
+    private string[] EnumeratePartitionLogFiles()
+    {
+        try
+        {
+            return Directory.Exists(_paths.UsageLogDirectory)
+                ? Directory.EnumerateFiles(
+                    _paths.UsageLogDirectory,
+                    UsageLogFileLayout.PartitionSearchPattern,
+                    SearchOption.AllDirectories).ToArray()
+                : [];
+        }
+        catch (IOException)
+        {
+            return [];
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return [];
+        }
+    }
+
+    private static UsageLogSourceSnapshot CreateSourceSnapshot(IEnumerable<string> paths)
+    {
+        var exists = false;
+        var length = 0L;
+        var lastWriteUtcTicks = 0L;
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var path in paths)
+        {
+            if (!seen.Add(path))
                 continue;
 
-            UsageLogRecord? record;
+            FileInfo file;
             try
             {
-                record = JsonSerializer.Deserialize(line, CodexSwitchJsonContext.Default.UsageLogRecord);
+                file = new FileInfo(path);
             }
-            catch (JsonException)
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
             {
                 continue;
             }
 
-            if (record is not null)
+            try
+            {
+                if (!file.Exists)
+                    continue;
+
+                exists = true;
+                length += file.Length;
+                lastWriteUtcTicks = Math.Max(lastWriteUtcTicks, file.LastWriteTimeUtc.Ticks);
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                continue;
+            }
+        }
+
+        return exists
+            ? new UsageLogSourceSnapshot(true, length, lastWriteUtcTicks)
+            : default;
+    }
+
+    private static IEnumerable<UsageLogRecord> ReadRecordsFromFiles(IEnumerable<string> paths)
+    {
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var path in paths)
+        {
+            if (!seen.Add(path))
+                continue;
+
+            foreach (var record in ReadRecordsFromFile(path))
                 yield return record;
         }
     }
 
-    private static IReadOnlyList<ProviderUsageSummary> BuildProviderSummaries(IReadOnlyCollection<UsageLogRecord> records)
+    private static IEnumerable<UsageLogRecord> ReadRecordsFromFile(string path)
     {
-        return records
-            .GroupBy(record => string.IsNullOrWhiteSpace(record.ProviderId) ? "unknown" : record.ProviderId)
-            .Select(group =>
+        StreamReader reader;
+        try
+        {
+            var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
+            reader = new StreamReader(stream, Encoding.UTF8, detectEncodingFromByteOrderMarks: true);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            yield break;
+        }
+
+        using (reader)
+        {
+            while (true)
             {
-                var requests = group.LongCount();
-                var failures = group.LongCount(record => record.StatusCode >= 400);
-                var totalLatency = group.Sum(record => record.DurationMs);
-                return new ProviderUsageSummary
+                string? line;
+                try
                 {
-                    ProviderId = group.Key,
-                    Requests = requests,
-                    Tokens = group.Sum(TotalTokens),
-                    Cost = group.Sum(record => record.EstimatedCost),
-                    SuccessRate = requests == 0 ? 0 : (requests - failures) / (double)requests,
-                    AverageLatencyMs = requests == 0 ? 0 : totalLatency / requests
-                };
-            })
-            .OrderByDescending(summary => summary.Requests)
-            .ToArray();
-    }
-
-    private static IReadOnlyList<ModelUsageSummary> BuildModelSummaries(IReadOnlyCollection<UsageLogRecord> records)
-    {
-        return records
-            .GroupBy(record => string.IsNullOrWhiteSpace(record.BilledModel) ? record.RequestModel : record.BilledModel)
-            .Select(group =>
-            {
-                var requests = group.LongCount();
-                var cost = group.Sum(record => record.EstimatedCost);
-                return new ModelUsageSummary
+                    line = reader.ReadLine();
+                }
+                catch (IOException)
                 {
-                    Model = string.IsNullOrWhiteSpace(group.Key) ? "unknown" : group.Key,
-                    Requests = requests,
-                    Tokens = group.Sum(TotalTokens),
-                    Cost = cost,
-                    AverageCost = requests == 0 ? 0m : cost / requests
-                };
-            })
-            .OrderByDescending(summary => summary.Requests)
-            .ToArray();
-    }
+                    yield break;
+                }
 
-    private static IReadOnlyList<UsageTrendPoint> BuildTrend(
-        IReadOnlyCollection<UsageLogRecord> records,
-        UsageWindow window)
-    {
-        var grouped = records
-            .GroupBy(record => CreateBucketKey(record.Timestamp, window.Granularity))
-            .ToDictionary(group => group.Key, group => group.ToArray());
+                if (line is null)
+                    yield break;
 
-        return Enumerable.Range(0, window.BucketCount)
-            .Select(index =>
-            {
-                var timestamp = window.Granularity == UsageTrendGranularity.Hour
-                    ? window.Start.AddHours(index)
-                    : window.Start.AddDays(index);
-                grouped.TryGetValue(timestamp, out var bucket);
-                bucket ??= [];
+                if (string.IsNullOrWhiteSpace(line))
+                    continue;
 
-                return new UsageTrendPoint
+                UsageLogRecord? record;
+                try
                 {
-                    Timestamp = timestamp,
-                    Requests = bucket.LongLength,
-                    InputTokens = bucket.Sum(record => record.Usage.InputTokens),
-                    CachedInputTokens = bucket.Sum(record => record.Usage.CachedInputTokens),
-                    CacheCreationInputTokens = bucket.Sum(record => record.Usage.CacheCreationInputTokens),
-                    OutputTokens = bucket.Sum(record => record.Usage.OutputTokens),
-                    ReasoningOutputTokens = bucket.Sum(record => record.Usage.ReasoningOutputTokens),
-                    Cost = bucket.Sum(record => record.EstimatedCost)
-                };
-            })
-            .ToArray();
+                    record = JsonSerializer.Deserialize(line, CodexSwitchJsonContext.Default.UsageLogRecord);
+                }
+                catch (JsonException)
+                {
+                    continue;
+                }
+
+                if (record is not null)
+                    yield return record;
+            }
+        }
     }
 
     private static UsageWindow CreateWindow(UsageTimeRange range, DateTimeOffset now)
@@ -204,6 +251,247 @@ public sealed class UsageLogReader
             record.Usage.CacheCreationInputTokens +
             record.Usage.OutputTokens +
             record.Usage.ReasoningOutputTokens;
+    }
+
+    private sealed class UsageAccumulator
+    {
+        private readonly UsageWindow _window;
+        private readonly List<UsageLogRecord> _recentLogs = [];
+        private readonly Dictionary<string, ProviderUsageAccumulator> _providers = new(StringComparer.OrdinalIgnoreCase);
+        private readonly Dictionary<string, ModelUsageAccumulator> _models = new(StringComparer.OrdinalIgnoreCase);
+        private readonly Dictionary<DateTimeOffset, TrendUsageAccumulator> _trend = [];
+
+        private long _requests;
+        private long _errors;
+        private long _inputTokens;
+        private long _cachedInputTokens;
+        private long _cacheCreationInputTokens;
+        private long _outputTokens;
+        private long _reasoningOutputTokens;
+        private decimal _estimatedCost;
+
+        public UsageAccumulator(UsageWindow window)
+        {
+            _window = window;
+        }
+
+        public void Add(UsageLogRecord record)
+        {
+            _requests++;
+            if (record.StatusCode >= 400)
+                _errors++;
+
+            _inputTokens += record.Usage.InputTokens;
+            _cachedInputTokens += record.Usage.CachedInputTokens;
+            _cacheCreationInputTokens += record.Usage.CacheCreationInputTokens;
+            _outputTokens += record.Usage.OutputTokens;
+            _reasoningOutputTokens += record.Usage.ReasoningOutputTokens;
+            _estimatedCost += record.EstimatedCost;
+
+            AddRecentLog(record);
+            AddProvider(record);
+            AddModel(record);
+            AddTrend(record);
+        }
+
+        public UsageDashboard ToDashboard(UsageTimeRange range, UsageLogSourceSnapshot sourceSnapshot)
+        {
+            return new UsageDashboard
+            {
+                SourceSnapshot = sourceSnapshot,
+                Range = range,
+                Granularity = _window.Granularity,
+                WindowStart = _window.Start,
+                WindowEnd = _window.End,
+                Requests = _requests,
+                Errors = _errors,
+                InputTokens = _inputTokens,
+                CachedInputTokens = _cachedInputTokens,
+                CacheCreationInputTokens = _cacheCreationInputTokens,
+                OutputTokens = _outputTokens,
+                ReasoningOutputTokens = _reasoningOutputTokens,
+                EstimatedCost = _estimatedCost,
+                Logs = _recentLogs.OrderByDescending(record => record.Timestamp).ToArray(),
+                ProviderSummaries = _providers
+                    .Select(pair => pair.Value.ToSummary(pair.Key))
+                    .OrderByDescending(summary => summary.Requests)
+                    .ToArray(),
+                ModelSummaries = _models
+                    .Select(pair => pair.Value.ToSummary(pair.Key))
+                    .OrderByDescending(summary => summary.Requests)
+                    .ToArray(),
+                TrendPoints = BuildTrendPoints()
+            };
+        }
+
+        private void AddRecentLog(UsageLogRecord record)
+        {
+            if (_recentLogs.Count < RecentLogLimit)
+            {
+                _recentLogs.Add(record);
+                return;
+            }
+
+            var oldestIndex = 0;
+            for (var i = 1; i < _recentLogs.Count; i++)
+            {
+                if (_recentLogs[i].Timestamp < _recentLogs[oldestIndex].Timestamp)
+                    oldestIndex = i;
+            }
+
+            if (record.Timestamp > _recentLogs[oldestIndex].Timestamp)
+                _recentLogs[oldestIndex] = record;
+        }
+
+        private void AddProvider(UsageLogRecord record)
+        {
+            var key = string.IsNullOrWhiteSpace(record.ProviderId) ? "unknown" : record.ProviderId;
+            if (!_providers.TryGetValue(key, out var accumulator))
+            {
+                accumulator = new ProviderUsageAccumulator();
+                _providers[key] = accumulator;
+            }
+
+            accumulator.Add(record);
+        }
+
+        private void AddModel(UsageLogRecord record)
+        {
+            var key = string.IsNullOrWhiteSpace(record.BilledModel) ? record.RequestModel : record.BilledModel;
+            if (string.IsNullOrWhiteSpace(key))
+                key = "unknown";
+
+            if (!_models.TryGetValue(key, out var accumulator))
+            {
+                accumulator = new ModelUsageAccumulator();
+                _models[key] = accumulator;
+            }
+
+            accumulator.Add(record);
+        }
+
+        private void AddTrend(UsageLogRecord record)
+        {
+            var key = CreateBucketKey(record.Timestamp, _window.Granularity);
+            if (!_trend.TryGetValue(key, out var accumulator))
+            {
+                accumulator = new TrendUsageAccumulator();
+                _trend[key] = accumulator;
+            }
+
+            accumulator.Add(record);
+        }
+
+        private UsageTrendPoint[] BuildTrendPoints()
+        {
+            return Enumerable.Range(0, _window.BucketCount)
+                .Select(index =>
+                {
+                    var timestamp = _window.Granularity == UsageTrendGranularity.Hour
+                        ? _window.Start.AddHours(index)
+                        : _window.Start.AddDays(index);
+                    return _trend.TryGetValue(timestamp, out var bucket)
+                        ? bucket.ToPoint(timestamp)
+                        : new UsageTrendPoint { Timestamp = timestamp };
+                })
+                .ToArray();
+        }
+    }
+
+    private sealed class ProviderUsageAccumulator
+    {
+        private long _requests;
+        private long _failures;
+        private long _tokens;
+        private decimal _cost;
+        private long _totalLatencyMs;
+
+        public void Add(UsageLogRecord record)
+        {
+            _requests++;
+            if (record.StatusCode >= 400)
+                _failures++;
+
+            _tokens += TotalTokens(record);
+            _cost += record.EstimatedCost;
+            _totalLatencyMs += record.DurationMs;
+        }
+
+        public ProviderUsageSummary ToSummary(string providerId)
+        {
+            return new ProviderUsageSummary
+            {
+                ProviderId = providerId,
+                Requests = _requests,
+                Tokens = _tokens,
+                Cost = _cost,
+                SuccessRate = _requests == 0 ? 0 : (_requests - _failures) / (double)_requests,
+                AverageLatencyMs = _requests == 0 ? 0 : _totalLatencyMs / _requests
+            };
+        }
+    }
+
+    private sealed class ModelUsageAccumulator
+    {
+        private long _requests;
+        private long _tokens;
+        private decimal _cost;
+
+        public void Add(UsageLogRecord record)
+        {
+            _requests++;
+            _tokens += TotalTokens(record);
+            _cost += record.EstimatedCost;
+        }
+
+        public ModelUsageSummary ToSummary(string model)
+        {
+            return new ModelUsageSummary
+            {
+                Model = model,
+                Requests = _requests,
+                Tokens = _tokens,
+                Cost = _cost,
+                AverageCost = _requests == 0 ? 0m : _cost / _requests
+            };
+        }
+    }
+
+    private sealed class TrendUsageAccumulator
+    {
+        private long _requests;
+        private long _inputTokens;
+        private long _cachedInputTokens;
+        private long _cacheCreationInputTokens;
+        private long _outputTokens;
+        private long _reasoningOutputTokens;
+        private decimal _cost;
+
+        public void Add(UsageLogRecord record)
+        {
+            _requests++;
+            _inputTokens += record.Usage.InputTokens;
+            _cachedInputTokens += record.Usage.CachedInputTokens;
+            _cacheCreationInputTokens += record.Usage.CacheCreationInputTokens;
+            _outputTokens += record.Usage.OutputTokens;
+            _reasoningOutputTokens += record.Usage.ReasoningOutputTokens;
+            _cost += record.EstimatedCost;
+        }
+
+        public UsageTrendPoint ToPoint(DateTimeOffset timestamp)
+        {
+            return new UsageTrendPoint
+            {
+                Timestamp = timestamp,
+                Requests = _requests,
+                InputTokens = _inputTokens,
+                CachedInputTokens = _cachedInputTokens,
+                CacheCreationInputTokens = _cacheCreationInputTokens,
+                OutputTokens = _outputTokens,
+                ReasoningOutputTokens = _reasoningOutputTokens,
+                Cost = _cost
+            };
+        }
     }
 
     private sealed record UsageWindow(

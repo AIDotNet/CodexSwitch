@@ -15,6 +15,8 @@ internal sealed class ResponsesRequestContextData
     public IReadOnlyList<JsonElement> ConversationItems { get; init; } = [];
 
     public IReadOnlyList<JsonElement>? PriorAnthropicMessages { get; init; }
+
+    public IReadOnlyList<JsonElement>? PriorOpenAiChatMessages { get; init; }
 }
 
 internal static class ResponsesRequestContextParser
@@ -30,12 +32,14 @@ internal static class ResponsesRequestContextParser
 
         var priorConversationItems = new List<JsonElement>();
         IReadOnlyList<JsonElement>? priorAnthropicMessages = null;
+        IReadOnlyList<JsonElement>? priorOpenAiChatMessages = null;
         if (!string.IsNullOrWhiteSpace(previousResponseId))
         {
             if (context.ResponseStateStore.TryGet(previousResponseId, out var state) && state is not null)
             {
                 priorConversationItems.AddRange(state.NormalizedConversationItems.Select(item => item.Clone()));
                 priorAnthropicMessages = state.AnthropicMessages?.Select(item => item.Clone()).ToArray();
+                priorOpenAiChatMessages = state.OpenAiChatMessages?.Select(item => item.Clone()).ToArray();
             }
             else if (requireLocalHistory)
             {
@@ -53,7 +57,13 @@ internal static class ResponsesRequestContextParser
 
         JsonElement? instructions = null;
         if (root.TryGetProperty("instructions", out var instructionsValue))
+        {
             instructions = instructionsValue.Clone();
+        }
+        else if (root.TryGetProperty("system", out var systemValue))
+        {
+            instructions = systemValue.Clone();
+        }
 
         var conversationItems = new List<JsonElement>(priorConversationItems.Count + newInputItems.Count);
         conversationItems.AddRange(priorConversationItems);
@@ -67,7 +77,8 @@ internal static class ResponsesRequestContextParser
             PriorConversationItems = priorConversationItems,
             NewInputItems = newInputItems,
             ConversationItems = conversationItems,
-            PriorAnthropicMessages = priorAnthropicMessages
+            PriorAnthropicMessages = priorAnthropicMessages,
+            PriorOpenAiChatMessages = priorOpenAiChatMessages
         };
         error = null;
         return true;
@@ -80,9 +91,7 @@ internal static class ResponsesRequestContextParser
     {
         if (!root.TryGetProperty("input", out var input))
         {
-            inputItems = [];
-            error = null;
-            return true;
+            return TryParseMessagesFallback(root, out inputItems, out error);
         }
 
         switch (input.ValueKind)
@@ -105,6 +114,37 @@ internal static class ResponsesRequestContextParser
             default:
                 inputItems = [];
                 error = "Responses input must be a string, array, or null.";
+                return false;
+        }
+    }
+
+    private static bool TryParseMessagesFallback(
+        JsonElement root,
+        out IReadOnlyList<JsonElement> inputItems,
+        out string? error)
+    {
+        if (!root.TryGetProperty("messages", out var messages))
+        {
+            inputItems = [];
+            error = null;
+            return true;
+        }
+
+        switch (messages.ValueKind)
+        {
+            case JsonValueKind.Array:
+                inputItems = messages.EnumerateArray().Select(item => item.Clone()).ToArray();
+                error = null;
+                return true;
+
+            case JsonValueKind.Null:
+                inputItems = [];
+                error = null;
+                return true;
+
+            default:
+                inputItems = [];
+                error = "Responses input/messages must be an array, string, or null.";
                 return false;
         }
     }

@@ -13,8 +13,15 @@ public enum UsageTrendGranularity
     Day
 }
 
+public readonly record struct UsageLogSourceSnapshot(
+    bool Exists,
+    long Length,
+    long LastWriteUtcTicks);
+
 public sealed class UsageDashboard
 {
+    public UsageLogSourceSnapshot SourceSnapshot { get; init; }
+
     public UsageTimeRange Range { get; init; }
 
     public UsageTrendGranularity Granularity { get; init; }

@@ -44,6 +44,7 @@ flowchart LR
 - Local model pricing catalog with tiered pricing, cache-read pricing, Claude cache-creation billing, and fast-mode multipliers.
 - Usage dashboard with request logs, provider statistics, model statistics, 24-hour, 7-day, and 30-day trends.
 - Managed Codex config and auth file writing with backup and restore support.
+- Optional Codex App auth preservation so ChatGPT-login-only plugin features can stay available while routing through the local proxy.
 - Light, dark, and system themes with localized UI resources.
 - GitHub Release update checks from inside the app.
 
@@ -103,6 +104,8 @@ dotnet run --project CodexSwitch/CodexSwitch.csproj
 
 When the proxy starts, CodexSwitch writes a managed Codex profile to the user's `.codex` directory. When the proxy stops, the original Codex files are restored from the local backup state.
 
+If you need Codex App plugins, sign in to Codex App with ChatGPT first, then enable **Settings > Auth > Preserve Codex App ChatGPT login for plugins** before applying the proxy configuration. In that mode CodexSwitch still writes `config.toml`, but leaves the original `auth.json` login state in place.
+
 ## Local Files
 
 CodexSwitch stores application state in the user's application data folder.
@@ -113,12 +116,12 @@ On Windows, the main files are:
 | --- | --- |
 | `%APPDATA%\CodexSwitch\config.json` | Providers, routing, UI, proxy, OAuth account metadata, and local settings. |
 | `%APPDATA%\CodexSwitch\model-pricing.json` | Editable pricing catalog used for cost estimates. |
-| `%APPDATA%\CodexSwitch\usage-log.jsonl` | Local request usage log. |
+| `%APPDATA%\CodexSwitch\usage-logs\yyyy\MM\usage-yyyy-MM-dd.jsonl` | Partitioned local request usage logs. |
 | `%APPDATA%\CodexSwitch\icons\` | Cached provider and model icons. |
 | `%APPDATA%\CodexSwitch\backups\` | Backups made before Codex config/auth writes. |
 | `%APPDATA%\CodexSwitch\codex-restore-state.json` | State used to restore the original Codex files. |
 | `%USERPROFILE%\.codex\config.toml` | Managed Codex config while the proxy is enabled. |
-| `%USERPROFILE%\.codex\auth.json` | Managed Codex auth while the proxy is enabled. |
+| `%USERPROFILE%\.codex\auth.json` | Managed Codex auth while the proxy is enabled, unless Codex App auth preservation is enabled. |
 
 Treat the config files as sensitive because they can contain API keys and OAuth tokens.
 

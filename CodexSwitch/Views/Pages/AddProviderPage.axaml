@@ -61,17 +61,44 @@
                                    Classes="muted"/>
                     </StackPanel>
 
+                    <StackPanel Spacing="8">
+                        <ui:CsText Text="{i18n:Tr usageQuery.template}" Classes="heading"/>
+                        <ItemsControl ItemsSource="{Binding UsageQueryTemplates}">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <WrapPanel/>
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="vm:UsageQueryTemplateItem">
+                                    <ui:CsButton Margin="0,0,8,8"
+                                                 Classes="outline compact"
+                                                 Classes.active="{Binding IsSelected}"
+                                                 Command="{Binding SelectCommand}"
+                                                 CommandParameter="{Binding}">
+                                        <StackPanel Orientation="Horizontal" Spacing="7">
+                                            <lucide:LucideIcon Kind="Activity" Size="14" StrokeWidth="2"/>
+                                            <TextBlock Text="{Binding DisplayName}"/>
+                                        </StackPanel>
+                                    </ui:CsButton>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                        <ui:CsText Text="{i18n:Tr usageQuery.addHint}"
+                                   Classes="muted"/>
+                    </StackPanel>
+
                     <Grid ColumnDefinitions="*,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto"
                           ColumnSpacing="12"
                           RowSpacing="12">
                         <ui:CsField Label="{i18n:Tr addProvider.providerName}">
-                            <ui:CsInput Text="{Binding SelectedProviderName}"/>
+                            <ui:CsInput Text="{Binding SelectedProviderName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
                         </ui:CsField>
                         <ui:CsField Grid.Column="1" Label="{i18n:Tr addProvider.note}">
-                            <ui:CsInput Text="{Binding SelectedProviderNote}"/>
+                            <ui:CsInput Text="{Binding SelectedProviderNote, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
                         </ui:CsField>
                         <ui:CsField Grid.Row="1" Grid.ColumnSpan="2" Label="{i18n:Tr addProvider.website}">
-                            <ui:CsInput Text="{Binding SelectedProviderWebsite}"
+                            <ui:CsInput Text="{Binding SelectedProviderWebsite, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                         PlaceholderText="{i18n:Tr addProvider.websitePlaceholder}"/>
                         </ui:CsField>
                         <ui:CsField Grid.Row="2" Grid.ColumnSpan="2" Label="{i18n:Tr providerDialog.apiKey}">
@@ -80,24 +107,24 @@
                                         PlaceholderText="{i18n:Tr addProvider.apiKeyPlaceholder}"/>
                         </ui:CsField>
                         <ui:CsField Grid.Row="3" Grid.ColumnSpan="2" Label="{i18n:Tr addProvider.baseUrl}">
-                            <ui:CsInput Text="{Binding SelectedBaseUrl}"
+                            <ui:CsInput Text="{Binding SelectedBaseUrl, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                         PlaceholderText="https://your-api-endpoint.com/v1"/>
                         </ui:CsField>
                         <ui:CsField Grid.Row="4" Label="{i18n:Tr addProvider.modelName}">
-                            <ui:CsInput Text="{Binding SelectedDefaultModel}"/>
+                            <ui:CsInput Text="{Binding SelectedDefaultModel, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
                         </ui:CsField>
                         <ui:CsField Grid.Row="4" Grid.Column="1" Label="{i18n:Tr providerDialog.protocol}">
                             <ui:CsSelect ItemsSource="{Binding ProtocolOptions}"
-                                         SelectedItem="{Binding SelectedProtocol}"/>
+                                         SelectedItem="{Binding SelectedProtocol, Mode=TwoWay}"/>
                         </ui:CsField>
                     </Grid>
 
                     <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
                         <StackPanel Orientation="Horizontal" Spacing="18">
                             <ui:CsSwitch Content="{i18n:Tr providerDialog.overrideRequestModel}"
-                                         IsChecked="{Binding SelectedOverrideModel}"/>
+                                         IsChecked="{Binding SelectedOverrideModel, Mode=TwoWay}"/>
                             <ui:CsSwitch Content="{i18n:Tr providerDialog.fastModePricing}"
-                                         IsChecked="{Binding SelectedFastMode}"/>
+                                         IsChecked="{Binding SelectedFastMode, Mode=TwoWay}"/>
                         </StackPanel>
                         <ui:CsButton Grid.Column="1"
                                      Classes="compact"

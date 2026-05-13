@@ -42,6 +42,10 @@ public sealed class ProxySettings
 
     public string InboundApiKey { get; set; } = "sk-codex";
 
+    public bool PreserveCodexAppAuth { get; set; }
+
+    public bool UseFakeCodexAppAuth { get; set; }
+
     public string Endpoint => $"http://{Host}:{Port}/v1";
 }
 
@@ -75,6 +79,8 @@ public sealed class ProviderConfig
 
     public Collection<ModelRouteConfig> Models { get; set; } = [];
 
+    public Collection<ModelConversionConfig> ModelConversions { get; set; } = [];
+
     public ProviderTestSettings? Test { get; set; }
 
     public ProviderCostSettings? Cost { get; set; }
@@ -86,6 +92,54 @@ public sealed class ProviderConfig
     public Collection<OAuthAccountConfig> OAuthAccounts { get; set; } = [];
 
     public ProviderRequestOverrides? RequestOverrides { get; set; }
+
+    public ProviderUsageQueryConfig? UsageQuery { get; set; }
+}
+
+public sealed class ProviderUsageQueryConfig
+{
+    public bool Enabled { get; set; }
+
+    public string TemplateId { get; set; } = "custom";
+
+    public string Method { get; set; } = "GET";
+
+    public string Url { get; set; } = "";
+
+    public Dictionary<string, string> Headers { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+
+    public string? JsonBody { get; set; }
+
+    public int TimeoutSeconds { get; set; } = 20;
+
+    public ProviderUsageExtractorConfig Extractor { get; set; } = new();
+}
+
+public sealed class ProviderUsageExtractorConfig
+{
+    public string? SuccessPath { get; set; }
+
+    public string? ErrorPath { get; set; }
+
+    public string? ErrorMessagePath { get; set; }
+
+    public string? RemainingPath { get; set; }
+
+    public string? UnitPath { get; set; }
+
+    public string? Unit { get; set; }
+
+    public string? TotalPath { get; set; }
+
+    public string? UsedPath { get; set; }
+
+    public string? UnlimitedPath { get; set; }
+
+    public string? PlanNamePath { get; set; }
+
+    public string? DailyResetPath { get; set; }
+
+    public string? WeeklyResetPath { get; set; }
 }
 
 public sealed class ModelRouteConfig
@@ -101,6 +155,17 @@ public sealed class ModelRouteConfig
     public string? ServiceTier { get; set; }
 
     public ProviderCostSettings? Cost { get; set; }
+}
+
+public sealed class ModelConversionConfig
+{
+    public string SourceModel { get; set; } = "";
+
+    public string? TargetModel { get; set; }
+
+    public bool UseDefaultModel { get; set; }
+
+    public bool Enabled { get; set; } = true;
 }
 
 public sealed class ProviderTestSettings

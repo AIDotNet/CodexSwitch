@@ -142,14 +142,18 @@ public sealed class BuiltInCatalogMigrationTests
             Assert.Contains(openAi.Models, model => model.Id == "gpt-5.4");
             Assert.Contains(openAi.Models, model => model.Id == "gpt-5.4-mini");
             Assert.Contains(openAi.Models, model => model.Id == "gpt-5.3-codex");
+            AssertDefaultConversion(openAi);
             Assert.Contains(anthropic.Models, model => model.Id == "claude-opus-4-7");
             Assert.Contains(anthropic.Models, model => model.Id == "claude-3-5-sonnet");
-            Assert.Equal(ProviderProtocol.OpenAiChat, deepSeek.Protocol);
+            AssertDefaultConversion(anthropic);
+            Assert.Equal(ProviderProtocol.AnthropicMessages, deepSeek.Protocol);
             Assert.Contains(deepSeek.Models, model => model.Id == "deepseek-v4-flash");
             Assert.Contains(deepSeek.Models, model => model.Id == "deepseek-reasoner");
+            AssertDefaultConversion(deepSeek);
             Assert.Equal(ProviderProtocol.OpenAiChat, xiaomi.Protocol);
             Assert.Contains(xiaomi.Models, model => model.Id == "mimo-v2.5-pro");
             Assert.Contains(xiaomi.Models, model => model.Id == "mimo-v2-flash");
+            AssertDefaultConversion(xiaomi);
         }
         finally
         {
@@ -198,6 +202,114 @@ public sealed class BuiltInCatalogMigrationTests
     }
 
     [Fact]
+    public void ProviderRoutingResolver_UsesDefaultConversionForActiveProvider()
+    {
+        foreach (var templateId in new[]
+                 {
+                     ProviderTemplateCatalog.AnthropicBuiltinId,
+                     ProviderTemplateCatalog.DeepSeekBuiltinId,
+                     ProviderTemplateCatalog.XiaomiBuiltinId
+                 })
+        {
+            var openAi = ProviderTemplateCatalog.CreateProvider(ProviderTemplateCatalog.OpenAiOfficialBuiltinId, []);
+            var provider = ProviderTemplateCatalog.CreateProvider(templateId, [openAi.Id]);
+            var expectedRoute = provider.Models.FirstOrDefault(model =>
+                string.Equals(model.Id, provider.DefaultModel, StringComparison.OrdinalIgnoreCase));
+            var expectedUpstream = string.IsNullOrWhiteSpace(expectedRoute?.UpstreamModel)
+                ? provider.DefaultModel
+                : expectedRoute.UpstreamModel;
+            var config = new AppConfig
+            {
+                ActiveProviderId = provider.Id,
+                Providers = { openAi, provider }
+            };
+
+            var selection = ProviderRoutingResolver.Resolve(config, CodexSwitchDefaults.ManagedCodexModel);
+
+            Assert.NotNull(selection);
+            Assert.Equal(provider.Id, selection!.Provider.Id);
+            Assert.Equal(CodexSwitchDefaults.ManagedCodexModel, selection.Model?.Id);
+            Assert.Equal(expectedUpstream, selection.Model?.UpstreamModel);
+        }
+    }
+
+    [Fact]
+    public void ProviderRoutingResolver_IgnoresDisabledDefaultConversion()
+    {
+        var provider = ProviderTemplateCatalog.CreateProvider(ProviderTemplateCatalog.AnthropicBuiltinId, []);
+        var conversion = Assert.Single(provider.ModelConversions, ProviderTemplateCatalog.IsDefaultModelConversion);
+        conversion.Enabled = false;
+
+        Assert.False(ProviderRoutingResolver.ProviderSupports(provider, [CodexSwitchDefaults.ManagedCodexModel]));
+
+        var listings = ProviderRoutingResolver.CollectModelListings(new AppConfig
+        {
+            ActiveProviderId = provider.Id,
+            Providers = { provider }
+        });
+
+        Assert.DoesNotContain(listings, listing =>
+            string.Equals(listing.Id, CodexSwitchDefaults.ManagedCodexModel, StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public void ProviderRoutingResolver_ListsEnabledConversionSources()
+    {
+        var provider = ProviderTemplateCatalog.CreateProvider(ProviderTemplateCatalog.AnthropicBuiltinId, []);
+        var listings = ProviderRoutingResolver.CollectModelListings(new AppConfig
+        {
+            ActiveProviderId = provider.Id,
+            Providers = { provider }
+        });
+
+        var listing = Assert.Single(listings, item => item.Id == CodexSwitchDefaults.ManagedCodexModel);
+        Assert.Contains(provider.Id, listing.ProviderIds);
+    }
+
+    [Fact]
+    public void EnsureValidDefaults_SeedsAndPreservesDefaultModelConversions()
+    {
+        var disabledProvider = new ProviderConfig
+        {
+            Id = "disabled",
+            DisplayName = "Disabled",
+            BaseUrl = "https://example.com/v1",
+            Protocol = ProviderProtocol.AnthropicMessages,
+            DefaultModel = "claude-custom",
+            ModelConversions =
+            {
+                new ModelConversionConfig
+                {
+                    SourceModel = CodexSwitchDefaults.ManagedCodexModel,
+                    UseDefaultModel = true,
+                    Enabled = false
+                }
+            }
+        };
+        var config = new AppConfig
+        {
+            ActiveProviderId = disabledProvider.Id,
+            Providers = { disabledProvider }
+        };
+
+        ConfigurationStore.EnsureValidDefaults(config);
+
+        var provider = Assert.Single(config.Providers, item => item.Id == "disabled");
+        var conversion = Assert.Single(provider.ModelConversions, ProviderTemplateCatalog.IsDefaultModelConversion);
+        Assert.False(conversion.Enabled);
+
+        conversion.Enabled = true;
+        provider.DefaultModel = "claude-new-default";
+        var selection = ProviderRoutingResolver.Resolve(new AppConfig
+        {
+            ActiveProviderId = provider.Id,
+            Providers = { provider }
+        }, CodexSwitchDefaults.ManagedCodexModel);
+
+        Assert.Equal("claude-new-default", selection?.Model?.UpstreamModel);
+    }
+
+    [Fact]
     public void IconCacheService_UsesOfficialXiaomiFallbackIconUrl()
     {
         var root = CreateTempDirectory();
@@ -229,6 +341,14 @@ public sealed class BuiltInCatalogMigrationTests
     {
         Directory.CreateDirectory(Path.GetDirectoryName(path)!);
         File.WriteAllText(path, JsonSerializer.Serialize(value, JsonOptions));
+    }
+
+    private static void AssertDefaultConversion(ProviderConfig provider)
+    {
+        var conversion = Assert.Single(provider.ModelConversions, ProviderTemplateCatalog.IsDefaultModelConversion);
+        Assert.True(conversion.Enabled);
+        Assert.True(conversion.UseDefaultModel);
+        Assert.Null(conversion.TargetModel);
     }
 
     private static string CreateTempDirectory()

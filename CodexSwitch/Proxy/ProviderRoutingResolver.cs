@@ -84,13 +84,53 @@ public static class ProviderRoutingResolver
     {
         if (!string.IsNullOrWhiteSpace(requestModel))
         {
-            var match = provider.Models.FirstOrDefault(model =>
-                ModelPatternMatcher.Matches(model.Id, requestModel) ||
-                ModelPatternMatcher.Matches(model.UpstreamModel, requestModel));
+            var conversion = ResolveConversionModel(provider, requestModel);
+            if (conversion is not null)
+                return conversion;
+
+            var match = ResolveNativeModel(provider, requestModel);
             if (match is not null)
                 return match;
         }
 
+        return ResolveDefaultModel(provider);
+    }
+
+    private static ModelRouteConfig? ResolveConversionModel(ProviderConfig provider, string requestModel)
+    {
+        var conversion = EnumerateConversions(provider)
+            .Where(conversion => conversion.Enabled)
+            .FirstOrDefault(conversion => ModelPatternMatcher.Matches(conversion.SourceModel, requestModel));
+        if (conversion is null)
+            return null;
+
+        var upstreamModel = ResolveConversionTarget(provider, conversion);
+        if (string.IsNullOrWhiteSpace(upstreamModel))
+            return null;
+
+        var targetRoute = ResolveNativeModel(provider, upstreamModel);
+        return new ModelRouteConfig
+        {
+            Id = requestModel,
+            DisplayName = targetRoute?.DisplayName,
+            Protocol = targetRoute?.Protocol ?? provider.Protocol,
+            UpstreamModel = string.IsNullOrWhiteSpace(targetRoute?.UpstreamModel)
+                ? upstreamModel
+                : targetRoute.UpstreamModel,
+            ServiceTier = targetRoute?.ServiceTier,
+            Cost = targetRoute?.Cost
+        };
+    }
+
+    private static ModelRouteConfig? ResolveNativeModel(ProviderConfig provider, string requestModel)
+    {
+        return provider.Models.FirstOrDefault(model =>
+            ModelPatternMatcher.Matches(model.Id, requestModel) ||
+            ModelPatternMatcher.Matches(model.UpstreamModel, requestModel));
+    }
+
+    private static ModelRouteConfig? ResolveDefaultModel(ProviderConfig provider)
+    {
         return provider.Models.FirstOrDefault(model =>
             string.Equals(model.Id, provider.DefaultModel, StringComparison.OrdinalIgnoreCase));
     }
@@ -130,6 +170,16 @@ public static class ProviderRoutingResolver
                 yield return model.Id;
         }
 
+        foreach (var conversion in EnumerateConversions(provider).Where(conversion => conversion.Enabled))
+        {
+            if (!string.IsNullOrWhiteSpace(ResolveConversionTarget(provider, conversion)) &&
+                !string.IsNullOrWhiteSpace(conversion.SourceModel) &&
+                yielded.Add(conversion.SourceModel))
+            {
+                yield return conversion.SourceModel;
+            }
+        }
+
         if (!string.IsNullOrWhiteSpace(provider.DefaultModel) && yielded.Add(provider.DefaultModel))
             yield return provider.DefaultModel;
     }
@@ -151,6 +201,27 @@ public static class ProviderRoutingResolver
             if (yielded.Add(upstreamModel!))
                 yield return upstreamModel!;
         }
+
+        foreach (var upstreamModel in EnumerateConversions(provider)
+                     .Where(conversion => conversion.Enabled)
+                     .Select(conversion => ResolveConversionTarget(provider, conversion))
+                     .Where(model => !string.IsNullOrWhiteSpace(model)))
+        {
+            if (yielded.Add(upstreamModel!))
+                yield return upstreamModel!;
+        }
+    }
+
+    private static string ResolveConversionTarget(ProviderConfig provider, ModelConversionConfig conversion)
+    {
+        return conversion.UseDefaultModel
+            ? provider.DefaultModel
+            : conversion.TargetModel?.Trim() ?? "";
+    }
+
+    private static IEnumerable<ModelConversionConfig> EnumerateConversions(ProviderConfig provider)
+    {
+        return provider.ModelConversions ?? Enumerable.Empty<ModelConversionConfig>();
     }
 }
 
