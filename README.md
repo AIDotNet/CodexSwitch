@@ -76,11 +76,11 @@ You can add custom providers when an upstream service is OpenAI Responses-compat
 
 Download published builds from [GitHub Releases](https://github.com/AIDotNet/CodexSwitch/releases) when release artifacts are available.
 
-Current CI publish targets are:
+Current CI publish artifacts are Native AOT, self-contained packages:
 
-- `win-x64`
-- `linux-x64`
-- `osx-arm64`
+- `CodexSwitch-vX.Y.Z-win-x64-setup.exe`
+- `CodexSwitch-vX.Y.Z-linux-x64.AppImage`
+- `CodexSwitch-vX.Y.Z-osx-arm64.dmg`
 
 ## Run From Source
 
@@ -134,10 +134,10 @@ dotnet build CodexSwitch.Tests/CodexSwitch.Tests.csproj -c Release --no-restore
 dotnet test CodexSwitch.Tests/CodexSwitch.Tests.csproj -c Release --no-build --no-restore
 ```
 
-Publish a self-contained build:
+Publish a self-contained Native AOT build:
 
 ```powershell
-dotnet publish CodexSwitch/CodexSwitch.csproj -c Release -r win-x64 --self-contained true
+dotnet publish CodexSwitch/CodexSwitch.csproj -c Release -r win-x64 --self-contained true -p:PublishAot=true
 ```
 
 Validate the changelog before release work:
@@ -165,7 +165,7 @@ docs/              Release process notes
 
 ## CI and Release Flow
 
-The `ci` workflow validates the changelog, restores packages, builds the test project, runs xUnit tests, and publishes zipped artifacts for Windows, Linux, and macOS runners. When the workflow runs on a `vX.Y.Z` tag, it also creates the GitHub Release and uploads the generated artifacts automatically. See [docs/release.md](docs/release.md).
+The `ci` workflow validates the changelog, restores packages, builds the test project, runs xUnit tests, and publishes Native AOT platform installers for Windows, Linux, and macOS runners. When the workflow runs on a `vX.Y.Z` tag, it also creates the GitHub Release and uploads the generated artifacts automatically. See [docs/release.md](docs/release.md).
 
 ## Current Scope
 

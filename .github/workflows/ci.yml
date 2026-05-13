@@ -87,28 +87,25 @@ jobs:
           -c Release
           -r ${{ matrix.rid }}
           --self-contained true
+          -p:PublishAot=true
+          -p:SelfContained=true
           -o artifacts/publish/${{ matrix.rid }}
 
-      - name: Package artifact
+      - name: Install Windows packaging tools
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: choco install innosetup --yes --no-progress
+
+      - name: Package installer
         id: package
         shell: pwsh
         run: |
           $version = "${{ steps.version.outputs.value }}"
-          $artifactName = "CodexSwitch-v$version-${{ matrix.rid }}"
-          $publishDirectory = Join-Path $PWD "artifacts/publish/${{ matrix.rid }}"
-          $packageDirectory = Join-Path $PWD "artifacts/package"
-
-          New-Item -ItemType Directory -Force -Path $packageDirectory | Out-Null
-
-          $zipPath = Join-Path $packageDirectory "$artifactName.zip"
-          if (Test-Path -LiteralPath $zipPath) {
-            Remove-Item -LiteralPath $zipPath -Force
-          }
-
-          Compress-Archive -Path (Join-Path $publishDirectory "*") -DestinationPath $zipPath
-
-          "name=$artifactName" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
-          "path=$zipPath" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          ./build/Package-ReleaseArtifact.ps1 `
+            -Version $version `
+            -RuntimeIdentifier "${{ matrix.rid }}" `
+            -PublishDirectory "artifacts/publish/${{ matrix.rid }}" `
+            -OutputDirectory "artifacts/package"
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
@@ -169,5 +166,5 @@ jobs:
           tag_name: ${{ github.ref_name }}
           name: ${{ github.ref_name }}
           body_path: release-notes.md
-          files: artifacts/release/*.zip
+          files: artifacts/release/*
           fail_on_unmatched_files: true

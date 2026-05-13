@@ -76,11 +76,11 @@ CodexSwitch 当前对外暴露的是 Responses 风格的入站接口，不提供
 
 当 Release 产物发布后，可以从 [GitHub Releases](https://github.com/AIDotNet/CodexSwitch/releases) 下载。
 
-当前 CI 会发布这些目标平台的自包含构建产物：
+当前 CI 会发布这些 Native AOT、自包含安装产物：
 
-- `win-x64`
-- `linux-x64`
-- `osx-arm64`
+- `CodexSwitch-vX.Y.Z-win-x64-setup.exe`
+- `CodexSwitch-vX.Y.Z-linux-x64.AppImage`
+- `CodexSwitch-vX.Y.Z-osx-arm64.dmg`
 
 ## 从源码运行
 
@@ -134,10 +134,10 @@ dotnet build CodexSwitch.Tests/CodexSwitch.Tests.csproj -c Release --no-restore
 dotnet test CodexSwitch.Tests/CodexSwitch.Tests.csproj -c Release --no-build --no-restore
 ```
 
-发布一个自包含构建：
+发布一个 Native AOT 自包含构建：
 
 ```powershell
-dotnet publish CodexSwitch/CodexSwitch.csproj -c Release -r win-x64 --self-contained true
+dotnet publish CodexSwitch/CodexSwitch.csproj -c Release -r win-x64 --self-contained true -p:PublishAot=true
 ```
 
 发布前验证 changelog：
@@ -165,7 +165,7 @@ docs/              发布流程说明
 
 ## CI 与发布流程
 
-`ci` 工作流会验证 changelog、还原依赖、构建测试项目、运行 xUnit 测试，并为 Windows、Linux、macOS runner 发布 zip 产物。当前当工作流在 `vX.Y.Z` 标签上运行时，也会自动创建 GitHub Release 并上传生成的产物。详情见 [docs/release.md](docs/release.md)。
+`ci` 工作流会验证 changelog、还原依赖、构建测试项目、运行 xUnit 测试，并为 Windows、Linux、macOS runner 发布 Native AOT 平台安装产物。当前当工作流在 `vX.Y.Z` 标签上运行时，也会自动创建 GitHub Release 并上传生成的产物。详情见 [docs/release.md](docs/release.md)。
 
 ## 当前范围
 
