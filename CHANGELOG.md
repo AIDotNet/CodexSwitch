@@ -5,6 +5,25 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v0.0.7] - 2026-05-15
+
+### Added
+
+- Added a Home dashboard with live proxy and provider summary cards, range-scoped usage metrics, token and cost trend charts, and provider/model ranked breakdowns.
+- Added built-in Codex OAuth account enrichment and multi-account management, including ChatGPT workspace resolution, plan and quota snapshots, and usage-query support per enabled OAuth account.
+- Added output tokens-per-second and page navigation to the local usage log table.
+
+### Changed
+
+- Restructured the desktop shell around the new sidebar and home layout, and moved version/update status into the lower-left footer.
+- Updated the Codex OAuth provider template to use the current Codex client headers and request overrides.
+- Removed the repo `global.json` SDK pin so local builds follow the installed .NET SDK.
+
+### Fixed
+
+- Normalized OpenAI Chat replay so tool outputs stay immediately after assistant tool calls and unmatched tool calls are dropped before proxying upstream.
+- Restored Codex OAuth provider defaults and account metadata consistently during config migration and refresh flows.
+
 ## [v0.0.6] - 2026-05-14
 
 ### Added
