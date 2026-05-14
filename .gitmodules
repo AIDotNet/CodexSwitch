@@ -1,0 +1,3 @@
+[submodule "CodexSwitchUI"]
+	path = CodexSwitchUI
+	url = https://github.com/AIDotNet/CodexSwitchUI.git
