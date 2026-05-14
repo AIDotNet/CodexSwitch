@@ -18,6 +18,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v6
+        with:
+          submodules: recursive
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v5
@@ -25,9 +27,10 @@ jobs:
           dotnet-version: 10.0.203
           cache: true
           cache-dependency-path: |
-            global.json
             Directory.Packages.props
             CodexSwitch/CodexSwitch.csproj
+            CodexSwitchUI/src/CodexSwitchUI/CodexSwitchUI.csproj
+            CodexSwitchUI/src/CodexSwitchUI.ECharts/CodexSwitchUI.ECharts.csproj
             CodexSwitch.Tests/CodexSwitch.Tests.csproj
 
       - name: Validate changelog
@@ -71,6 +74,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v6
+        with:
+          submodules: recursive
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v5
@@ -78,9 +83,10 @@ jobs:
           dotnet-version: 10.0.203
           cache: true
           cache-dependency-path: |
-            global.json
             Directory.Packages.props
             CodexSwitch/CodexSwitch.csproj
+            CodexSwitchUI/src/CodexSwitchUI/CodexSwitchUI.csproj
+            CodexSwitchUI/src/CodexSwitchUI.ECharts/CodexSwitchUI.ECharts.csproj
             CodexSwitch.Tests/CodexSwitch.Tests.csproj
 
       - name: Read version
@@ -213,6 +219,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v6
+        with:
+          submodules: recursive
 
       - name: Read version
         id: version
