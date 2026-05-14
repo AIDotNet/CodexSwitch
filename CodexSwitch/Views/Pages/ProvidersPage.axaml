@@ -1,101 +1,157 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:CodexSwitch.ViewModels"
-             xmlns:ui="using:CodexSwitch.Controls"
+             xmlns:ui="using:CodexSwitchUI.Controls"
              xmlns:i18n="using:CodexSwitch.I18n"
              xmlns:lucide="using:Lucide.Avalonia"
              x:Class="CodexSwitch.Views.Pages.ProvidersPage"
              x:DataType="vm:MainWindowViewModel">
+    <UserControl.Styles>
+        <Style Selector="Grid.provider-list-row">
+            <Setter Property="RenderTransformOrigin" Value="0.5,0.5"/>
+            <Setter Property="Transitions">
+                <Transitions>
+                    <DoubleTransition Property="Opacity" Duration="0:0:0.12"/>
+                </Transitions>
+            </Setter>
+        </Style>
+        <Style Selector="Grid.provider-list-row.dragging">
+            <Setter Property="Opacity" Value="0.92"/>
+        </Style>
+        <Style Selector="Grid.provider-list-row.dragging ui|CodexProviderCard:pointerover">
+            <Setter Property="Background" Value="{DynamicResource CodexSwitch.CardBrush}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource CodexSwitch.BorderBrush}"/>
+        </Style>
+        <Style Selector="Border.provider-drag-handle">
+            <Setter Property="Width" Value="22"/>
+            <Setter Property="MinHeight" Value="46"/>
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderBrush" Value="Transparent"/>
+            <Setter Property="HorizontalAlignment" Value="Stretch"/>
+            <Setter Property="VerticalAlignment" Value="Stretch"/>
+        </Style>
+        <Style Selector="Border.provider-drag-handle lucide|LucideIcon">
+            <Setter Property="Foreground" Value="{DynamicResource CodexSwitch.MutedForegroundBrush}"/>
+            <Setter Property="HorizontalAlignment" Value="Center"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+        </Style>
+        <Style Selector="Border.provider-drag-handle:pointerover lucide|LucideIcon">
+            <Setter Property="Foreground" Value="{DynamicResource CodexSwitch.ForegroundBrush}"/>
+        </Style>
+        <Style Selector="Border.provider-usage">
+            <Setter Property="Padding" Value="10,7"/>
+            <Setter Property="Background" Value="#B3171717"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource CodexSwitch.BorderBrush}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="CornerRadius" Value="{DynamicResource CodexSwitch.RadiusMd}"/>
+        </Style>
+        <Style Selector="Border.provider-usage.success">
+            <Setter Property="BorderBrush" Value="#33FFFFFF"/>
+        </Style>
+        <Style Selector="Border.provider-usage.error">
+            <Setter Property="BorderBrush" Value="#55FF6467"/>
+        </Style>
+        <Style Selector="Border.provider-usage.refreshing">
+            <Setter Property="BorderBrush" Value="#4D5277FF"/>
+        </Style>
+        <Style Selector="Border.usage-status-dot">
+            <Setter Property="Width" Value="6"/>
+            <Setter Property="Height" Value="6"/>
+            <Setter Property="CornerRadius" Value="999"/>
+            <Setter Property="Background" Value="{DynamicResource CodexSwitch.MutedForegroundBrush}"/>
+        </Style>
+        <Style Selector="Border.usage-status-dot.success">
+            <Setter Property="Background" Value="{DynamicResource CodexSwitch.SuccessBrush}"/>
+        </Style>
+        <Style Selector="Border.usage-status-dot.error">
+            <Setter Property="Background" Value="{DynamicResource CodexSwitch.DestructiveBrush}"/>
+        </Style>
+        <Style Selector="Border.usage-status-dot.refreshing">
+            <Setter Property="Background" Value="{DynamicResource CodexSwitch.PrimaryBrush}"/>
+        </Style>
+        <Style Selector="TextBlock.provider-usage-summary">
+            <Setter Property="Foreground" Value="{DynamicResource CodexSwitch.ForegroundBrush}"/>
+            <Setter Property="FontSize" Value="11"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="LineHeight" Value="15"/>
+        </Style>
+        <Style Selector="TextBlock.provider-usage-meta">
+            <Setter Property="Foreground" Value="{DynamicResource CodexSwitch.MutedForegroundBrush}"/>
+            <Setter Property="FontSize" Value="10"/>
+            <Setter Property="LineHeight" Value="14"/>
+        </Style>
+    </UserControl.Styles>
+
     <ScrollViewer>
-        <Grid Margin="24,12,24,24"
+        <Grid Margin="24,12,24,28"
               RowDefinitions="Auto,*"
               RowSpacing="18"
               PointerPressed="ProviderContextHost_OnPointerPressed">
-            <Grid ColumnDefinitions="*,Auto">
-                <StackPanel Spacing="4">
-                    <ui:CsText Text="{i18n:Tr providers.title}" Classes="title"/>
-                    <ui:CsText Text="{Binding ProxyStatus}" Classes="muted"/>
-                </StackPanel>
-                <ui:CsBadge Grid.Column="1" VerticalAlignment="Top">
-                    <ui:CsText Text="{Binding Endpoint}" Classes="muted"/>
-                </ui:CsBadge>
-            </Grid>
+            <ui:CodexSection Title="{i18n:Tr providers.title}"
+                             Description="{i18n:Tr providers.description}">
+                <ui:CodexSection.Actions>
+                    <ui:CodexButton Size="Small"
+                                    Command="{Binding AddProviderCommand}">
+                        <ui:CodexButton.LeadingIcon>
+                            <lucide:LucideIcon Kind="Plus" Size="14" StrokeWidth="2"/>
+                        </ui:CodexButton.LeadingIcon>
+                        <TextBlock Text="{i18n:Tr nav.addProvider}"/>
+                    </ui:CodexButton>
+                </ui:CodexSection.Actions>
+            </ui:CodexSection>
 
-            <ItemsControl Grid.Row="1" ItemsSource="{Binding ProviderRows}">
+            <ItemsControl Grid.Row="1"
+                          ItemsSource="{Binding SelectedProviderRows}">
                 <ItemsControl.ItemTemplate>
                     <DataTemplate x:DataType="vm:ProviderListItem">
                         <Grid Classes="provider-list-row"
-                              ColumnDefinitions="*,Auto"
-                              ColumnSpacing="10"
                               Margin="0,0,0,10">
-                            <ui:CsProviderCard Command="{Binding SelectCommand}"
-                                               CommandParameter="{Binding}"
-                                               Classes.active="{Binding IsActive}">
-                                <Grid ColumnDefinitions="Auto,Auto,*,Auto"
-                                      RowDefinitions="Auto,Auto"
-                                      ColumnSpacing="12"
-                                      RowSpacing="6">
-                                    <Border Grid.RowSpan="2"
-                                            Classes="provider-drag-handle"
+                            <ui:CodexProviderCard Command="{Binding SelectCommand}"
+                                                  CommandParameter="{Binding}"
+                                                  IsActive="{Binding IsActive}"
+                                                  Header="{Binding DisplayName}"
+                                                  Description="{Binding BaseUrl}">
+                                <ui:CodexProviderCard.Leading>
+                                    <Border Classes="provider-drag-handle"
                                             PointerPressed="ProviderDragHandle_OnPointerPressed"
                                             PointerMoved="ProviderDragHandle_OnPointerMoved"
                                             PointerReleased="ProviderDragHandle_OnPointerReleased"
-                                            PointerCaptureLost="ProviderDragHandle_OnPointerCaptureLost"
-                                            VerticalAlignment="Stretch">
-                                        <lucide:LucideIcon Kind="GripVertical"
-                                                           Size="18"
-                                                           StrokeWidth="2"/>
+                                            PointerCaptureLost="ProviderDragHandle_OnPointerCaptureLost">
+                                        <lucide:LucideIcon Kind="GripVertical" Size="18" StrokeWidth="2"/>
                                     </Border>
-                                    <Border Width="40"
-                                            Height="40"
-                                            Grid.Column="1"
-                                            Grid.RowSpan="2"
-                                            CornerRadius="10"
-                                            Background="#26FFFFFF">
-                                        <ui:CsImageIcon Path="{Binding IconPath}"
-                                                        Width="22"
-                                                        Height="22"
-                                                        HorizontalAlignment="Center"
-                                                        VerticalAlignment="Center"/>
-                                    </Border>
-                                    <StackPanel Grid.Column="2"
-                                                Grid.RowSpan="2"
-                                                Spacing="5"
-                                                VerticalAlignment="Center">
-                                        <StackPanel Orientation="Horizontal" Spacing="8">
-                                            <ui:CsText Text="{Binding DisplayName}" FontWeight="SemiBold"/>
-                                            <ui:CsBadge Padding="7,2">
-                                                <ui:CsText Text="{Binding Protocol}" Classes="muted" FontSize="11"/>
-                                            </ui:CsBadge>
-                                        </StackPanel>
-                                        <ui:CsText Text="{Binding BaseUrl}"
-                                                   Classes="muted"
-                                                   TextTrimming="CharacterEllipsis"/>
+                                </ui:CodexProviderCard.Leading>
+                                <ui:CodexProviderCard.Icon>
+                                    <ui:CodexImageIcon Path="{Binding IconPath}" Width="22" Height="22"/>
+                                </ui:CodexProviderCard.Icon>
+                                <ui:CodexProviderCard.Meta>
+                                    <StackPanel Orientation="Horizontal" Spacing="6">
+                                        <ui:CodexBadge Variant="Secondary" Padding="7,2">
+                                            <TextBlock Text="{Binding Protocol}" FontSize="11"/>
+                                        </ui:CodexBadge>
+                                        <ui:CodexBadge Variant="Outline" Padding="7,2">
+                                            <TextBlock Text="{Binding DefaultModel}" FontSize="11" TextTrimming="CharacterEllipsis"/>
+                                        </ui:CodexBadge>
                                     </StackPanel>
-                                    <ui:CsBadge Grid.Column="3"
-                                                Classes="success"
-                                                IsVisible="{Binding IsActive}"
-                                                VerticalAlignment="Top">
-                                        <ui:CsText Text="{i18n:Tr providers.active}"
-                                                   Foreground="{StaticResource CsSuccessBrush}"
-                                                   FontSize="11"
-                                                   FontWeight="SemiBold"/>
-                                    </ui:CsBadge>
-                                    <Border Grid.Row="1"
-                                            Grid.Column="3"
-                                            Classes="provider-usage"
+                                </ui:CodexProviderCard.Meta>
+                                <ui:CodexProviderCard.Status>
+                                    <ui:CodexBadge Variant="Success"
+                                                   Padding="9,2"
+                                                   IsVisible="{Binding IsActive}">
+                                        <TextBlock Text="{i18n:Tr providers.active}" FontSize="11" FontWeight="SemiBold"/>
+                                    </ui:CodexBadge>
+                                </ui:CodexProviderCard.Status>
+                                <ui:CodexProviderCard.Usage>
+                                    <Border Classes="provider-usage"
                                             Classes.success="{Binding IsUsageValid}"
                                             Classes.error="{Binding IsUsageError}"
                                             Classes.refreshing="{Binding IsUsageRefreshing}"
                                             IsVisible="{Binding HasUsageInfo}"
-                                            ToolTip.Tip="{Binding UsageToolTip}"
-                                            HorizontalAlignment="Right"
-                                            VerticalAlignment="Bottom">
+                                            ToolTip.Tip="{Binding UsageToolTip}">
                                         <Grid ColumnDefinitions="Auto,*"
                                               RowDefinitions="Auto,Auto,Auto"
                                               ColumnSpacing="7"
-                                              MinWidth="132"
-                                              MaxWidth="184">
+                                              MinWidth="142"
+                                              MaxWidth="210">
                                             <Border Grid.RowSpan="3"
                                                     Classes="usage-status-dot"
                                                     Classes.success="{Binding IsUsageValid}"
@@ -103,18 +159,18 @@
                                                     Classes.refreshing="{Binding IsUsageRefreshing}"
                                                     VerticalAlignment="Top"
                                                     Margin="0,5,0,0"/>
-                                            <ui:CsText Grid.Column="1"
+                                            <TextBlock Grid.Column="1"
                                                        Text="{Binding UsageSummary}"
                                                        Classes="provider-usage-summary"
                                                        TextAlignment="Right"
                                                        TextTrimming="CharacterEllipsis"/>
-                                            <ui:CsText Grid.Row="1"
+                                            <TextBlock Grid.Row="1"
                                                        Grid.Column="1"
                                                        Text="{Binding UsageMeta}"
                                                        Classes="provider-usage-meta"
                                                        TextAlignment="Right"
                                                        TextTrimming="CharacterEllipsis"/>
-                                            <ui:CsText Grid.Row="2"
+                                            <TextBlock Grid.Row="2"
                                                        Grid.Column="1"
                                                        Text="{Binding UsageResetText}"
                                                        Classes="provider-usage-meta"
@@ -123,15 +179,16 @@
                                                        IsVisible="{Binding HasUsageResetText}"/>
                                         </Grid>
                                     </Border>
-                                </Grid>
-                            </ui:CsProviderCard>
-                            <ui:CsIconButton Grid.Column="1"
-                                             Command="{Binding EditCommand}"
-                                             CommandParameter="{Binding}"
-                                             ToolTip.Tip="{i18n:Tr providers.edit}"
-                                             VerticalAlignment="Center">
-                                <lucide:LucideIcon Kind="Pencil" Size="16" StrokeWidth="2"/>
-                            </ui:CsIconButton>
+                                </ui:CodexProviderCard.Usage>
+                                <ui:CodexProviderCard.Actions>
+                                    <ui:CodexIconButton Command="{Binding EditCommand}"
+                                                        CommandParameter="{Binding}"
+                                                        ToolTip.Tip="{i18n:Tr providers.edit}"
+                                                        Variant="Ghost">
+                                        <lucide:LucideIcon Kind="Pencil" Size="16" StrokeWidth="2"/>
+                                    </ui:CodexIconButton>
+                                </ui:CodexProviderCard.Actions>
+                            </ui:CodexProviderCard>
                         </Grid>
                     </DataTemplate>
                 </ItemsControl.ItemTemplate>

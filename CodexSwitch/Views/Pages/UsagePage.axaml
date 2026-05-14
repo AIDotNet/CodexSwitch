@@ -1,410 +1,238 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:CodexSwitch.ViewModels"
-             xmlns:ui="using:CodexSwitch.Controls"
+             xmlns:ui="using:CodexSwitchUI.Controls"
+             xmlns:text="using:CodexSwitchUI.Primitives"
              xmlns:i18n="using:CodexSwitch.I18n"
              xmlns:lucide="using:Lucide.Avalonia"
              x:Class="CodexSwitch.Views.Pages.UsagePage"
              x:DataType="vm:MainWindowViewModel">
     <UserControl.Styles>
-        <Style Selector="ListBox.usage-table-list">
-            <Setter Property="Background" Value="Transparent"/>
-            <Setter Property="BorderBrush" Value="Transparent"/>
-            <Setter Property="BorderThickness" Value="0"/>
-            <Setter Property="Padding" Value="0"/>
+        <Style Selector="TextBlock.table-strong">
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="TextTrimming" Value="CharacterEllipsis"/>
         </Style>
-        <Style Selector="ListBox.usage-table-list ListBoxItem">
-            <Setter Property="Padding" Value="0"/>
-            <Setter Property="Margin" Value="0"/>
-            <Setter Property="Focusable" Value="False"/>
-            <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
-            <Setter Property="Template">
-                <ControlTemplate>
-                    <ContentPresenter Content="{TemplateBinding Content}"
-                                      ContentTemplate="{TemplateBinding ContentTemplate}"
-                                      HorizontalAlignment="Stretch"/>
-                </ControlTemplate>
-            </Setter>
+        <Style Selector="TextBlock.table-muted">
+            <Setter Property="Foreground" Value="{DynamicResource CodexSwitch.MutedForegroundBrush}"/>
+            <Setter Property="TextTrimming" Value="CharacterEllipsis"/>
         </Style>
     </UserControl.Styles>
 
     <ScrollViewer>
-        <Grid Margin="24,12,24,24"
-              RowDefinitions="Auto,Auto,Auto,Auto,Auto"
+        <Grid Margin="24,12,24,28"
+              RowDefinitions="Auto,Auto,Auto,Auto"
               RowSpacing="18">
-            <Grid ColumnDefinitions="*,Auto">
-                <StackPanel Spacing="4">
-                    <ui:CsText Text="{i18n:Tr usage.title}" Classes="title"/>
-                    <ui:CsText Text="{i18n:Tr usage.description}" Classes="muted"/>
-                </StackPanel>
-                <ui:CsButton Grid.Column="1"
-                             Classes="outline compact"
-                             Command="{Binding RefreshUsageCommand}"
-                             VerticalAlignment="Top">
-                    <StackPanel Orientation="Horizontal" Spacing="7">
-                        <lucide:LucideIcon Kind="RefreshCw"
-                                           Size="14"
-                                           StrokeWidth="2"
-                                           IsVisible="{Binding IsUsageRefreshIdle}"/>
-                        <lucide:LucideIcon Kind="RefreshCw"
-                                           Size="14"
-                                           StrokeWidth="2.3"
-                                           Opacity="0.7"
-                                           IsVisible="{Binding IsUsageRefreshing}"/>
+            <ui:CodexSection Title="{i18n:Tr usage.logs.title}"
+                             Description="{i18n:Tr usage.logs.description}">
+                <ui:CodexSection.Actions>
+                    <ui:CodexButton Variant="Outline"
+                                    Size="Small"
+                                    Command="{Binding RefreshUsageCommand}">
+                        <ui:CodexButton.LeadingIcon>
+                            <lucide:LucideIcon Kind="RefreshCw" Size="14" StrokeWidth="2"/>
+                        </ui:CodexButton.LeadingIcon>
                         <TextBlock Text="{Binding UsageRefreshButtonText}"/>
-                    </StackPanel>
-                </ui:CsButton>
+                    </ui:CodexButton>
+                </ui:CodexSection.Actions>
+            </ui:CodexSection>
+
+            <Grid Grid.Row="1"
+                  ColumnDefinitions="*,Auto"
+                  ColumnSpacing="16">
+                <WrapPanel>
+                    <ui:CodexField Label="{i18n:Tr usage.filter.provider}"
+                                   MinWidth="220"
+                                   Margin="0,0,14,10">
+                        <ui:CodexSelect ItemsSource="{Binding UsageFilterProviderOptions}"
+                                        SelectedValue="{Binding SelectedUsageFilterProvider, Mode=TwoWay}"
+                                        SelectedValueBinding="{Binding Value}"
+                                        MinWidth="220"
+                                        Size="Small">
+                            <ui:CodexSelect.ItemTemplate>
+                                <DataTemplate x:DataType="vm:UsageFilterOption">
+                                    <TextBlock Text="{Binding DisplayName}"
+                                               TextTrimming="CharacterEllipsis"/>
+                                </DataTemplate>
+                            </ui:CodexSelect.ItemTemplate>
+                        </ui:CodexSelect>
+                    </ui:CodexField>
+                    <ui:CodexField Label="{i18n:Tr usage.filter.model}"
+                                   MinWidth="260"
+                                   Margin="0,0,14,10">
+                        <ui:CodexSelect ItemsSource="{Binding UsageFilterModelOptions}"
+                                        SelectedValue="{Binding SelectedUsageFilterModel, Mode=TwoWay}"
+                                        SelectedValueBinding="{Binding Value}"
+                                        MinWidth="260"
+                                        Size="Small">
+                            <ui:CodexSelect.ItemTemplate>
+                                <DataTemplate x:DataType="vm:UsageFilterOption">
+                                    <TextBlock Text="{Binding DisplayName}"
+                                               TextTrimming="CharacterEllipsis"/>
+                                </DataTemplate>
+                            </ui:CodexSelect.ItemTemplate>
+                        </ui:CodexSelect>
+                    </ui:CodexField>
+                </WrapPanel>
+
+                <StackPanel Grid.Column="1"
+                            Spacing="6"
+                            VerticalAlignment="Top">
+                    <text:CodexText Text="{Binding UsageRangeCaption}"
+                                    Role="Muted"
+                                    HorizontalAlignment="Right"/>
+                    <ui:CodexSegmentedControl>
+                        <StackPanel Orientation="Horizontal" Spacing="4">
+                            <ui:CodexSegmentedButton IsSelected="{Binding IsUsageRange24HoursSelected}"
+                                                     Command="{Binding SelectUsageRangeCommand}"
+                                                     CommandParameter="Last24Hours"
+                                                     Content="{i18n:Tr usage.range.24h}"/>
+                            <ui:CodexSegmentedButton IsSelected="{Binding IsUsageRange7DaysSelected}"
+                                                     Command="{Binding SelectUsageRangeCommand}"
+                                                     CommandParameter="Last7Days"
+                                                     Content="{i18n:Tr usage.range.7d}"/>
+                            <ui:CodexSegmentedButton IsSelected="{Binding IsUsageRange30DaysSelected}"
+                                                     Command="{Binding SelectUsageRangeCommand}"
+                                                     CommandParameter="Last30Days"
+                                                     Content="{i18n:Tr usage.range.30d}"/>
+                        </StackPanel>
+                    </ui:CodexSegmentedControl>
+                </StackPanel>
             </Grid>
 
-            <WrapPanel Grid.Row="1">
-                <StackPanel Spacing="6" MinWidth="220" Margin="0,0,14,10">
-                    <ui:CsText Text="{i18n:Tr usage.filter.provider}"
-                               Classes="muted"
-                               FontSize="12"/>
-                    <ui:CsSelect ItemsSource="{Binding UsageFilterProviderOptions}"
-                                 SelectedValue="{Binding SelectedUsageFilterProvider, Mode=TwoWay}"
-                                 SelectedValueBinding="{Binding Value}"
-                                 MinWidth="220">
-                        <ui:CsSelect.ItemTemplate>
-                            <DataTemplate x:DataType="vm:UsageFilterOption">
-                                <TextBlock Text="{Binding DisplayName}"
-                                           TextTrimming="CharacterEllipsis"/>
-                            </DataTemplate>
-                        </ui:CsSelect.ItemTemplate>
-                    </ui:CsSelect>
-                </StackPanel>
-                <StackPanel Spacing="6" MinWidth="260" Margin="0,0,14,10">
-                    <ui:CsText Text="{i18n:Tr usage.filter.model}"
-                               Classes="muted"
-                               FontSize="12"/>
-                    <ui:CsSelect ItemsSource="{Binding UsageFilterModelOptions}"
-                                 SelectedValue="{Binding SelectedUsageFilterModel, Mode=TwoWay}"
-                                 SelectedValueBinding="{Binding Value}"
-                                 MinWidth="260">
-                        <ui:CsSelect.ItemTemplate>
-                            <DataTemplate x:DataType="vm:UsageFilterOption">
-                                <TextBlock Text="{Binding DisplayName}"
-                                           TextTrimming="CharacterEllipsis"/>
-                            </DataTemplate>
-                        </ui:CsSelect.ItemTemplate>
-                    </ui:CsSelect>
-                </StackPanel>
-            </WrapPanel>
+            <ui:CodexPinnedTable Grid.Row="2"
+                                 ItemsSource="{Binding UsageLogRows}"
+                                 IsCompact="True"
+                                 IsLoading="{Binding IsUsageRefreshing}"
+                                 TransitionKey="{Binding UsageLogTableTransitionKey}"
+                                 StartColumnWidth="88"
+                                 EndColumnWidth="52"
+                                 MiddleMinWidth="954">
+                <ui:CodexPinnedTable.StartHeader>
+                    <ui:CodexTableHead Content="{i18n:Tr usage.table.time}" MinWidth="0" Padding="6,6"/>
+                </ui:CodexPinnedTable.StartHeader>
+                <ui:CodexPinnedTable.MiddleHeader>
+                    <Grid ColumnDefinitions="142,160,92,94,102,86,92,92,92">
+                        <ui:CodexTableHead Content="{i18n:Tr usage.table.provider}" MinWidth="142"/>
+                        <ui:CodexTableHead Grid.Column="1" Content="{i18n:Tr usage.table.model}" MinWidth="160"/>
+                        <ui:CodexTableHead Grid.Column="2" Content="{i18n:Tr usage.table.input}" MinWidth="92"/>
+                        <ui:CodexTableHead Grid.Column="3" Content="{i18n:Tr usage.table.cacheHit}" MinWidth="94"/>
+                        <ui:CodexTableHead Grid.Column="4" Content="{i18n:Tr usage.table.cacheWrite}" MinWidth="102"/>
+                        <ui:CodexTableHead Grid.Column="5" Content="{i18n:Tr usage.table.output}" MinWidth="86"/>
+                        <ui:CodexTableHead Grid.Column="6" Content="{i18n:Tr usage.table.outputTps}" MinWidth="92"/>
+                        <ui:CodexTableHead Grid.Column="7" Content="{i18n:Tr usage.table.cost}" MinWidth="92"/>
+                        <ui:CodexTableHead Grid.Column="8" Content="{i18n:Tr usage.table.duration}" MinWidth="92"/>
+                    </Grid>
+                </ui:CodexPinnedTable.MiddleHeader>
+                <ui:CodexPinnedTable.EndHeader>
+                    <ui:CodexTableHead Content="{i18n:Tr usage.table.status}" MinWidth="0" Padding="6,6"/>
+                </ui:CodexPinnedTable.EndHeader>
 
-            <ItemsControl Grid.Row="2" ItemsSource="{Binding UsageMetrics}">
-                <ItemsControl.ItemsPanel>
-                    <ItemsPanelTemplate>
-                        <UniformGrid Columns="5"/>
-                    </ItemsPanelTemplate>
-                </ItemsControl.ItemsPanel>
-                <ItemsControl.ItemTemplate>
-                    <DataTemplate x:DataType="vm:UsageMetricItem">
-                        <ui:CsStatsCard Margin="0,0,12,0">
-                            <Grid RowDefinitions="34,Auto"
-                                  ColumnDefinitions="*,Auto"
-                                  RowSpacing="8">
-                                <ui:CsText Text="{Binding Label}"
-                                           Classes="muted"
-                                           FontSize="12"
-                                           TextTrimming="CharacterEllipsis"
-                                           VerticalAlignment="Center"/>
-                                <Border Grid.Column="1"
-                                        Width="34"
-                                        Height="34"
-                                        CornerRadius="9"
-                                        Background="{Binding IconBackground}">
-                                    <lucide:LucideIcon Kind="{Binding Icon}"
-                                                       Foreground="{Binding IconForeground}"
-                                                       Size="18"
-                                                       StrokeWidth="2"
-                                                       HorizontalAlignment="Center"
-                                                       VerticalAlignment="Center"/>
-                                </Border>
-                                <ui:CsText Grid.Row="1"
-                                           Grid.ColumnSpan="2"
-                                           Text="{Binding Value}"
-                                           Classes="stat-value"
-                                           TextTrimming="CharacterEllipsis"
-                                           VerticalAlignment="Top"/>
-                            </Grid>
-                        </ui:CsStatsCard>
+                <ui:CodexPinnedTable.StartCellTemplate>
+                    <DataTemplate x:DataType="vm:UsageLogItem">
+                        <ui:CodexTableRow>
+                            <ui:CodexTableCell MinWidth="0" Padding="6,6">
+                                <TextBlock Text="{Binding Time}" Classes="table-strong"/>
+                            </ui:CodexTableCell>
+                        </ui:CodexTableRow>
                     </DataTemplate>
-                </ItemsControl.ItemTemplate>
-            </ItemsControl>
+                </ui:CodexPinnedTable.StartCellTemplate>
 
-            <ui:CsPanel Grid.Row="3" Padding="20">
-                <Grid RowDefinitions="Auto,Auto,*" RowSpacing="14">
-                    <Grid ColumnDefinitions="*,Auto">
-                        <StackPanel Spacing="3">
-                            <ui:CsText Text="{i18n:Tr usage.trend}" Classes="heading"/>
-                            <ui:CsText Text="{Binding UsageRangeCaption}" Classes="muted"/>
-                        </StackPanel>
-                        <ui:CsSegmentedControl Grid.Column="1">
-                            <StackPanel Orientation="Horizontal" Spacing="4">
-                                <ui:CsSegmentedButton IsSelected="{Binding IsUsageRange24HoursSelected}"
-                                                      Command="{Binding SelectUsageRangeCommand}"
-                                                      CommandParameter="Last24Hours"
-                                                      Content="{i18n:Tr usage.range.24h}"/>
-                                <ui:CsSegmentedButton IsSelected="{Binding IsUsageRange7DaysSelected}"
-                                                      Command="{Binding SelectUsageRangeCommand}"
-                                                      CommandParameter="Last7Days"
-                                                      Content="{i18n:Tr usage.range.7d}"/>
-                                <ui:CsSegmentedButton IsSelected="{Binding IsUsageRange30DaysSelected}"
-                                                      Command="{Binding SelectUsageRangeCommand}"
-                                                      CommandParameter="Last30Days"
-                                                      Content="{i18n:Tr usage.range.30d}"/>
-                            </StackPanel>
-                        </ui:CsSegmentedControl>
-                    </Grid>
-                    <Grid Grid.Row="1" ColumnDefinitions="*,Auto">
-                        <WrapPanel>
-                            <StackPanel Orientation="Horizontal" Spacing="7" Margin="0,0,16,0">
-                                <Border Width="8" Height="8" CornerRadius="4" Background="#60A5FA" VerticalAlignment="Center"/>
-                                <ui:CsText Text="{i18n:Tr usage.chart.input}" Classes="muted"/>
-                            </StackPanel>
-                            <StackPanel Orientation="Horizontal" Spacing="7" Margin="0,0,16,0">
-                                <Border Width="8" Height="8" CornerRadius="4" Background="#A78BFA" VerticalAlignment="Center"/>
-                                <ui:CsText Text="{i18n:Tr usage.chart.cached}" Classes="muted"/>
-                            </StackPanel>
-                            <StackPanel Orientation="Horizontal" Spacing="7" Margin="0,0,16,0">
-                                <Border Width="8" Height="8" CornerRadius="4" Background="#F59E0B" VerticalAlignment="Center"/>
-                                <ui:CsText Text="{i18n:Tr usage.chart.cacheWrite}" Classes="muted"/>
-                            </StackPanel>
-                            <StackPanel Orientation="Horizontal" Spacing="7" Margin="0,0,16,0">
-                                <Border Width="8" Height="8" CornerRadius="4" Background="#34D399" VerticalAlignment="Center"/>
-                                <ui:CsText Text="{i18n:Tr usage.chart.output}" Classes="muted"/>
-                            </StackPanel>
-                            <StackPanel Orientation="Horizontal" Spacing="7" Margin="0,0,16,0">
-                                <Border Width="8" Height="8" CornerRadius="4" Background="#22D3EE" VerticalAlignment="Center"/>
-                                <ui:CsText Text="{i18n:Tr usage.chart.reasoning}" Classes="muted"/>
-                            </StackPanel>
-                            <StackPanel Orientation="Horizontal" Spacing="7">
-                                <Border Width="18" Height="2" Background="#F472B6" VerticalAlignment="Center"/>
-                                <ui:CsText Text="{i18n:Tr usage.chart.cost}" Classes="muted"/>
-                            </StackPanel>
-                        </WrapPanel>
-                        <ui:CsText Grid.Column="1" Text="{i18n:Tr usage.localRecords}" Classes="muted"/>
-                    </Grid>
-                    <ui:CsUsageTrendChart Grid.Row="2"
-                                          ItemsSource="{Binding TrendPoints}"
-                                          Granularity="{Binding UsageTrendGranularity}"
-                                          TokensLabel="{i18n:Tr usage.chart.tokens}"
-                                          RequestsLabel="{i18n:Tr usage.chart.requests}"
-                                          CostLabel="{i18n:Tr usage.chart.cost}"
-                                          InputLabel="{i18n:Tr usage.chart.input}"
-                                          CachedInputLabel="{i18n:Tr usage.chart.cached}"
-                                          CacheCreationInputLabel="{i18n:Tr usage.chart.cacheWrite}"
-                                          CacheHitRateLabel="{i18n:Tr usage.metric.cacheHitRate}"
-                                          OutputTpsLabel="{i18n:Tr usage.chart.outputTps}"
-                                          OutputLabel="{i18n:Tr usage.chart.output}"
-                                          ReasoningLabel="{i18n:Tr usage.chart.reasoning}"
-                                          EmptyText="{i18n:Tr usage.chart.empty}"
-                                          IsRefreshing="{Binding IsUsageRefreshing}"
-                                          RefreshingText="{i18n:Tr usage.refreshing}"
-                                          Height="300"/>
-                </Grid>
-            </ui:CsPanel>
+                <ui:CodexPinnedTable.MiddleCellTemplate>
+                    <DataTemplate x:DataType="vm:UsageLogItem">
+                        <ui:CodexTableRow>
+                            <Grid ColumnDefinitions="142,160,92,94,102,86,92,92,92">
+                                <ui:CodexTableCell MinWidth="142">
+                                    <ui:CodexBadge Variant="Secondary" Padding="8,3">
+                                        <TextBlock Text="{Binding Provider}" FontSize="12" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"/>
+                                    </ui:CodexBadge>
+                                </ui:CodexTableCell>
+                                <ui:CodexTableCell Grid.Column="1" MinWidth="160">
+                                    <TextBlock Text="{Binding Model}" Classes="table-strong" Foreground="#C7D2FE"/>
+                                </ui:CodexTableCell>
+                                <ui:CodexTableCell Grid.Column="2" MinWidth="92">
+                                    <TextBlock Text="{Binding Input}" Classes="table-strong"/>
+                                </ui:CodexTableCell>
+                                <ui:CodexTableCell Grid.Column="3" MinWidth="94">
+                                    <TextBlock Text="{Binding CachedInput}" Classes="table-strong" Foreground="#C4B5FD"/>
+                                </ui:CodexTableCell>
+                                <ui:CodexTableCell Grid.Column="4" MinWidth="102">
+                                    <TextBlock Text="{Binding CacheCreationInput}" Classes="table-strong" Foreground="#FCD34D"/>
+                                </ui:CodexTableCell>
+                                <ui:CodexTableCell Grid.Column="5" MinWidth="86">
+                                    <TextBlock Text="{Binding Output}" Classes="table-strong" Foreground="#86EFAC"/>
+                                </ui:CodexTableCell>
+                                <ui:CodexTableCell Grid.Column="6" MinWidth="92">
+                                    <TextBlock Text="{Binding OutputTps}" Classes="table-strong" Foreground="#FDE047"/>
+                                </ui:CodexTableCell>
+                                <ui:CodexTableCell Grid.Column="7" MinWidth="92">
+                                    <TextBlock Text="{Binding Cost}" Classes="table-strong"/>
+                                </ui:CodexTableCell>
+                                <ui:CodexTableCell Grid.Column="8" MinWidth="92">
+                                    <TextBlock Text="{Binding Duration}" Classes="table-muted"/>
+                                </ui:CodexTableCell>
+                            </Grid>
+                        </ui:CodexTableRow>
+                    </DataTemplate>
+                </ui:CodexPinnedTable.MiddleCellTemplate>
 
-            <Grid Grid.Row="4"
-                  RowDefinitions="Auto,Auto"
-                  RowSpacing="14">
-                <ui:CsSegmentedControl HorizontalAlignment="Left">
-                    <StackPanel Orientation="Horizontal" Spacing="4">
-                        <ui:CsSegmentedButton IsSelected="{Binding IsUsageRequestsVisible}"
-                                              Command="{Binding SelectUsageTabCommand}"
-                                              CommandParameter="Requests"
-                                              Content="{i18n:Tr usage.tab.requests}"/>
-                        <ui:CsSegmentedButton IsSelected="{Binding IsUsageProvidersVisible}"
-                                              Command="{Binding SelectUsageTabCommand}"
-                                              CommandParameter="Providers"
-                                              Content="{i18n:Tr usage.tab.providers}"/>
-                        <ui:CsSegmentedButton IsSelected="{Binding IsUsageModelsVisible}"
-                                              Command="{Binding SelectUsageTabCommand}"
-                                              CommandParameter="Models"
-                                              Content="{i18n:Tr usage.tab.models}"/>
-                    </StackPanel>
-                </ui:CsSegmentedControl>
+                <ui:CodexPinnedTable.EndCellTemplate>
+                    <DataTemplate x:DataType="vm:UsageLogItem">
+                        <ui:CodexTableRow>
+                            <ui:CodexTableCell MinWidth="0" Padding="6,6">
+                                <Border Background="{Binding StatusBackground}"
+                                        BorderBrush="{Binding StatusBorder}"
+                                        BorderThickness="1"
+                                        CornerRadius="6"
+                                        Padding="6,3"
+                                        HorizontalAlignment="Left">
+                                    <TextBlock Text="{Binding Status}"
+                                               Foreground="{Binding StatusForeground}"
+                                               FontSize="12"
+                                               FontWeight="SemiBold"/>
+                                </Border>
+                            </ui:CodexTableCell>
+                        </ui:CodexTableRow>
+                    </DataTemplate>
+                </ui:CodexPinnedTable.EndCellTemplate>
+            </ui:CodexPinnedTable>
 
-                <ui:CsPanel Grid.Row="1"
-                            Padding="0"
-                            IsVisible="{Binding IsUsageRequestsVisible}">
-                    <ui:CsTable>
-                        <Grid RowDefinitions="Auto,*">
-                            <ui:CsTableHeader>
-                                <Grid ColumnDefinitions="1.05*,1.1*,1.15*,0.72*,0.76*,0.78*,0.66*,0.72*,0.72*,0.58*" ColumnSpacing="8">
-                                    <ui:CsTableHead Content="{i18n:Tr usage.table.time}"/>
-                                    <ui:CsTableHead Grid.Column="1" Content="{i18n:Tr usage.table.provider}"/>
-                                    <ui:CsTableHead Grid.Column="2" Content="{i18n:Tr usage.table.model}"/>
-                                    <ui:CsTableHead Grid.Column="3" Content="{i18n:Tr usage.table.input}"/>
-                                    <ui:CsTableHead Grid.Column="4" Content="{i18n:Tr usage.table.cacheHit}"/>
-                                    <ui:CsTableHead Grid.Column="5" Content="{i18n:Tr usage.table.cacheWrite}"/>
-                                    <ui:CsTableHead Grid.Column="6" Content="{i18n:Tr usage.table.output}"/>
-                                    <ui:CsTableHead Grid.Column="7" Content="{i18n:Tr usage.table.cost}"/>
-                                    <ui:CsTableHead Grid.Column="8" Content="{i18n:Tr usage.table.duration}"/>
-                                    <ui:CsTableHead Grid.Column="9" Content="{i18n:Tr usage.table.status}"/>
-                                </Grid>
-                            </ui:CsTableHeader>
-                            <ListBox Grid.Row="1"
-                                     Classes="usage-table-list"
-                                     ItemsSource="{Binding UsageLogRows}"
-                                     MaxHeight="372"
-                                     ScrollViewer.HorizontalScrollBarVisibility="Disabled"
-                                     ScrollViewer.VerticalScrollBarVisibility="Auto">
-                                <ListBox.ItemsPanel>
-                                    <ItemsPanelTemplate>
-                                        <VirtualizingStackPanel/>
-                                    </ItemsPanelTemplate>
-                                </ListBox.ItemsPanel>
-                                <ListBox.ItemTemplate>
-                                    <DataTemplate x:DataType="vm:UsageLogItem">
-                                        <ui:CsTableRow>
-                                            <Grid ColumnDefinitions="1.05*,1.1*,1.15*,0.72*,0.76*,0.78*,0.66*,0.72*,0.72*,0.58*" ColumnSpacing="8">
-                                                <ui:CsTableCell>
-                                                    <TextBlock Text="{Binding Time}"
-                                                               FontWeight="SemiBold"
-                                                               TextTrimming="CharacterEllipsis"/>
-                                                </ui:CsTableCell>
-                                                <ui:CsTableCell Grid.Column="1">
-                                                    <Border Background="#14FFFFFF"
-                                                            BorderBrush="#18FFFFFF"
-                                                            BorderThickness="1"
-                                                            CornerRadius="6"
-                                                            Padding="8,3"
-                                                            HorizontalAlignment="Left">
-                                                        <TextBlock Text="{Binding Provider}"
-                                                                   FontSize="12"
-                                                                   FontWeight="SemiBold"
-                                                                   TextTrimming="CharacterEllipsis"/>
-                                                    </Border>
-                                                </ui:CsTableCell>
-                                                <ui:CsTableCell Grid.Column="2">
-                                                    <TextBlock Text="{Binding Model}"
-                                                               FontWeight="SemiBold"
-                                                               Foreground="#C7D2FE"
-                                                               TextTrimming="CharacterEllipsis"/>
-                                                </ui:CsTableCell>
-                                                <ui:CsTableCell Grid.Column="3">
-                                                    <TextBlock Text="{Binding Input}"
-                                                               FontWeight="SemiBold"
-                                                               TextTrimming="CharacterEllipsis"/>
-                                                </ui:CsTableCell>
-                                                <ui:CsTableCell Grid.Column="4">
-                                                    <TextBlock Text="{Binding CachedInput}"
-                                                               Foreground="#C4B5FD"
-                                                               FontWeight="SemiBold"
-                                                               TextTrimming="CharacterEllipsis"/>
-                                                </ui:CsTableCell>
-                                                <ui:CsTableCell Grid.Column="5">
-                                                    <TextBlock Text="{Binding CacheCreationInput}"
-                                                               Foreground="#FCD34D"
-                                                               FontWeight="SemiBold"
-                                                               TextTrimming="CharacterEllipsis"/>
-                                                </ui:CsTableCell>
-                                                <ui:CsTableCell Grid.Column="6">
-                                                    <TextBlock Text="{Binding Output}"
-                                                               Foreground="#86EFAC"
-                                                               FontWeight="SemiBold"
-                                                               TextTrimming="CharacterEllipsis"/>
-                                                </ui:CsTableCell>
-                                                <ui:CsTableCell Grid.Column="7">
-                                                    <TextBlock Text="{Binding Cost}"
-                                                               FontWeight="SemiBold"
-                                                               TextTrimming="CharacterEllipsis"/>
-                                                </ui:CsTableCell>
-                                                <ui:CsTableCell Grid.Column="8">
-                                                    <TextBlock Text="{Binding Duration}"
-                                                               Foreground="{StaticResource CsMutedForegroundBrush}"
-                                                               TextTrimming="CharacterEllipsis"/>
-                                                </ui:CsTableCell>
-                                                <ui:CsTableCell Grid.Column="9">
-                                                    <Border Background="{Binding StatusBackground}"
-                                                            BorderBrush="{Binding StatusBorder}"
-                                                            BorderThickness="1"
-                                                            CornerRadius="6"
-                                                            Padding="7,3"
-                                                            HorizontalAlignment="Left">
-                                                        <TextBlock Text="{Binding Status}"
-                                                                   Foreground="{Binding StatusForeground}"
-                                                                   FontSize="12"
-                                                                   FontWeight="SemiBold"/>
-                                                    </Border>
-                                                </ui:CsTableCell>
-                                            </Grid>
-                                        </ui:CsTableRow>
-                                    </DataTemplate>
-                                </ListBox.ItemTemplate>
-                            </ListBox>
-                        </Grid>
-                    </ui:CsTable>
-                </ui:CsPanel>
-
-                <ui:CsPanel Grid.Row="1"
-                            Padding="0"
-                            IsVisible="{Binding IsUsageProvidersVisible}">
-                    <ui:CsTable>
-                        <Grid RowDefinitions="Auto,*">
-                            <ui:CsTableHeader>
-                                <Grid ColumnDefinitions="1.4*,1*,1*,1*,1*,1*" ColumnSpacing="10">
-                                    <ui:CsTableHead Content="{i18n:Tr usage.table.provider}"/>
-                                    <ui:CsTableHead Grid.Column="1" Content="{i18n:Tr usage.table.requests}"/>
-                                    <ui:CsTableHead Grid.Column="2" Content="{i18n:Tr usage.table.tokens}"/>
-                                    <ui:CsTableHead Grid.Column="3" Content="{i18n:Tr usage.table.cost}"/>
-                                    <ui:CsTableHead Grid.Column="4" Content="{i18n:Tr usage.table.successRate}"/>
-                                    <ui:CsTableHead Grid.Column="5" Content="{i18n:Tr usage.table.averageLatency}"/>
-                                </Grid>
-                            </ui:CsTableHeader>
-                            <ItemsControl Grid.Row="1" ItemsSource="{Binding ProviderUsageRows}">
-                                <ItemsControl.ItemTemplate>
-                                    <DataTemplate x:DataType="vm:ProviderUsageItem">
-                                        <ui:CsTableRow>
-                                            <Grid ColumnDefinitions="1.4*,1*,1*,1*,1*,1*" ColumnSpacing="10">
-                                                <ui:CsTableCell Content="{Binding Provider}"/>
-                                                <ui:CsTableCell Grid.Column="1" Content="{Binding Requests}"/>
-                                                <ui:CsTableCell Grid.Column="2" Content="{Binding Tokens}"/>
-                                                <ui:CsTableCell Grid.Column="3" Content="{Binding Cost}"/>
-                                                <ui:CsTableCell Grid.Column="4" Content="{Binding SuccessRate}"/>
-                                                <ui:CsTableCell Grid.Column="5" Content="{Binding AverageLatency}"/>
-                                            </Grid>
-                                        </ui:CsTableRow>
-                                    </DataTemplate>
-                                </ItemsControl.ItemTemplate>
-                            </ItemsControl>
-                        </Grid>
-                    </ui:CsTable>
-                </ui:CsPanel>
-
-                <ui:CsPanel Grid.Row="1"
-                            Padding="0"
-                            IsVisible="{Binding IsUsageModelsVisible}">
-                    <ui:CsTable>
-                        <Grid RowDefinitions="Auto,*">
-                            <ui:CsTableHeader>
-                                <Grid ColumnDefinitions="1.5*,1*,1*,1*,1*" ColumnSpacing="10">
-                                    <ui:CsTableHead Content="{i18n:Tr usage.table.model}"/>
-                                    <ui:CsTableHead Grid.Column="1" Content="{i18n:Tr usage.table.requests}"/>
-                                    <ui:CsTableHead Grid.Column="2" Content="{i18n:Tr usage.table.tokens}"/>
-                                    <ui:CsTableHead Grid.Column="3" Content="{i18n:Tr usage.table.totalCost}"/>
-                                    <ui:CsTableHead Grid.Column="4" Content="{i18n:Tr usage.table.averageCost}"/>
-                                </Grid>
-                            </ui:CsTableHeader>
-                            <ItemsControl Grid.Row="1" ItemsSource="{Binding ModelUsageRows}">
-                                <ItemsControl.ItemTemplate>
-                                    <DataTemplate x:DataType="vm:ModelUsageItem">
-                                        <ui:CsTableRow>
-                                            <Grid ColumnDefinitions="1.5*,1*,1*,1*,1*" ColumnSpacing="10">
-                                                <ui:CsTableCell Content="{Binding Model}"/>
-                                                <ui:CsTableCell Grid.Column="1" Content="{Binding Requests}"/>
-                                                <ui:CsTableCell Grid.Column="2" Content="{Binding Tokens}"/>
-                                                <ui:CsTableCell Grid.Column="3" Content="{Binding Cost}"/>
-                                                <ui:CsTableCell Grid.Column="4" Content="{Binding AverageCost}"/>
-                                            </Grid>
-                                        </ui:CsTableRow>
-                                    </DataTemplate>
-                                </ItemsControl.ItemTemplate>
-                            </ItemsControl>
-                        </Grid>
-                    </ui:CsTable>
-                </ui:CsPanel>
+            <Grid Grid.Row="3"
+                  ColumnDefinitions="*,Auto"
+                  ColumnSpacing="16">
+                <StackPanel Orientation="Horizontal"
+                            Spacing="8">
+                    <ui:CodexIconButton Command="{Binding PreviousUsageLogPageCommand}"
+                                        IsEnabled="{Binding CanGoToPreviousUsageLogPage}"
+                                        ToolTip.Tip="{i18n:Tr usage.pagination.previous}">
+                        <lucide:LucideIcon Kind="ChevronLeft" Size="16" StrokeWidth="2"/>
+                    </ui:CodexIconButton>
+                    <ui:CodexSegmentedControl VerticalAlignment="Center">
+                        <ItemsControl ItemsSource="{Binding UsageLogPageOptions}">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <StackPanel Orientation="Horizontal" Spacing="4"/>
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="vm:UsageLogPageOption">
+                                    <ui:CodexSegmentedButton IsSelected="{Binding IsSelected}"
+                                                             Command="{Binding SelectCommand}"
+                                                             CommandParameter="{Binding PageNumber}"
+                                                             Content="{Binding DisplayName}"/>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </ui:CodexSegmentedControl>
+                    <ui:CodexIconButton Command="{Binding NextUsageLogPageCommand}"
+                                        IsEnabled="{Binding CanGoToNextUsageLogPage}"
+                                        ToolTip.Tip="{i18n:Tr usage.pagination.next}">
+                        <lucide:LucideIcon Kind="ChevronRight" Size="16" StrokeWidth="2"/>
+                    </ui:CodexIconButton>
+                </StackPanel>
+                <text:CodexText Grid.Column="1"
+                                Text="{Binding UsageLogPageCaption}"
+                                Role="Muted"
+                                VerticalAlignment="Center"/>
             </Grid>
         </Grid>
     </ScrollViewer>

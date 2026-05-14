@@ -264,6 +264,7 @@ public sealed class OpenAiResponsesAdapterMessagesTests
             Context = new ProviderRequestContext(
                 HttpContext,
                 config,
+                ClientAppKind.ClaudeCode,
                 provider,
                 route,
                 new ProviderCostSettings(),

@@ -274,6 +274,20 @@ public sealed class ConfigurationStore
                 provider.IconSlug ??= "openai";
                 SyncProviderTemplate(provider, ProviderTemplateCatalog.OpenAiOfficialBuiltinId);
             }
+            else if (IsCodexOAuthProvider(provider))
+            {
+                provider.BuiltinId = ProviderTemplateCatalog.CodexOAuthBuiltinId;
+                provider.DisplayName = string.IsNullOrWhiteSpace(provider.DisplayName) ? "Codex OAuth" : provider.DisplayName;
+                provider.Website ??= "https://openai.com/codex";
+                provider.IconSlug ??= "openai";
+                provider.BaseUrl = ProviderTemplateCatalog.CodexOAuthTemplate.BaseUrl;
+                provider.AuthMode = ProviderAuthMode.OAuth;
+                provider.Protocol = ProviderProtocol.OpenAiResponses;
+                provider.DefaultModel = string.IsNullOrWhiteSpace(provider.DefaultModel)
+                    ? ProviderTemplateCatalog.CodexOAuthTemplate.DefaultModel
+                    : provider.DefaultModel;
+                SyncProviderTemplate(provider, ProviderTemplateCatalog.CodexOAuthBuiltinId);
+            }
             else if (IsBaseUrl(provider, "https://api.anthropic.com/v1"))
             {
                 provider.BuiltinId ??= ProviderTemplateCatalog.AnthropicBuiltinId;
@@ -386,6 +400,12 @@ public sealed class ConfigurationStore
         return string.Equals(provider.BaseUrl.TrimEnd('/'), baseUrl.TrimEnd('/'), StringComparison.OrdinalIgnoreCase);
     }
 
+    private static bool IsCodexOAuthProvider(ProviderConfig provider)
+    {
+        return string.Equals(provider.BuiltinId, ProviderTemplateCatalog.CodexOAuthBuiltinId, StringComparison.OrdinalIgnoreCase) ||
+            IsBaseUrl(provider, ProviderTemplateCatalog.CodexOAuthTemplate.BaseUrl);
+    }
+
     private static bool IsDeepSeekProvider(ProviderConfig provider)
     {
         return string.Equals(provider.BuiltinId, ProviderTemplateCatalog.DeepSeekBuiltinId, StringComparison.OrdinalIgnoreCase) ||
@@ -438,6 +458,8 @@ public sealed class ConfigurationStore
 
         provider.OAuth ??= CloneOAuth(template.OAuth);
         provider.RequestOverrides ??= CloneRequestOverrides(template.RequestOverrides);
+        if (string.Equals(templateId, ProviderTemplateCatalog.CodexOAuthBuiltinId, StringComparison.OrdinalIgnoreCase))
+            SyncCodexOAuthProvider(provider, template);
         if (!provider.SupportsCodex && !provider.SupportsClaudeCode)
         {
             provider.SupportsCodex = template.SupportsCodex;
@@ -673,5 +695,59 @@ public sealed class ConfigurationStore
             clone.OmitBodyKeys.Add(key);
 
         return clone;
+    }
+
+    private static void SyncCodexOAuthProvider(ProviderConfig provider, ProviderTemplate template)
+    {
+        provider.BaseUrl = template.BaseUrl;
+        provider.AuthMode = ProviderAuthMode.OAuth;
+        provider.Protocol = ProviderProtocol.OpenAiResponses;
+        provider.OAuth = MergeCodexOAuth(provider.OAuth, template.OAuth);
+        provider.RequestOverrides = MergeRequestOverrides(provider.RequestOverrides, template.RequestOverrides);
+    }
+
+    private static ProviderOAuthSettings? MergeCodexOAuth(
+        ProviderOAuthSettings? current,
+        ProviderOAuthSettings? template)
+    {
+        if (template is null)
+            return current;
+
+        var merged = current ?? new ProviderOAuthSettings();
+        merged.AuthorizeUrl = template.AuthorizeUrl;
+        merged.TokenUrl = template.TokenUrl;
+        merged.ClientId = template.ClientId;
+        merged.ClientIdLocked = template.ClientIdLocked;
+        merged.Scope = template.Scope;
+        merged.RefreshScope = template.RefreshScope;
+        merged.RedirectHost = template.RedirectHost;
+        merged.RedirectPort = template.RedirectPort;
+        merged.RedirectPath = template.RedirectPath;
+        merged.UsePkce = template.UsePkce;
+        merged.UseJsonRefresh = template.UseJsonRefresh;
+        return merged;
+    }
+
+    private static ProviderRequestOverrides? MergeRequestOverrides(
+        ProviderRequestOverrides? current,
+        ProviderRequestOverrides? template)
+    {
+        if (template is null)
+            return current;
+
+        var merged = current ?? new ProviderRequestOverrides();
+        merged.ForceStoreFalse = template.ForceStoreFalse;
+        merged.Instructions = template.Instructions;
+
+        foreach (var key in template.OmitBodyKeys)
+        {
+            if (!merged.OmitBodyKeys.Contains(key, StringComparer.OrdinalIgnoreCase))
+                merged.OmitBodyKeys.Add(key);
+        }
+
+        foreach (var header in template.Headers)
+            merged.Headers[header.Key] = header.Value;
+
+        return merged;
     }
 }

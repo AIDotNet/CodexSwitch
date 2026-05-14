@@ -10,6 +10,9 @@ public static class ProviderTemplateCatalog
     public const string DeepSeekBuiltinId = "deepseek";
     public const string XiaomiBuiltinId = "xiaomi-mimo";
     public const string CodexOAuthBuiltinId = "codex-oauth";
+    private const string CodexClientVersion = "0.128.0";
+    private const string CodexCliUserAgent = "codex_cli_rs/" + CodexClientVersion +
+        " (Windows 10.0.26200; x86_64) vscode/1.110.0";
 
     private static readonly ProviderTemplate[] Templates =
     [
@@ -141,7 +144,7 @@ public static class ProviderTemplateCatalog
             ClientIdLocked = true,
             Scope = "openid profile email offline_access",
             RefreshScope = "openid profile email",
-            RedirectHost = "127.0.0.1",
+            RedirectHost = "localhost",
             RedirectPort = 1455,
             RedirectPath = "/auth/callback",
             UsePkce = true,
@@ -156,6 +159,9 @@ public static class ProviderTemplateCatalog
             {
                 ["openai-beta"] = "responses=experimental",
                 ["originator"] = "codex_cli_rs",
+                ["User-Agent"] = CodexCliUserAgent,
+                ["x-codex-beta-features"] = "memories",
+                ["Chatgpt-Account-Id"] = "{{chatgptAccountId}}",
                 ["session_id"] = "{{sessionId}}",
                 ["conversation_id"] = "{{sessionId}}"
             }

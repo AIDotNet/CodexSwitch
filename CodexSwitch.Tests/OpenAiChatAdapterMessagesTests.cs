@@ -244,6 +244,260 @@ public sealed class OpenAiChatAdapterMessagesTests
         Assert.Equal(5, log.RootElement.GetProperty("usage").GetProperty("outputTokens").GetInt64());
     }
 
+    [Fact]
+    public async Task HandleResponsesAsync_MovesFunctionOutputsImmediatelyAfterToolCalls()
+    {
+        using var requestDocument = JsonDocument.Parse(
+            """
+            {
+              "model": "claude-alias",
+              "input": [
+                {
+                  "type": "message",
+                  "role": "assistant",
+                  "content": [{ "type": "output_text", "text": "I will use tools." }]
+                },
+                {
+                  "type": "function_call",
+                  "call_id": "call_1",
+                  "name": "lookup",
+                  "arguments": "{\"query\":\"one\"}"
+                },
+                {
+                  "type": "function_call",
+                  "call_id": "call_2",
+                  "name": "lookup",
+                  "arguments": "{\"query\":\"two\"}"
+                },
+                {
+                  "type": "message",
+                  "role": "user",
+                  "content": [{ "type": "input_text", "text": "Summarize after tools." }]
+                },
+                {
+                  "type": "function_call_output",
+                  "call_id": "call_2",
+                  "output": "Two"
+                },
+                {
+                  "type": "function_call_output",
+                  "call_id": "call_1",
+                  "output": "One"
+                }
+              ]
+            }
+            """);
+
+        using var fixture = new AdapterFixture(
+            requestDocument,
+            """
+            {
+              "id": "chatcmpl-responses",
+              "object": "chat.completion",
+              "created": 1710000000,
+              "model": "gpt-upstream",
+              "choices": [
+                {
+                  "index": 0,
+                  "message": {
+                    "role": "assistant",
+                    "content": "Done."
+                  },
+                  "finish_reason": "stop"
+                }
+              ],
+              "usage": {
+                "prompt_tokens": 20,
+                "completion_tokens": 5
+              }
+            }
+            """);
+
+        await fixture.InvokeResponsesAsync();
+
+        using var upstreamPayload = JsonDocument.Parse(fixture.Handler.Requests[0].Body);
+        var messages = upstreamPayload.RootElement.GetProperty("messages").EnumerateArray().ToArray();
+        Assert.Equal(4, messages.Length);
+
+        Assert.Equal("assistant", messages[0].GetProperty("role").GetString());
+        Assert.Equal("I will use tools.", messages[0].GetProperty("content").GetString());
+        var toolCalls = messages[0].GetProperty("tool_calls").EnumerateArray().ToArray();
+        Assert.Equal("call_1", toolCalls[0].GetProperty("id").GetString());
+        Assert.Equal("call_2", toolCalls[1].GetProperty("id").GetString());
+
+        Assert.Equal("tool", messages[1].GetProperty("role").GetString());
+        Assert.Equal("call_1", messages[1].GetProperty("tool_call_id").GetString());
+        Assert.Equal("One", messages[1].GetProperty("content").GetString());
+
+        Assert.Equal("tool", messages[2].GetProperty("role").GetString());
+        Assert.Equal("call_2", messages[2].GetProperty("tool_call_id").GetString());
+        Assert.Equal("Two", messages[2].GetProperty("content").GetString());
+
+        Assert.Equal("user", messages[3].GetProperty("role").GetString());
+        Assert.Equal("Summarize after tools.", ExtractSingleChatText(messages[3].GetProperty("content")));
+    }
+
+    [Fact]
+    public async Task HandleResponsesAsync_DropsToolCallsWithoutFunctionOutputs()
+    {
+        using var requestDocument = JsonDocument.Parse(
+            """
+            {
+              "model": "claude-alias",
+              "input": [
+                {
+                  "type": "message",
+                  "role": "assistant",
+                  "content": [{ "type": "output_text", "text": "I will use a tool." }]
+                },
+                {
+                  "type": "function_call",
+                  "call_id": "call_missing",
+                  "name": "lookup",
+                  "arguments": "{\"query\":\"missing\"}"
+                },
+                {
+                  "type": "message",
+                  "role": "user",
+                  "content": [{ "type": "input_text", "text": "Continue without it." }]
+                }
+              ]
+            }
+            """);
+
+        using var fixture = new AdapterFixture(
+            requestDocument,
+            """
+            {
+              "id": "chatcmpl-responses",
+              "object": "chat.completion",
+              "created": 1710000000,
+              "model": "gpt-upstream",
+              "choices": [
+                {
+                  "index": 0,
+                  "message": {
+                    "role": "assistant",
+                    "content": "Done."
+                  },
+                  "finish_reason": "stop"
+                }
+              ],
+              "usage": {
+                "prompt_tokens": 20,
+                "completion_tokens": 5
+              }
+            }
+            """);
+
+        await fixture.InvokeResponsesAsync();
+
+        using var upstreamPayload = JsonDocument.Parse(fixture.Handler.Requests[0].Body);
+        var messages = upstreamPayload.RootElement.GetProperty("messages").EnumerateArray().ToArray();
+        Assert.Equal(2, messages.Length);
+
+        Assert.Equal("assistant", messages[0].GetProperty("role").GetString());
+        Assert.Equal("I will use a tool.", messages[0].GetProperty("content").GetString());
+        Assert.False(messages[0].TryGetProperty("tool_calls", out _));
+
+        Assert.Equal("user", messages[1].GetProperty("role").GetString());
+        Assert.Equal("Continue without it.", ExtractSingleChatText(messages[1].GetProperty("content")));
+    }
+
+    [Fact]
+    public async Task HandleResponsesAsync_ConvertsAllowedToolsToolChoiceToChatShape()
+    {
+        using var requestDocument = JsonDocument.Parse(
+            """
+            {
+              "model": "claude-alias",
+              "tools": [
+                {
+                  "type": "function",
+                  "name": "lookup",
+                  "description": "Look up a value.",
+                  "parameters": {
+                    "type": "object",
+                    "properties": {
+                      "query": { "type": "string" }
+                    }
+                  }
+                },
+                {
+                  "type": "function",
+                  "name": "search",
+                  "description": "Search broadly.",
+                  "parameters": {
+                    "type": "object",
+                    "properties": {
+                      "query": { "type": "string" }
+                    }
+                  }
+                }
+              ],
+              "tool_choice": {
+                "type": "allowed_tools",
+                "mode": "required",
+                "tools": [
+                  { "type": "function", "name": "lookup" }
+                ]
+              },
+              "input": "Use the allowed tool."
+            }
+            """);
+
+        using var fixture = new AdapterFixture(
+            requestDocument,
+            """
+            {
+              "id": "chatcmpl-responses",
+              "object": "chat.completion",
+              "created": 1710000000,
+              "model": "gpt-upstream",
+              "choices": [
+                {
+                  "index": 0,
+                  "message": {
+                    "role": "assistant",
+                    "content": "Done."
+                  },
+                  "finish_reason": "stop"
+                }
+              ],
+              "usage": {
+                "prompt_tokens": 20,
+                "completion_tokens": 5
+              }
+            }
+            """);
+
+        await fixture.InvokeResponsesAsync();
+
+        using var upstreamPayload = JsonDocument.Parse(fixture.Handler.Requests[0].Body);
+        var root = upstreamPayload.RootElement;
+
+        var tools = root.GetProperty("tools").EnumerateArray().ToArray();
+        Assert.Single(tools);
+        Assert.Equal("lookup", tools[0].GetProperty("function").GetProperty("name").GetString());
+
+        var toolChoice = root.GetProperty("tool_choice");
+        Assert.Equal("allowed_tools", toolChoice.GetProperty("type").GetString());
+        Assert.Equal("required", toolChoice.GetProperty("mode").GetString());
+        var allowedTools = toolChoice.GetProperty("tools").EnumerateArray().ToArray();
+        Assert.Single(allowedTools);
+        Assert.Equal("function", allowedTools[0].GetProperty("type").GetString());
+        Assert.Equal("lookup", allowedTools[0].GetProperty("function").GetProperty("name").GetString());
+    }
+
+    private static string? ExtractSingleChatText(JsonElement content)
+    {
+        if (content.ValueKind == JsonValueKind.String)
+            return content.GetString();
+
+        var first = content.EnumerateArray().First();
+        return first.GetProperty("text").GetString();
+    }
+
     private sealed class AdapterFixture : IDisposable
     {
         private readonly AppPaths _paths;
@@ -295,6 +549,7 @@ public sealed class OpenAiChatAdapterMessagesTests
             Context = new ProviderRequestContext(
                 HttpContext,
                 config,
+                ClientAppKind.Codex,
                 provider,
                 route,
                 new ProviderCostSettings(),
@@ -321,6 +576,12 @@ public sealed class OpenAiChatAdapterMessagesTests
         {
             var adapter = new OpenAiChatAdapter(new HttpClient(Handler));
             await ((IProviderProtocolAdapter)adapter).HandleMessagesAsync(Context, CancellationToken.None);
+        }
+
+        public async Task InvokeResponsesAsync()
+        {
+            var adapter = new OpenAiChatAdapter(new HttpClient(Handler));
+            await ((IProviderProtocolAdapter)adapter).HandleResponsesAsync(Context, CancellationToken.None);
         }
 
         public string ResponseBody()

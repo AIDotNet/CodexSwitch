@@ -212,7 +212,9 @@
                                             <ItemsControl.ItemTemplate>
                                                 <DataTemplate x:DataType="vm:OAuthAccountListItem">
                                                     <Grid ColumnDefinitions="*,Auto,Auto,Auto"
+                                                          RowDefinitions="Auto,Auto,Auto"
                                                           ColumnSpacing="8"
+                                                          RowSpacing="4"
                                                           Margin="0,6,0,0">
                                                         <ui:CsInput Text="{Binding DisplayName}"/>
                                                         <ui:CsButton Grid.Column="1"
@@ -230,6 +232,41 @@
                                                                      Command="{Binding RemoveCommand}"
                                                                      CommandParameter="{Binding}"
                                                                      Content="{i18n:Tr addProvider.logout}"/>
+                                                        <StackPanel Grid.Row="1"
+                                                                    Grid.ColumnSpan="4"
+                                                                    Orientation="Horizontal"
+                                                                    Spacing="8">
+                                                            <ui:CsText Text="{Binding Email}"
+                                                                       Classes="muted"
+                                                                       TextTrimming="CharacterEllipsis"/>
+                                                            <ui:CsText Text="{Binding PlanText}"
+                                                                       Classes="muted"
+                                                                       TextTrimming="CharacterEllipsis"/>
+                                                            <ui:CsText Text="{Binding QuotaSummary}"
+                                                                       Classes="muted"
+                                                                       TextTrimming="CharacterEllipsis"/>
+                                                        </StackPanel>
+                                                        <Border Grid.Row="2"
+                                                                Grid.ColumnSpan="4"
+                                                                Classes="provider-usage"
+                                                                Classes.success="{Binding IsUsageValid}"
+                                                                Classes.error="{Binding IsUsageError}"
+                                                                Classes.refreshing="{Binding IsUsageRefreshing}"
+                                                                IsVisible="{Binding HasUsageInfo}"
+                                                                ToolTip.Tip="{Binding UsageToolTip}"
+                                                                HorizontalAlignment="Left">
+                                                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                                                <Border Classes="usage-status-dot"
+                                                                        Classes.success="{Binding IsUsageValid}"
+                                                                        Classes.error="{Binding IsUsageError}"
+                                                                        Classes.refreshing="{Binding IsUsageRefreshing}"
+                                                                        VerticalAlignment="Center"/>
+                                                                <ui:CsText Text="{Binding UsageSummary}"
+                                                                           Classes="provider-usage-summary"/>
+                                                                <ui:CsText Text="{Binding UsageMeta}"
+                                                                           Classes="provider-usage-meta"/>
+                                                            </StackPanel>
+                                                        </Border>
                                                     </Grid>
                                                 </DataTemplate>
                                             </ItemsControl.ItemTemplate>

@@ -1,0 +1,231 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:CodexSwitch.ViewModels"
+             xmlns:ui="using:CodexSwitchUI.Controls"
+             xmlns:text="using:CodexSwitchUI.Primitives"
+             xmlns:echarts="using:CodexSwitchUI.ECharts.Controls"
+             xmlns:i18n="using:CodexSwitch.I18n"
+             xmlns:lucide="using:Lucide.Avalonia"
+             x:Class="CodexSwitch.Views.Pages.HomePage"
+             x:DataType="vm:MainWindowViewModel">
+    <UserControl.Styles>
+        <Style Selector="TextBlock.stat-value">
+            <Setter Property="Foreground" Value="{DynamicResource CodexSwitch.ForegroundBrush}"/>
+            <Setter Property="FontSize" Value="20"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="TextTrimming" Value="CharacterEllipsis"/>
+        </Style>
+    </UserControl.Styles>
+
+    <ScrollViewer>
+        <Grid Margin="24,12,24,28"
+              RowDefinitions="Auto,Auto,Auto,Auto"
+              RowSpacing="18">
+            <ui:CodexSection Title="{i18n:Tr home.title}"
+                             Description="{i18n:Tr home.description}">
+                <ui:CodexSection.Actions>
+                    <ui:CodexButton Variant="Outline"
+                                    Size="Small"
+                                    Command="{Binding RefreshUsageCommand}">
+                        <ui:CodexButton.LeadingIcon>
+                            <lucide:LucideIcon Kind="RefreshCw" Size="14" StrokeWidth="2"/>
+                        </ui:CodexButton.LeadingIcon>
+                        <TextBlock Text="{Binding UsageRefreshButtonText}"/>
+                    </ui:CodexButton>
+                </ui:CodexSection.Actions>
+            </ui:CodexSection>
+
+            <UniformGrid Grid.Row="1"
+                         Columns="4">
+                <ui:CodexStatCard Label="{i18n:Tr home.proxyStatus}"
+                                  Margin="0,0,12,0"
+                                  Value="{Binding ServiceStateText}"
+                                  Detail="{Binding ProxyStatus}">
+                    <ui:CodexStatCard.Icon>
+                        <lucide:LucideIcon Kind="Power" Size="18" StrokeWidth="2"/>
+                    </ui:CodexStatCard.Icon>
+                </ui:CodexStatCard>
+                <ui:CodexStatCard Label="{i18n:Tr home.activeProvider}"
+                                  Margin="0,0,12,0"
+                                  Value="{Binding MiniStatusProviderName}"
+                                  Detail="{Binding Endpoint}">
+                    <ui:CodexStatCard.Icon>
+                        <ui:CodexImageIcon Path="{Binding MiniStatusProviderIconPath}" Width="20" Height="20"/>
+                    </ui:CodexStatCard.Icon>
+                </ui:CodexStatCard>
+                <ui:CodexStatCard Label="{i18n:Tr home.liveRequests}"
+                                  Margin="0,0,12,0"
+                                  Value="{Binding MiniStatusRpmText}"
+                                  Detail="{i18n:Tr home.liveRequestsDetail}">
+                    <ui:CodexStatCard.Icon>
+                        <lucide:LucideIcon Kind="Activity" Size="18" StrokeWidth="2"/>
+                    </ui:CodexStatCard.Icon>
+                </ui:CodexStatCard>
+                <ui:CodexStatCard Label="{i18n:Tr home.totalCost}"
+                                  Value="{Binding UsageDashboardEstimatedCostText}"
+                                  Detail="{Binding UsageDashboardTotalTokensText}">
+                    <ui:CodexStatCard.Icon>
+                        <lucide:LucideIcon Kind="BadgeDollarSign" Size="18" StrokeWidth="2"/>
+                    </ui:CodexStatCard.Icon>
+                </ui:CodexStatCard>
+            </UniformGrid>
+
+            <ui:CodexSection Grid.Row="2"
+                             Title="{i18n:Tr home.usageTitle}"
+                             Description="{Binding UsageRangeCaption}">
+                <Grid RowDefinitions="Auto,Auto,Auto"
+                      RowSpacing="14">
+                    <Grid ColumnDefinitions="*,Auto">
+                        <WrapPanel>
+                            <ui:CodexField Label="{i18n:Tr usage.filter.provider}"
+                                           MinWidth="220"
+                                           Margin="0,0,14,10">
+                                <ui:CodexSelect ItemsSource="{Binding UsageFilterProviderOptions}"
+                                                SelectedValue="{Binding SelectedUsageFilterProvider, Mode=TwoWay}"
+                                                SelectedValueBinding="{Binding Value}"
+                                                MinWidth="220"
+                                                Size="Small">
+                                    <ui:CodexSelect.ItemTemplate>
+                                        <DataTemplate x:DataType="vm:UsageFilterOption">
+                                            <TextBlock Text="{Binding DisplayName}"
+                                                       TextTrimming="CharacterEllipsis"/>
+                                        </DataTemplate>
+                                    </ui:CodexSelect.ItemTemplate>
+                                </ui:CodexSelect>
+                            </ui:CodexField>
+                            <ui:CodexField Label="{i18n:Tr usage.filter.model}"
+                                           MinWidth="260"
+                                           Margin="0,0,14,10">
+                                <ui:CodexSelect ItemsSource="{Binding UsageFilterModelOptions}"
+                                                SelectedValue="{Binding SelectedUsageFilterModel, Mode=TwoWay}"
+                                                SelectedValueBinding="{Binding Value}"
+                                                MinWidth="260"
+                                                Size="Small">
+                                    <ui:CodexSelect.ItemTemplate>
+                                        <DataTemplate x:DataType="vm:UsageFilterOption">
+                                            <TextBlock Text="{Binding DisplayName}"
+                                                       TextTrimming="CharacterEllipsis"/>
+                                        </DataTemplate>
+                                    </ui:CodexSelect.ItemTemplate>
+                                </ui:CodexSelect>
+                            </ui:CodexField>
+                        </WrapPanel>
+
+                        <ui:CodexSegmentedControl Grid.Column="1"
+                                                  VerticalAlignment="Top">
+                            <StackPanel Orientation="Horizontal" Spacing="4">
+                                <ui:CodexSegmentedButton IsSelected="{Binding IsUsageRange24HoursSelected}"
+                                                         Command="{Binding SelectUsageRangeCommand}"
+                                                         CommandParameter="Last24Hours"
+                                                         Content="{i18n:Tr usage.range.24h}"/>
+                                <ui:CodexSegmentedButton IsSelected="{Binding IsUsageRange7DaysSelected}"
+                                                         Command="{Binding SelectUsageRangeCommand}"
+                                                         CommandParameter="Last7Days"
+                                                         Content="{i18n:Tr usage.range.7d}"/>
+                                <ui:CodexSegmentedButton IsSelected="{Binding IsUsageRange30DaysSelected}"
+                                                         Command="{Binding SelectUsageRangeCommand}"
+                                                         CommandParameter="Last30Days"
+                                                         Content="{i18n:Tr usage.range.30d}"/>
+                            </StackPanel>
+                        </ui:CodexSegmentedControl>
+                    </Grid>
+
+                    <ItemsControl Grid.Row="1" ItemsSource="{Binding UsageMetrics}">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <UniformGrid Columns="5"/>
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="vm:UsageMetricItem">
+                                <ui:CodexStatCard Label="{Binding Label}"
+                                                  Margin="0,0,12,0">
+                                    <ui:CodexStatCard.Value>
+                                        <TextBlock Text="{Binding Value}" Classes="stat-value"/>
+                                    </ui:CodexStatCard.Value>
+                                    <ui:CodexStatCard.Icon>
+                                        <Border Width="32"
+                                                Height="32"
+                                                CornerRadius="9"
+                                                Background="{Binding IconBackground}">
+                                            <lucide:LucideIcon Kind="{Binding Icon}"
+                                                               Foreground="{Binding IconForeground}"
+                                                               Size="17"
+                                                               StrokeWidth="2"
+                                                               HorizontalAlignment="Center"
+                                                               VerticalAlignment="Center"/>
+                                        </Border>
+                                    </ui:CodexStatCard.Icon>
+                                </ui:CodexStatCard>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+
+                    <ui:CodexCard Grid.Row="2"
+                                  Padding="18"
+                                  Title="{i18n:Tr usage.trend}"
+                                  Description="{i18n:Tr usage.localRecords}">
+                        <Grid RowDefinitions="Auto,*" RowSpacing="12">
+                            <WrapPanel>
+                                <StackPanel Orientation="Horizontal" Spacing="7" Margin="0,0,16,0">
+                                    <Border Width="8" Height="8" CornerRadius="4" Background="#60A5FA" VerticalAlignment="Center"/>
+                                    <text:CodexText Text="{i18n:Tr usage.chart.input}" Role="Muted"/>
+                                </StackPanel>
+                                <StackPanel Orientation="Horizontal" Spacing="7" Margin="0,0,16,0">
+                                    <Border Width="8" Height="8" CornerRadius="4" Background="#A78BFA" VerticalAlignment="Center"/>
+                                    <text:CodexText Text="{i18n:Tr usage.chart.cached}" Role="Muted"/>
+                                </StackPanel>
+                                <StackPanel Orientation="Horizontal" Spacing="7" Margin="0,0,16,0">
+                                    <Border Width="8" Height="8" CornerRadius="4" Background="#F59E0B" VerticalAlignment="Center"/>
+                                    <text:CodexText Text="{i18n:Tr usage.chart.cacheWrite}" Role="Muted"/>
+                                </StackPanel>
+                                <StackPanel Orientation="Horizontal" Spacing="7" Margin="0,0,16,0">
+                                    <Border Width="8" Height="8" CornerRadius="4" Background="#34D399" VerticalAlignment="Center"/>
+                                    <text:CodexText Text="{i18n:Tr usage.chart.output}" Role="Muted"/>
+                                </StackPanel>
+                                <StackPanel Orientation="Horizontal" Spacing="7">
+                                    <Border Width="18" Height="2" Background="#F472B6" VerticalAlignment="Center"/>
+                                    <text:CodexText Text="{i18n:Tr usage.chart.cost}" Role="Muted"/>
+                                </StackPanel>
+                            </WrapPanel>
+                            <echarts:CsUsageTrendChart Grid.Row="1"
+                                                       ItemsSource="{Binding TrendPoints}"
+                                                       Granularity="{Binding UsageTrendGranularity}"
+                                                       TokensLabel="{i18n:Tr usage.chart.tokens}"
+                                                       RequestsLabel="{i18n:Tr usage.chart.requests}"
+                                                       CostLabel="{i18n:Tr usage.chart.cost}"
+                                                       InputLabel="{i18n:Tr usage.chart.input}"
+                                                       CachedInputLabel="{i18n:Tr usage.chart.cached}"
+                                                       CacheCreationInputLabel="{i18n:Tr usage.chart.cacheWrite}"
+                                                       CacheHitRateLabel="{i18n:Tr usage.metric.cacheHitRate}"
+                                                       OutputTpsLabel="{i18n:Tr usage.chart.outputTps}"
+                                                       OutputLabel="{i18n:Tr usage.chart.output}"
+                                                       ReasoningLabel="{i18n:Tr usage.chart.reasoning}"
+                                                       EmptyText="{i18n:Tr usage.chart.empty}"
+                                                       IsRefreshing="{Binding IsUsageRefreshing}"
+                                                       RefreshingText="{i18n:Tr usage.refreshing}"
+                                                       Height="280"/>
+                        </Grid>
+                    </ui:CodexCard>
+                </Grid>
+            </ui:CodexSection>
+
+            <Grid Grid.Row="3"
+                  ColumnDefinitions="*,*"
+                  ColumnSpacing="16">
+                <ui:CodexSection Title="{i18n:Tr usage.tab.providers}">
+                    <ui:CodexRankedBarChart ItemsSource="{Binding ProviderUsageChartItems}"
+                                            EmptyText="{i18n:Tr usage.chart.empty}"
+                                            IsCompact="True"/>
+                </ui:CodexSection>
+
+                <ui:CodexSection Grid.Column="1"
+                                 Title="{i18n:Tr usage.tab.models}">
+                    <ui:CodexRankedBarChart ItemsSource="{Binding ModelUsageChartItems}"
+                                            EmptyText="{i18n:Tr usage.chart.empty}"
+                                            IsCompact="True"/>
+                </ui:CodexSection>
+            </Grid>
+        </Grid>
+    </ScrollViewer>
+</UserControl>

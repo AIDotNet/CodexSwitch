@@ -19,6 +19,7 @@ namespace CodexSwitch.Serialization;
 [JsonSerializable(typeof(ClaudeCodeProviderSettings))]
 [JsonSerializable(typeof(ProviderOAuthSettings))]
 [JsonSerializable(typeof(OAuthAccountConfig))]
+[JsonSerializable(typeof(OAuthAccountQuotaInfo))]
 [JsonSerializable(typeof(ProviderRequestOverrides))]
 [JsonSerializable(typeof(ProviderUsageQueryConfig))]
 [JsonSerializable(typeof(ProviderUsageExtractorConfig))]

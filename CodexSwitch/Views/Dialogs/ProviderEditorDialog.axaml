@@ -47,23 +47,81 @@
                               VerticalScrollBarVisibility="Auto"
                               HorizontalScrollBarVisibility="Disabled">
                     <StackPanel Spacing="12">
+                        <Border Classes="dialog-section"
+                                IsVisible="{Binding IsAddingProviderDialog}">
+                            <Grid RowDefinitions="Auto,Auto"
+                                  RowSpacing="10">
+                                <Grid ColumnDefinitions="*,Auto"
+                                      ColumnSpacing="12">
+                                    <StackPanel Spacing="3">
+                                        <ui:CsText Text="{i18n:Tr addProvider.templates}" Classes="heading"/>
+                                        <ui:CsText Text="{i18n:Tr addProvider.oauthTemplateHint}"
+                                                   Classes="muted"
+                                                   TextWrapping="Wrap"/>
+                                    </StackPanel>
+                                    <ui:CsButton Grid.Column="1"
+                                                 Classes="outline compact"
+                                                 Command="{Binding LoginCodexOAuthCommand}">
+                                        <StackPanel Orientation="Horizontal" Spacing="7">
+                                            <lucide:LucideIcon Kind="KeyRound" Size="14" StrokeWidth="2"/>
+                                            <TextBlock Text="{i18n:Tr addProvider.codexOAuthLogin}"/>
+                                        </StackPanel>
+                                    </ui:CsButton>
+                                </Grid>
+
+                                <ItemsControl Grid.Row="1"
+                                              ItemsSource="{Binding ProviderTemplates}">
+                                    <ItemsControl.ItemsPanel>
+                                        <ItemsPanelTemplate>
+                                            <WrapPanel/>
+                                        </ItemsPanelTemplate>
+                                    </ItemsControl.ItemsPanel>
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate x:DataType="vm:ProviderTemplateItem">
+                                            <ui:CsButton Margin="0,0,8,8"
+                                                         Classes="outline compact"
+                                                         Classes.active="{Binding IsSelected}"
+                                                         Command="{Binding SelectCommand}"
+                                                         CommandParameter="{Binding}"
+                                                         ToolTip.Tip="{Binding Description}">
+                                                <StackPanel Orientation="Horizontal" Spacing="7">
+                                                    <ui:CsImageIcon Path="{Binding IconPath}" Width="16" Height="16"/>
+                                                    <TextBlock Text="{Binding DisplayName}"/>
+                                                </StackPanel>
+                                            </ui:CsButton>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </Grid>
+                        </Border>
+
                         <Border Classes="dialog-section">
-                            <Grid RowDefinitions="Auto,Auto,Auto"
+                            <Grid RowDefinitions="Auto,Auto,Auto,Auto"
                                   ColumnDefinitions="*,*"
                                   ColumnSpacing="12"
                                   RowSpacing="12">
                                 <ui:CsText Text="{i18n:Tr providerDialog.connection}" Classes="heading"/>
-                                <ui:CsField Grid.Row="1" Label="{i18n:Tr providerDialog.name}">
+                                <ui:CsField Grid.Row="1" Label="{i18n:Tr addProvider.providerName}">
                                     <ui:CsInput Text="{Binding SelectedProviderName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
                                 </ui:CsField>
                                 <ui:CsField Grid.Row="1" Grid.Column="1" Label="{i18n:Tr providerDialog.defaultModel}">
                                     <ui:CsInput Text="{Binding SelectedDefaultModel, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
                                 </ui:CsField>
-                                <ui:CsField Grid.Row="2" Label="{i18n:Tr providerDialog.baseUrl}">
-                                    <ui:CsInput Text="{Binding SelectedBaseUrl, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                                <ui:CsField Grid.Row="2" Label="{i18n:Tr addProvider.note}">
+                                    <ui:CsInput Text="{Binding SelectedProviderNote, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
                                 </ui:CsField>
-                                <ui:CsField Grid.Row="2" Grid.Column="1" Label="{i18n:Tr providerDialog.apiKey}">
-                                    <ui:CsInput Text="{Binding SelectedApiKey, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" PasswordChar="*"/>
+                                <ui:CsField Grid.Row="2" Grid.Column="1" Label="{i18n:Tr addProvider.website}">
+                                    <ui:CsInput Text="{Binding SelectedProviderWebsite, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                PlaceholderText="{i18n:Tr addProvider.websitePlaceholder}"/>
+                                </ui:CsField>
+                                <ui:CsField Grid.Row="3" Label="{i18n:Tr addProvider.baseUrl}">
+                                    <ui:CsInput Text="{Binding SelectedBaseUrl, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                PlaceholderText="https://your-api-endpoint.com/v1"/>
+                                </ui:CsField>
+                                <ui:CsField Grid.Row="3" Grid.Column="1" Label="{i18n:Tr providerDialog.apiKey}">
+                                    <ui:CsInput Text="{Binding SelectedApiKey, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                PasswordChar="*"
+                                                PlaceholderText="{i18n:Tr addProvider.apiKeyPlaceholder}"/>
                                 </ui:CsField>
                             </Grid>
                         </Border>

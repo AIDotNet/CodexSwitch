@@ -4,15 +4,18 @@
         xmlns:shell="using:CodexSwitch.Views.Shell"
         xmlns:pages="using:CodexSwitch.Views.Pages"
         xmlns:dialogs="using:CodexSwitch.Views.Dialogs"
+        xmlns:ui="using:CodexSwitchUI.Controls"
+        xmlns:text="using:CodexSwitchUI.Primitives"
         xmlns:i18n="using:CodexSwitch.I18n"
+        xmlns:lucide="using:Lucide.Avalonia"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         mc:Ignorable="d"
-        d:DesignWidth="980"
-        d:DesignHeight="680"
-        Width="980"
-        Height="680"
-        MinWidth="860"
+        d:DesignWidth="1180"
+        d:DesignHeight="760"
+        Width="1180"
+        Height="760"
+        MinWidth="980"
         MinHeight="560"
         x:Class="CodexSwitch.Views.MainWindow"
         x:DataType="vm:MainWindowViewModel"
@@ -25,22 +28,150 @@
 
     <Border Classes="app-shell"
             Classes.alert="{Binding IsProxyAlert}">
-        <Grid RowDefinitions="64,*">
-            <shell:TopBar/>
+        <Grid ColumnDefinitions="220,*">
+            <ui:CodexSidebar>
+                <Grid RowDefinitions="Auto,*,Auto">
+                    <ui:CodexSidebarHeader>
+                        <StackPanel Spacing="10">
+                            <StackPanel Orientation="Horizontal"
+                                        Spacing="10">
+                                <ui:CodexImageIcon Path="{Binding CodexIconPath}"
+                                                   Width="24"
+                                                   Height="24"/>
+                                <text:CodexText Text="{i18n:Tr app.name}"
+                                                Role="Subtitle"
+                                                VerticalAlignment="Center"/>
+                            </StackPanel>
 
-            <Grid Grid.Row="1">
-                <pages:ProvidersPage IsVisible="{Binding IsProvidersPageVisible}"/>
-                <pages:AddProviderPage IsVisible="{Binding IsAddProviderPageVisible}"/>
-                <pages:UsagePage IsVisible="{Binding IsUsagePageVisible}"/>
-                <pages:ModelsPage IsVisible="{Binding IsModelsPageVisible}"/>
-                <pages:SettingsPage IsVisible="{Binding IsSettingsPageVisible}"/>
-                <pages:ClaudePage IsVisible="{Binding IsClaudePageVisible}"/>
+                            <ui:CodexSegmentedControl HorizontalAlignment="Left">
+                                <ItemsControl ItemsSource="{Binding ClientApps}">
+                                    <ItemsControl.ItemsPanel>
+                                        <ItemsPanelTemplate>
+                                            <StackPanel Orientation="Horizontal" Spacing="4"/>
+                                        </ItemsPanelTemplate>
+                                    </ItemsControl.ItemsPanel>
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate x:DataType="vm:ClientAppItem">
+                                            <ui:CodexSegmentedButton IsSelected="{Binding IsSelected}"
+                                                                     Command="{Binding SelectCommand}"
+                                                                     CommandParameter="{Binding}"
+                                                                     ToolTip.Tip="{Binding Name}"
+                                                                     Width="42"
+                                                                     Padding="8,5">
+                                                <ui:CodexImageIcon Path="{Binding IconPath}" Width="16" Height="16"/>
+                                            </ui:CodexSegmentedButton>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </ui:CodexSegmentedControl>
+
+                            <ui:CodexBadge Variant="Secondary"
+                                           HorizontalAlignment="Left">
+                                <TextBlock Text="{Binding ServiceStateText}"/>
+                            </ui:CodexBadge>
+                        </StackPanel>
+                    </ui:CodexSidebarHeader>
+
+                    <ui:CodexSidebarContent Grid.Row="1">
+                        <ui:CodexSidebarGroup>
+                            <ui:CodexSidebarGroupContent>
+                                <ui:CodexSidebarMenu>
+                                    <ui:CodexSidebarMenuItem>
+                                        <ui:CodexSidebarMenuButton Command="{Binding ShowHomeCommand}"
+                                                                  IsActive="{Binding IsHomeNavSelected}">
+                                            <ui:CodexSidebarMenuButton.Icon>
+                                                <lucide:LucideIcon Kind="LayoutDashboard" Size="17" StrokeWidth="2"/>
+                                            </ui:CodexSidebarMenuButton.Icon>
+                                            <TextBlock Text="{i18n:Tr nav.home}" TextTrimming="CharacterEllipsis"/>
+                                        </ui:CodexSidebarMenuButton>
+                                    </ui:CodexSidebarMenuItem>
+                                    <ui:CodexSidebarMenuItem>
+                                        <ui:CodexSidebarMenuButton Command="{Binding ShowProvidersCommand}"
+                                                                  IsActive="{Binding IsProvidersPageVisible}">
+                                            <ui:CodexSidebarMenuButton.Icon>
+                                                <lucide:LucideIcon Kind="ServerCog" Size="17" StrokeWidth="2"/>
+                                            </ui:CodexSidebarMenuButton.Icon>
+                                            <TextBlock Text="{i18n:Tr nav.providers}" TextTrimming="CharacterEllipsis"/>
+                                        </ui:CodexSidebarMenuButton>
+                                    </ui:CodexSidebarMenuItem>
+                                    <ui:CodexSidebarMenuItem>
+                                        <ui:CodexSidebarMenuButton Command="{Binding ShowUsageCommand}"
+                                                                  IsActive="{Binding IsLogsNavSelected}">
+                                            <ui:CodexSidebarMenuButton.Icon>
+                                                <lucide:LucideIcon Kind="ListTree" Size="17" StrokeWidth="2"/>
+                                            </ui:CodexSidebarMenuButton.Icon>
+                                            <TextBlock Text="{i18n:Tr nav.logs}" TextTrimming="CharacterEllipsis"/>
+                                        </ui:CodexSidebarMenuButton>
+                                    </ui:CodexSidebarMenuItem>
+                                    <ui:CodexSidebarMenuItem>
+                                        <ui:CodexSidebarMenuButton Command="{Binding ShowModelsCommand}"
+                                                                  IsActive="{Binding IsModelsNavSelected}">
+                                            <ui:CodexSidebarMenuButton.Icon>
+                                                <lucide:LucideIcon Kind="BrainCircuit" Size="17" StrokeWidth="2"/>
+                                            </ui:CodexSidebarMenuButton.Icon>
+                                            <TextBlock Text="{i18n:Tr nav.models}" TextTrimming="CharacterEllipsis"/>
+                                        </ui:CodexSidebarMenuButton>
+                                    </ui:CodexSidebarMenuItem>
+                                    <ui:CodexSidebarMenuItem>
+                                        <ui:CodexSidebarMenuButton Command="{Binding OpenSettingsCommand}"
+                                                                  IsActive="{Binding IsSettingsNavSelected}">
+                                            <ui:CodexSidebarMenuButton.Icon>
+                                                <lucide:LucideIcon Kind="Settings" Size="17" StrokeWidth="2"/>
+                                            </ui:CodexSidebarMenuButton.Icon>
+                                            <TextBlock Text="{i18n:Tr nav.settings}" TextTrimming="CharacterEllipsis"/>
+                                        </ui:CodexSidebarMenuButton>
+                                    </ui:CodexSidebarMenuItem>
+                                </ui:CodexSidebarMenu>
+                            </ui:CodexSidebarGroupContent>
+                        </ui:CodexSidebarGroup>
+                    </ui:CodexSidebarContent>
+
+                    <ui:CodexSidebarFooter Grid.Row="2">
+                        <StackPanel Spacing="8">
+                            <ui:CodexSidebarMenu>
+                                <ui:CodexSidebarMenuItem>
+                                    <ui:CodexSidebarMenuButton Command="{Binding AddProviderCommand}"
+                                                              Size="Large">
+                                        <ui:CodexSidebarMenuButton.Icon>
+                                            <lucide:LucideIcon Kind="Plus" Size="16" StrokeWidth="2.2"/>
+                                        </ui:CodexSidebarMenuButton.Icon>
+                                        <TextBlock Text="{i18n:Tr nav.addProvider}" TextTrimming="CharacterEllipsis"/>
+                                    </ui:CodexSidebarMenuButton>
+                                </ui:CodexSidebarMenuItem>
+                            </ui:CodexSidebarMenu>
+                            <StackPanel Spacing="2">
+                                <text:CodexText Text="{Binding CurrentVersionTag}"
+                                                FontWeight="SemiBold"
+                                                TextTrimming="CharacterEllipsis"/>
+                                <text:CodexText Text="{Binding SidebarUpdateStatusText}"
+                                                Role="Muted"
+                                                IsVisible="{Binding IsSidebarUpdateStatusVisible}"
+                                                TextTrimming="CharacterEllipsis"/>
+                            </StackPanel>
+                        </StackPanel>
+                    </ui:CodexSidebarFooter>
+                </Grid>
+            </ui:CodexSidebar>
+
+            <Grid Grid.Column="1"
+                  RowDefinitions="64,*">
+                <shell:TopBar/>
+
+                <Grid Grid.Row="1">
+                    <pages:HomePage IsVisible="{Binding IsHomePageVisible}"/>
+                    <pages:ProvidersPage IsVisible="{Binding IsProvidersPageVisible}"/>
+                    <pages:AddProviderPage IsVisible="{Binding IsAddProviderPageVisible}"/>
+                    <pages:UsagePage IsVisible="{Binding IsUsagePageVisible}"/>
+                    <pages:ModelsPage IsVisible="{Binding IsModelsPageVisible}"/>
+                    <pages:SettingsPage IsVisible="{Binding IsSettingsPageVisible}"/>
+                    <pages:ClaudePage IsVisible="{Binding IsClaudePageVisible}"/>
+                </Grid>
             </Grid>
 
-            <dialogs:ProviderEditorDialog Grid.RowSpan="2"/>
-            <dialogs:ModelEditorDialog Grid.RowSpan="2"/>
-            <dialogs:DeleteModelDialog Grid.RowSpan="2"/>
-            <dialogs:DeleteProviderDialog Grid.RowSpan="2"/>
+            <dialogs:ProviderEditorDialog Grid.ColumnSpan="2"/>
+            <dialogs:ModelEditorDialog Grid.ColumnSpan="2"/>
+            <dialogs:DeleteModelDialog Grid.ColumnSpan="2"/>
+            <dialogs:DeleteProviderDialog Grid.ColumnSpan="2"/>
         </Grid>
     </Border>
 </Window>

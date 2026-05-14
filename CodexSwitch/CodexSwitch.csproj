@@ -19,6 +19,11 @@
     </ItemGroup>
 
     <ItemGroup>
+        <ProjectReference Include="..\CodexSwitchUI\src\CodexSwitchUI\CodexSwitchUI.csproj" />
+        <ProjectReference Include="..\CodexSwitchUI\src\CodexSwitchUI.ECharts\CodexSwitchUI.ECharts.csproj" />
+    </ItemGroup>
+
+    <ItemGroup>
         <PackageReference Include="Avalonia" />
         <PackageReference Include="Avalonia.Desktop" />
         <PackageReference Include="Avalonia.Themes.Fluent" />

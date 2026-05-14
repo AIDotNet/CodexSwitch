@@ -10,6 +10,7 @@ public sealed class ProviderRequestContext
     public ProviderRequestContext(
         HttpContext httpContext,
         AppConfig appConfig,
+        ClientAppKind clientApp,
         ProviderConfig provider,
         ModelRouteConfig? model,
         ProviderCostSettings costSettings,
@@ -23,6 +24,7 @@ public sealed class ProviderRequestContext
     {
         HttpContext = httpContext;
         AppConfig = appConfig;
+        ClientApp = clientApp;
         Provider = provider;
         Model = model;
         CostSettings = costSettings;
@@ -38,6 +40,8 @@ public sealed class ProviderRequestContext
     public HttpContext HttpContext { get; }
 
     public AppConfig AppConfig { get; }
+
+    public ClientAppKind ClientApp { get; }
 
     public ProviderConfig Provider { get; }
 
@@ -95,9 +99,13 @@ public sealed class ProviderRequestContext
 
         var headers = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         var sessionId = ResolveSessionId();
+        var chatgptAccountId = Provider.AuthMode == ProviderAuthMode.OAuth
+            ? ProviderAuthService.GetActiveAccount(Provider)?.ChatgptAccountId
+            : null;
+
         foreach (var header in overrides.Headers)
         {
-            var value = ResolveTemplate(header.Value, sessionId);
+            var value = ResolveTemplate(header.Value, sessionId, chatgptAccountId);
             if (!string.IsNullOrWhiteSpace(value))
                 headers[header.Key] = value;
         }
@@ -116,11 +124,12 @@ public sealed class ProviderRequestContext
         return "cs_" + Convert.ToHexString(bytes)[..24].ToLowerInvariant();
     }
 
-    private string ResolveTemplate(string value, string sessionId)
+    private string ResolveTemplate(string value, string sessionId, string? chatgptAccountId)
     {
         return value
             .Replace("{{sessionId}}", sessionId, StringComparison.Ordinal)
-            .Replace("{{model}}", Model?.Id ?? Provider.DefaultModel, StringComparison.Ordinal);
+            .Replace("{{model}}", Model?.Id ?? Provider.DefaultModel, StringComparison.Ordinal)
+            .Replace("{{chatgptAccountId}}", chatgptAccountId ?? "", StringComparison.Ordinal);
     }
 
     private static string? TryGetString(JsonElement element, string propertyName)

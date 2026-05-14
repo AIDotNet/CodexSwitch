@@ -283,6 +283,55 @@ public sealed class OAuthAccountConfig
     public DateTimeOffset? ExpiresAt { get; set; }
 
     public bool IsEnabled { get; set; } = true;
+
+    /// <summary>
+    ///     OpenID Connect id_token, used to extract profile and auth claims.
+    /// </summary>
+    public string? IdToken { get; set; }
+
+    /// <summary>
+    ///     Account plan type from the id_token auth claim (team / plus / pro / free).
+    /// </summary>
+    public string? PlanType { get; set; }
+
+    /// <summary>
+    ///     ChatGPT workspace / account UUID used as the Chatgpt-Account-Id request header.
+    ///     Team/Enterprise accounts use the workspace UUID; personal accounts use the user_id.
+    /// </summary>
+    public string? ChatgptAccountId { get; set; }
+
+    public OAuthAccountQuotaInfo? Quota { get; set; }
+}
+
+public sealed class OAuthAccountQuotaInfo
+{
+    public DateTimeOffset LastUpdatedAt { get; set; }
+
+    public string? PlanType { get; set; }
+
+    public int? PrimaryUsedPercent { get; set; }
+
+    public int? PrimaryWindowMinutes { get; set; }
+
+    public long? PrimaryResetAt { get; set; }
+
+    public int? PrimaryResetAfterSeconds { get; set; }
+
+    public int? SecondaryUsedPercent { get; set; }
+
+    public int? SecondaryWindowMinutes { get; set; }
+
+    public long? SecondaryResetAt { get; set; }
+
+    public int? SecondaryResetAfterSeconds { get; set; }
+
+    public int? PrimaryOverSecondaryLimitPercent { get; set; }
+
+    public bool? HasCredits { get; set; }
+
+    public string? CreditsBalance { get; set; }
+
+    public bool? CreditsUnlimited { get; set; }
 }
 
 public sealed class ProviderRequestOverrides

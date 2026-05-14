@@ -1,4 +1,8 @@
 <Solution>
   <Project Path="CodexSwitch/CodexSwitch.csproj" />
+  <Folder Name="/ui/">
+    <Project Path="CodexSwitchUI/src/CodexSwitchUI.ECharts/CodexSwitchUI.ECharts.csproj" />
+    <Project Path="CodexSwitchUI/src/CodexSwitchUI/CodexSwitchUI.csproj" />
+  </Folder>
   <Project Path="CodexSwitch.Tests/CodexSwitch.Tests.csproj" />
 </Solution>

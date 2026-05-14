@@ -38,7 +38,10 @@ public sealed class UsageMeter
         }
     }
 
-    public RealtimeUsageSnapshot GetRecentSnapshot(TimeSpan window, DateTimeOffset? now = null)
+    public RealtimeUsageSnapshot GetRecentSnapshot(
+        TimeSpan window,
+        DateTimeOffset? now = null,
+        ClientAppKind? clientApp = null)
     {
         var anchor = now ?? DateTimeOffset.UtcNow;
 
@@ -58,6 +61,8 @@ public sealed class UsageMeter
             foreach (var record in _recentRecords)
             {
                 if (record.Timestamp < cutoff || record.Timestamp > anchor)
+                    continue;
+                if (clientApp.HasValue && record.ClientApp != clientApp.Value)
                     continue;
 
                 requests++;

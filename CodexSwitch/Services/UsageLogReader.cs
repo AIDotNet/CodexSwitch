@@ -7,7 +7,7 @@ namespace CodexSwitch.Services;
 
 public sealed class UsageLogReader
 {
-    private const int RecentLogLimit = 80;
+    private const int DefaultLogLimit = 10;
     private readonly AppPaths _paths;
 
     public UsageLogReader(AppPaths paths)
@@ -32,18 +32,22 @@ public sealed class UsageLogReader
         UsageTimeRange range = UsageTimeRange.Last24Hours,
         DateTimeOffset? now = null,
         string? providerId = null,
-        string? model = null)
+        string? model = null,
+        ClientAppKind? clientApp = null,
+        bool includeLogs = true,
+        int logOffset = 0,
+        int logLimit = DefaultLogLimit)
     {
         var window = CreateWindow(range, now ?? DateTimeOffset.Now);
         var sourceSnapshot = GetSourceSnapshot(window);
-        var accumulator = new UsageAccumulator(window);
+        var accumulator = new UsageAccumulator(window, includeLogs, logOffset, logLimit);
 
         foreach (var record in ReadRecordsFromFiles(EnumerateCandidateLogFiles(window)))
         {
             if (record.Timestamp < window.Start || record.Timestamp > window.End)
                 continue;
 
-            if (!MatchesFilter(record, providerId, model))
+            if (!MatchesFilter(record, providerId, model, clientApp))
                 continue;
 
             accumulator.Add(record);
@@ -258,8 +262,15 @@ public sealed class UsageLogReader
             record.Usage.ReasoningOutputTokens;
     }
 
-    private static bool MatchesFilter(UsageLogRecord record, string? providerId, string? model)
+    private static bool MatchesFilter(
+        UsageLogRecord record,
+        string? providerId,
+        string? model,
+        ClientAppKind? clientApp)
     {
+        if (clientApp.HasValue && record.ClientApp != clientApp.Value)
+            return false;
+
         if (!string.IsNullOrWhiteSpace(providerId) &&
             !string.Equals(GetProviderKey(record), providerId, StringComparison.OrdinalIgnoreCase))
         {
@@ -284,6 +295,10 @@ public sealed class UsageLogReader
     private sealed class UsageAccumulator
     {
         private readonly UsageWindow _window;
+        private readonly bool _includeLogs;
+        private readonly int _logOffset;
+        private readonly int _logLimit;
+        private readonly int _logBufferLimit;
         private readonly List<UsageLogRecord> _recentLogs = [];
         private readonly Dictionary<string, ProviderUsageAccumulator> _providers = new(StringComparer.OrdinalIgnoreCase);
         private readonly Dictionary<string, ModelUsageAccumulator> _models = new(StringComparer.OrdinalIgnoreCase);
@@ -298,9 +313,15 @@ public sealed class UsageLogReader
         private long _reasoningOutputTokens;
         private decimal _estimatedCost;
 
-        public UsageAccumulator(UsageWindow window)
+        public UsageAccumulator(UsageWindow window, bool includeLogs, int logOffset, int logLimit)
         {
             _window = window;
+            _includeLogs = includeLogs;
+            _logOffset = Math.Max(0, logOffset);
+            _logLimit = Math.Max(1, logLimit);
+            _logBufferLimit = _logOffset > int.MaxValue - _logLimit - 1
+                ? int.MaxValue
+                : _logOffset + _logLimit + 1;
         }
 
         public void Add(UsageLogRecord record)
@@ -316,7 +337,8 @@ public sealed class UsageLogReader
             _reasoningOutputTokens += record.Usage.ReasoningOutputTokens;
             _estimatedCost += record.EstimatedCost;
 
-            AddRecentLog(record);
+            if (_includeLogs)
+                AddRecentLog(record);
             AddProvider(record);
             AddModel(record);
             AddTrend(record);
@@ -324,6 +346,11 @@ public sealed class UsageLogReader
 
         public UsageDashboard ToDashboard(UsageTimeRange range, UsageLogSourceSnapshot sourceSnapshot)
         {
+            var orderedLogs = _recentLogs.OrderByDescending(record => record.Timestamp).ToArray();
+            UsageLogRecord[] visibleLogs = _includeLogs
+                ? orderedLogs.Skip(_logOffset).Take(_logLimit).ToArray()
+                : [];
+
             return new UsageDashboard
             {
                 SourceSnapshot = sourceSnapshot,
@@ -339,7 +366,8 @@ public sealed class UsageLogReader
                 OutputTokens = _outputTokens,
                 ReasoningOutputTokens = _reasoningOutputTokens,
                 EstimatedCost = _estimatedCost,
-                Logs = _recentLogs.OrderByDescending(record => record.Timestamp).ToArray(),
+                Logs = visibleLogs,
+                HasMoreLogs = _includeLogs && orderedLogs.Length > _logOffset + _logLimit,
                 ProviderSummaries = _providers
                     .Select(pair => pair.Value.ToSummary(pair.Key))
                     .OrderByDescending(summary => summary.Requests)
@@ -354,7 +382,7 @@ public sealed class UsageLogReader
 
         private void AddRecentLog(UsageLogRecord record)
         {
-            if (_recentLogs.Count < RecentLogLimit)
+            if (_recentLogs.Count < _logBufferLimit)
             {
                 _recentLogs.Add(record);
                 return;

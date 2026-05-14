@@ -21,6 +21,7 @@ public sealed class ProviderAuthService
     private readonly ConfigurationStore _store;
     private readonly AppConfig _config;
     private readonly HttpClient _httpClient;
+    private readonly CodexOAuthHelper _codexOAuthHelper;
     private readonly ConcurrentDictionary<string, SemaphoreSlim> _refreshLocks = new(StringComparer.OrdinalIgnoreCase);
 
     public ProviderAuthService(ConfigurationStore store, AppConfig config, HttpClient httpClient)
@@ -28,6 +29,7 @@ public sealed class ProviderAuthService
         _store = store;
         _config = config;
         _httpClient = httpClient;
+        _codexOAuthHelper = new CodexOAuthHelper(httpClient);
     }
 
     public async Task<string?> ResolveAccessTokenAsync(
@@ -35,17 +37,28 @@ public sealed class ProviderAuthService
         bool forceRefresh,
         CancellationToken cancellationToken)
     {
+        return await ResolveAccessTokenAsync(provider, null, forceRefresh, cancellationToken);
+    }
+
+    public async Task<string?> ResolveAccessTokenAsync(
+        ProviderConfig provider,
+        string? accountId,
+        bool forceRefresh,
+        CancellationToken cancellationToken)
+    {
         if (provider.AuthMode != ProviderAuthMode.OAuth)
             return string.IsNullOrWhiteSpace(provider.ApiKey) ? null : provider.ApiKey;
 
-        var account = GetActiveAccount(provider);
+        var account = string.IsNullOrWhiteSpace(accountId)
+            ? GetActiveAccount(provider)
+            : GetAccount(provider, accountId);
         if (account is null || string.IsNullOrWhiteSpace(account.AccessToken))
             return null;
 
         if (!forceRefresh && !NeedsRefresh(account))
             return account.AccessToken;
 
-        return await RefreshActiveAccountAsync(provider, force: true, cancellationToken);
+        return await RefreshAccountAsync(provider, account, force: true, makeActive: string.IsNullOrWhiteSpace(accountId), cancellationToken);
     }
 
     public async Task<string?> RefreshActiveAccountAsync(
@@ -60,6 +73,16 @@ public sealed class ProviderAuthService
         if (account is null)
             return null;
 
+        return await RefreshAccountAsync(provider, account, force, makeActive: true, cancellationToken);
+    }
+
+    private async Task<string?> RefreshAccountAsync(
+        ProviderConfig provider,
+        OAuthAccountConfig account,
+        bool force,
+        bool makeActive,
+        CancellationToken cancellationToken)
+    {
         if (!force && !NeedsRefresh(account))
             return account.AccessToken;
 
@@ -70,15 +93,17 @@ public sealed class ProviderAuthService
         if (settings is null || string.IsNullOrWhiteSpace(settings.TokenUrl) || string.IsNullOrWhiteSpace(settings.ClientId))
             return account.AccessToken;
 
+        var accountId = account.Id;
         var observedAccessToken = account.AccessToken;
         var observedExpiresAt = account.ExpiresAt;
         var refreshLock = _refreshLocks.GetOrAdd(CreateRefreshLockKey(provider, account), _ => new SemaphoreSlim(1, 1));
         await refreshLock.WaitAsync(cancellationToken);
         try
         {
-            account = GetActiveAccount(provider);
-            if (account is null)
+            var currentAccount = GetAccount(provider, accountId);
+            if (currentAccount is null)
                 return null;
+            account = currentAccount;
 
             if (!force && !NeedsRefresh(account))
                 return account.AccessToken;
@@ -100,9 +125,12 @@ public sealed class ProviderAuthService
 
             var response = await SendRefreshRequestAsync(settings, account.RefreshToken, cancellationToken);
             ApplyTokenResponse(account, response);
+            if (IsCodexOAuthProvider(provider))
+                await _codexOAuthHelper.EnrichAccountAsync(account, cancellationToken);
             if (string.IsNullOrWhiteSpace(account.DisplayName))
                 account.DisplayName = ResolveAccountDisplayName(account);
-            provider.ActiveAccountId = account.Id;
+            if (makeActive)
+                provider.ActiveAccountId = account.Id;
             _store.SaveConfig(_config);
             return account.AccessToken;
         }
@@ -130,6 +158,16 @@ public sealed class ProviderAuthService
         return enabledAccounts[0];
     }
 
+    public OAuthAccountConfig? GetAccount(ProviderConfig provider, string accountId)
+    {
+        if (provider.AuthMode != ProviderAuthMode.OAuth)
+            return null;
+
+        return provider.OAuthAccounts.FirstOrDefault(account =>
+            account.IsEnabled &&
+            string.Equals(account.Id, accountId, StringComparison.OrdinalIgnoreCase));
+    }
+
     public void AddOrUpdateOAuthAccount(ProviderConfig provider, OAuthAccountConfig account, bool makeActive)
     {
         var existing = provider.OAuthAccounts.FirstOrDefault(item =>
@@ -146,6 +184,10 @@ public sealed class ProviderAuthService
             existing.RefreshToken = account.RefreshToken;
             existing.ExpiresAt = account.ExpiresAt;
             existing.IsEnabled = account.IsEnabled;
+            existing.IdToken = account.IdToken;
+            existing.PlanType = account.PlanType;
+            existing.ChatgptAccountId = account.ChatgptAccountId;
+            existing.Quota = account.Quota;
         }
 
         if (makeActive)
@@ -156,6 +198,29 @@ public sealed class ProviderAuthService
 
     public void SaveAccounts()
     {
+        _store.SaveConfig(_config);
+    }
+
+    public void UpdateActiveAccountQuotaFromHeaders(ProviderConfig provider, HttpResponseHeaders headers)
+    {
+        if (!IsCodexOAuthProvider(provider))
+            return;
+
+        var account = GetActiveAccount(provider);
+        if (account is null)
+            return;
+
+        var quota = CreateCodexQuotaFromHeaders(headers);
+        if (quota is null)
+            return;
+
+        if (!string.IsNullOrWhiteSpace(quota.PlanType))
+            account.PlanType = quota.PlanType;
+
+        if (AreQuotaSnapshotsEqual(account.Quota, quota))
+            return;
+
+        account.Quota = quota;
         _store.SaveConfig(_config);
     }
 
@@ -226,6 +291,8 @@ public sealed class ProviderAuthService
             account.RefreshToken = response.RefreshToken;
         if (!string.IsNullOrWhiteSpace(response.Email))
             account.Email = response.Email;
+        if (!string.IsNullOrWhiteSpace(response.IdToken))
+            account.IdToken = response.IdToken;
         if (response.ExpiresIn is > 0)
             account.ExpiresAt = DateTimeOffset.UtcNow.AddSeconds(response.ExpiresIn.Value);
     }
@@ -236,17 +303,124 @@ public sealed class ProviderAuthService
             return account.DisplayName;
         if (!string.IsNullOrWhiteSpace(account.Email))
             return account.Email;
-        return "Codex OAuth 账户";
+        if (!string.IsNullOrWhiteSpace(account.ChatgptAccountId))
+            return "Codex OAuth " + account.ChatgptAccountId;
+        return "Codex OAuth account";
+    }
+
+    private static bool IsCodexOAuthProvider(ProviderConfig provider)
+    {
+        return string.Equals(provider.BuiltinId, ProviderTemplateCatalog.CodexOAuthBuiltinId, StringComparison.OrdinalIgnoreCase) ||
+            ProviderTemplateCatalog.IsChatGptCodexBackend(provider.BaseUrl);
+    }
+
+    private static OAuthAccountQuotaInfo? CreateCodexQuotaFromHeaders(HttpResponseHeaders headers)
+    {
+        var quota = new OAuthAccountQuotaInfo
+        {
+            LastUpdatedAt = DateTimeOffset.Now
+        };
+        var hasAny = false;
+
+        if (TryGetHeader(headers, "x-codex-plan-type", out var planType))
+        {
+            quota.PlanType = planType;
+            hasAny = true;
+        }
+
+        hasAny |= TryGetIntHeader(headers, "x-codex-primary-used-percent", value => quota.PrimaryUsedPercent = value);
+        hasAny |= TryGetIntHeader(headers, "x-codex-primary-window-minutes", value => quota.PrimaryWindowMinutes = value);
+        hasAny |= TryGetLongHeader(headers, "x-codex-primary-reset-at", value => quota.PrimaryResetAt = value);
+        hasAny |= TryGetIntHeader(headers, "x-codex-primary-reset-after-seconds", value => quota.PrimaryResetAfterSeconds = value);
+        hasAny |= TryGetIntHeader(headers, "x-codex-secondary-used-percent", value => quota.SecondaryUsedPercent = value);
+        hasAny |= TryGetIntHeader(headers, "x-codex-secondary-window-minutes", value => quota.SecondaryWindowMinutes = value);
+        hasAny |= TryGetLongHeader(headers, "x-codex-secondary-reset-at", value => quota.SecondaryResetAt = value);
+        hasAny |= TryGetIntHeader(headers, "x-codex-secondary-reset-after-seconds", value => quota.SecondaryResetAfterSeconds = value);
+        hasAny |= TryGetIntHeader(headers, "x-codex-primary-over-secondary-limit-percent", value => quota.PrimaryOverSecondaryLimitPercent = value);
+        hasAny |= TryGetBoolHeader(headers, "x-codex-credits-has-credits", value => quota.HasCredits = value);
+
+        if (TryGetHeader(headers, "x-codex-credits-balance", out var creditsBalance))
+        {
+            quota.CreditsBalance = creditsBalance;
+            hasAny = true;
+        }
+
+        hasAny |= TryGetBoolHeader(headers, "x-codex-credits-unlimited", value => quota.CreditsUnlimited = value);
+        return hasAny ? quota : null;
+    }
+
+    private static bool TryGetHeader(HttpResponseHeaders headers, string name, out string value)
+    {
+        value = "";
+        if (!headers.TryGetValues(name, out var values))
+            return false;
+
+        value = values.FirstOrDefault() ?? "";
+        return !string.IsNullOrWhiteSpace(value);
+    }
+
+    private static bool TryGetIntHeader(HttpResponseHeaders headers, string name, Action<int> apply)
+    {
+        if (!TryGetHeader(headers, name, out var raw) || !int.TryParse(raw, out var value))
+            return false;
+
+        apply(value);
+        return true;
+    }
+
+    private static bool TryGetLongHeader(HttpResponseHeaders headers, string name, Action<long> apply)
+    {
+        if (!TryGetHeader(headers, name, out var raw) || !long.TryParse(raw, out var value))
+            return false;
+
+        apply(value);
+        return true;
+    }
+
+    private static bool TryGetBoolHeader(HttpResponseHeaders headers, string name, Action<bool> apply)
+    {
+        if (!TryGetHeader(headers, name, out var raw) || !bool.TryParse(raw, out var value))
+            return false;
+
+        apply(value);
+        return true;
+    }
+
+    private static bool AreQuotaSnapshotsEqual(OAuthAccountQuotaInfo? existing, OAuthAccountQuotaInfo incoming)
+    {
+        if (existing is null)
+            return false;
+
+        return string.Equals(existing.PlanType, incoming.PlanType, StringComparison.Ordinal) &&
+            existing.PrimaryUsedPercent == incoming.PrimaryUsedPercent &&
+            existing.PrimaryWindowMinutes == incoming.PrimaryWindowMinutes &&
+            existing.PrimaryResetAt == incoming.PrimaryResetAt &&
+            existing.PrimaryResetAfterSeconds == incoming.PrimaryResetAfterSeconds &&
+            existing.SecondaryUsedPercent == incoming.SecondaryUsedPercent &&
+            existing.SecondaryWindowMinutes == incoming.SecondaryWindowMinutes &&
+            existing.SecondaryResetAt == incoming.SecondaryResetAt &&
+            existing.SecondaryResetAfterSeconds == incoming.SecondaryResetAfterSeconds &&
+            existing.PrimaryOverSecondaryLimitPercent == incoming.PrimaryOverSecondaryLimitPercent &&
+            existing.HasCredits == incoming.HasCredits &&
+            string.Equals(existing.CreditsBalance, incoming.CreditsBalance, StringComparison.Ordinal) &&
+            existing.CreditsUnlimited == incoming.CreditsUnlimited;
     }
 }
 
 public sealed class CodexOAuthLoginService
 {
     private readonly HttpClient _httpClient;
+    private readonly CodexOAuthHelper _codexOAuthHelper;
 
     public CodexOAuthLoginService(HttpClient httpClient)
+        : this(httpClient, new CodexOAuthHelper(httpClient))
+    {
+    }
+
+    public CodexOAuthLoginService(HttpClient httpClient, CodexOAuthHelper codexOAuthHelper)
     {
         _httpClient = httpClient;
+        _codexOAuthHelper = codexOAuthHelper;
     }
 
     public async Task<OAuthAccountConfig> LoginAsync(
@@ -272,8 +446,8 @@ public sealed class CodexOAuthLoginService
         var code = query["code"];
 
         var html = string.IsNullOrWhiteSpace(error)
-            ? "<html><body><h2>CodexSwitch 登录成功，可以回到应用。</h2></body></html>"
-            : "<html><body><h2>CodexSwitch 登录失败，请回到应用重试。</h2></body></html>";
+            ? "<html><body><h2>CodexSwitch login succeeded. You can return to the app.</h2></body></html>"
+            : "<html><body><h2>CodexSwitch login failed. Please return to the app and try again.</h2></body></html>";
         var bytes = Encoding.UTF8.GetBytes(html);
         context.Response.ContentType = "text/html; charset=utf-8";
         context.Response.ContentLength64 = bytes.Length;
@@ -284,12 +458,12 @@ public sealed class CodexOAuthLoginService
         if (!string.IsNullOrWhiteSpace(error))
             throw new InvalidOperationException(error);
         if (!string.Equals(callbackState, state, StringComparison.Ordinal))
-            throw new InvalidOperationException("OAuth state 校验失败。");
+            throw new InvalidOperationException("OAuth state mismatch.");
         if (string.IsNullOrWhiteSpace(code))
-            throw new InvalidOperationException("OAuth 回调缺少授权码。");
+            throw new InvalidOperationException("OAuth callback missing authorization code.");
 
         var token = await ExchangeCodeAsync(settings, redirectUri, code, codeVerifier, cancellationToken);
-        return CreateAccount(token);
+        return await CreateAccountAsync(token, cancellationToken);
     }
 
     public static Uri BuildAuthorizeUri(
@@ -330,7 +504,7 @@ public sealed class CodexOAuthLoginService
 
     public static string BuildListenerPrefix(ProviderOAuthSettings settings)
     {
-        return BuildRedirectUri(settings).TrimEnd('/') + "/";
+        return $"http://{settings.RedirectHost}:{settings.RedirectPort}/";
     }
 
     public static string CreateCodeChallenge(string verifier)
@@ -365,8 +539,6 @@ public sealed class CodexOAuthLoginService
         };
         if (settings.UsePkce)
             body["code_verifier"] = codeVerifier;
-        if (!string.IsNullOrWhiteSpace(settings.Scope))
-            body["scope"] = settings.Scope;
 
         request.Content = new FormUrlEncodedContent(body);
         using var response = await _httpClient.SendAsync(request, cancellationToken);
@@ -375,19 +547,29 @@ public sealed class CodexOAuthLoginService
         return OAuthTokenResponse.Parse(content);
     }
 
-    private static OAuthAccountConfig CreateAccount(OAuthTokenResponse token)
+    private async Task<OAuthAccountConfig> CreateAccountAsync(
+        OAuthTokenResponse token,
+        CancellationToken cancellationToken)
     {
         var email = token.Email;
         var account = new OAuthAccountConfig
         {
             Id = string.IsNullOrWhiteSpace(email) ? Guid.NewGuid().ToString("N") : CreateStableAccountId(email),
-            DisplayName = string.IsNullOrWhiteSpace(email) ? "Codex OAuth 账户" : email,
+            DisplayName = string.IsNullOrWhiteSpace(email) ? "Codex OAuth account" : email,
             Email = email,
             AccessToken = token.AccessToken,
             RefreshToken = token.RefreshToken,
+            IdToken = token.IdToken,
             ExpiresAt = token.ExpiresIn is > 0 ? DateTimeOffset.UtcNow.AddSeconds(token.ExpiresIn.Value) : null,
             IsEnabled = true
         };
+        _codexOAuthHelper.EnrichAccountFromToken(account, token);
+        await _codexOAuthHelper.EnrichAccountAsync(account, cancellationToken);
+        var stableIdSource = string.IsNullOrWhiteSpace(account.Email) ? account.ChatgptAccountId : account.Email;
+        if (!string.IsNullOrWhiteSpace(stableIdSource))
+            account.Id = CreateStableAccountId(stableIdSource);
+        if (string.IsNullOrWhiteSpace(account.DisplayName))
+            account.DisplayName = ProviderAuthService.ResolveAccountDisplayName(account);
         return account;
     }
 
@@ -465,14 +647,25 @@ public sealed class OAuthTokenResponse
             payload = payload.PadRight(payload.Length + (4 - payload.Length % 4) % 4, '=');
             var json = Encoding.UTF8.GetString(Convert.FromBase64String(payload));
             using var document = JsonDocument.Parse(json);
-            return TryGetString(document.RootElement, "email");
+            var root = document.RootElement;
+
+            // Check https://api.openai.com/profile.email first (OpenAI OIDC convention)
+            if (root.TryGetProperty("https://api.openai.com/profile", out var profile) &&
+                profile.ValueKind == JsonValueKind.Object &&
+                profile.TryGetProperty("email", out var profileEmail) &&
+                profileEmail.ValueKind == JsonValueKind.String)
+            {
+                return profileEmail.GetString();
+            }
+
+            // Fall back to root email
+            return TryGetString(root, "email");
         }
         catch
         {
             return null;
         }
     }
-
     private static string? TryGetString(JsonElement element, string propertyName)
     {
         return element.TryGetProperty(propertyName, out var value) && value.ValueKind == JsonValueKind.String

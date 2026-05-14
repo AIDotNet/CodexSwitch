@@ -1,3 +1,5 @@
+using CodexSwitchUI.ECharts.Abstractions;
+
 namespace CodexSwitch.Models;
 
 public enum UsageTimeRange
@@ -48,6 +50,8 @@ public sealed class UsageDashboard
 
     public IReadOnlyList<UsageLogRecord> Logs { get; init; } = [];
 
+    public bool HasMoreLogs { get; init; }
+
     public IReadOnlyList<ProviderUsageSummary> ProviderSummaries { get; init; } = [];
 
     public IReadOnlyList<ModelUsageSummary> ModelSummaries { get; init; } = [];
@@ -83,7 +87,7 @@ public sealed class ModelUsageSummary
     public decimal AverageCost { get; init; }
 }
 
-public sealed class UsageTrendPoint
+public sealed class UsageTrendPoint : IUsageTrendChartPoint
 {
     public DateTimeOffset Timestamp { get; init; }
 

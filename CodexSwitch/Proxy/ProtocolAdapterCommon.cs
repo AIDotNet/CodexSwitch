@@ -27,6 +27,7 @@ internal static class ProtocolAdapterCommon
         return new UsageLogRecord
         {
             Timestamp = DateTimeOffset.UtcNow,
+            ClientApp = context.ClientApp,
             ProviderId = context.Provider.Id,
             Protocol = (context.Model?.Protocol ?? context.Provider.Protocol).ToString(),
             RequestModel = requestModel,

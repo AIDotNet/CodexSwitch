@@ -39,6 +39,8 @@ public sealed class UsageLogRecord
 {
     public DateTimeOffset Timestamp { get; set; } = DateTimeOffset.UtcNow;
 
+    public ClientAppKind ClientApp { get; set; } = ClientAppKind.Codex;
+
     public string ProviderId { get; set; } = "";
 
     public string Protocol { get; set; } = "";

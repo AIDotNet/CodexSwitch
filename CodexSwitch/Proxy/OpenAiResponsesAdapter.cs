@@ -49,6 +49,7 @@ public sealed class OpenAiResponsesAdapter : IProviderProtocolAdapter
                     isStream ? HttpCompletionOption.ResponseHeadersRead : HttpCompletionOption.ResponseContentRead,
                     cancellationToken);
             }
+            context.ProviderAuthService.UpdateActiveAccountQuotaFromHeaders(context.Provider, upstreamResponse.Headers);
         }
         catch (HttpRequestException ex)
         {
@@ -148,6 +149,7 @@ public sealed class OpenAiResponsesAdapter : IProviderProtocolAdapter
                     isStream ? HttpCompletionOption.ResponseHeadersRead : HttpCompletionOption.ResponseContentRead,
                     cancellationToken);
             }
+            context.ProviderAuthService.UpdateActiveAccountQuotaFromHeaders(context.Provider, upstreamResponse.Headers);
         }
         catch (HttpRequestException ex)
         {
@@ -1227,6 +1229,7 @@ public sealed class OpenAiResponsesAdapter : IProviderProtocolAdapter
         return new UsageLogRecord
         {
             Timestamp = DateTimeOffset.UtcNow,
+            ClientApp = context.ClientApp,
             ProviderId = context.Provider.Id,
             Protocol = (context.Model?.Protocol ?? context.Provider.Protocol).ToString(),
             RequestModel = requestModel,

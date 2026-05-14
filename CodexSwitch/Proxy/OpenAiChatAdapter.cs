@@ -2087,6 +2087,7 @@ public sealed class OpenAiChatAdapter : IProviderProtocolAdapter
                 messages.Insert(0, CreateChatInstructionsMessage(requestData.Instructions.Value));
 
             AppendChatMessages(messages, requestData.NewInputItems);
+            NormalizeToolMessagesAfterToolCalls(messages);
             return messages;
         }
 
@@ -2094,6 +2095,7 @@ public sealed class OpenAiChatAdapter : IProviderProtocolAdapter
             messages.Add(CreateChatInstructionsMessage(requestData.Instructions.Value));
 
         AppendChatMessages(messages, requestData.ConversationItems);
+        NormalizeToolMessagesAfterToolCalls(messages);
         return messages;
     }
 
@@ -2220,6 +2222,158 @@ public sealed class OpenAiChatAdapter : IProviderProtocolAdapter
 
         messages.Add(CreateAssistantChatMessage(pendingAssistant));
         pendingAssistant = null;
+    }
+
+    private static void NormalizeToolMessagesAfterToolCalls(List<JsonElement> messages)
+    {
+        for (var index = 0; index < messages.Count; index++)
+        {
+            if (!string.Equals(TryGetString(messages[index], "role"), "assistant", StringComparison.Ordinal))
+                continue;
+
+            var toolCallIds = ExtractChatToolCallIds(messages[index]);
+            if (toolCallIds.Count == 0)
+                continue;
+
+            var matchedToolCallIds = MoveMatchingToolMessagesAfterAssistant(messages, index, toolCallIds);
+            var unmatchedToolCallIds = toolCallIds
+                .Where(id => !matchedToolCallIds.Contains(id))
+                .ToArray();
+
+            if (unmatchedToolCallIds.Length > 0)
+                messages[index] = RemoveUnmatchedChatToolCalls(messages[index], unmatchedToolCallIds);
+        }
+    }
+
+    private static List<string> ExtractChatToolCallIds(JsonElement message)
+    {
+        var ids = new List<string>();
+        if (!message.TryGetProperty("tool_calls", out var toolCalls) || toolCalls.ValueKind != JsonValueKind.Array)
+            return ids;
+
+        foreach (var toolCall in toolCalls.EnumerateArray())
+        {
+            var id = TryGetString(toolCall, "id") ??
+                TryGetString(toolCall, "call_id") ??
+                TryGetString(toolCall, "tool_call_id");
+            if (!string.IsNullOrWhiteSpace(id))
+                ids.Add(id);
+        }
+
+        return ids;
+    }
+
+    private static HashSet<string> MoveMatchingToolMessagesAfterAssistant(
+        List<JsonElement> messages,
+        int assistantIndex,
+        IReadOnlyList<string> toolCallIds)
+    {
+        var (orderedToolMessages, matchedToolCallIds, removedMessageIndexes) =
+            CollectMatchingChatToolMessages(messages, assistantIndex + 1, toolCallIds);
+
+        if (orderedToolMessages.Count == 0)
+            return matchedToolCallIds;
+
+        foreach (var messageIndex in removedMessageIndexes.OrderByDescending(index => index))
+            messages.RemoveAt(messageIndex);
+
+        messages.InsertRange(assistantIndex + 1, orderedToolMessages);
+        return matchedToolCallIds;
+    }
+
+    private static (List<JsonElement> OrderedToolMessages, HashSet<string> MatchedToolCallIds, HashSet<int> RemovedMessageIndexes)
+        CollectMatchingChatToolMessages(
+            IReadOnlyList<JsonElement> messages,
+            int startIndex,
+            IReadOnlyList<string> toolCallIds)
+    {
+        var expectedIds = new HashSet<string>(toolCallIds, StringComparer.Ordinal);
+        var foundMessages = new Dictionary<string, JsonElement>(StringComparer.Ordinal);
+        var removedMessageIndexes = new HashSet<int>();
+
+        for (var messageIndex = startIndex; messageIndex < messages.Count; messageIndex++)
+        {
+            if (!string.Equals(TryGetString(messages[messageIndex], "role"), "tool", StringComparison.Ordinal))
+                continue;
+
+            var toolCallId = TryGetString(messages[messageIndex], "tool_call_id") ??
+                TryGetString(messages[messageIndex], "call_id") ??
+                TryGetString(messages[messageIndex], "tool_use_id");
+            if (string.IsNullOrWhiteSpace(toolCallId) || !expectedIds.Contains(toolCallId))
+                continue;
+
+            if (!foundMessages.ContainsKey(toolCallId))
+                foundMessages[toolCallId] = messages[messageIndex].Clone();
+            removedMessageIndexes.Add(messageIndex);
+        }
+
+        var ordered = new List<JsonElement>();
+        foreach (var toolCallId in toolCallIds)
+        {
+            if (foundMessages.TryGetValue(toolCallId, out var message))
+                ordered.Add(message);
+        }
+
+        return (ordered, foundMessages.Keys.ToHashSet(StringComparer.Ordinal), removedMessageIndexes);
+    }
+
+    private static JsonElement RemoveUnmatchedChatToolCalls(
+        JsonElement message,
+        IReadOnlyCollection<string> unmatchedToolCallIds)
+    {
+        var json = ProtocolAdapterCommon.SerializeJson(writer =>
+        {
+            var wroteContent = false;
+            var wroteToolCalls = false;
+
+            writer.WriteStartObject();
+            foreach (var property in message.EnumerateObject())
+            {
+                if (property.NameEquals("content"))
+                    wroteContent = true;
+
+                if (property.NameEquals("tool_calls"))
+                {
+                    if (property.Value.ValueKind == JsonValueKind.Array)
+                    {
+                        var remainingToolCalls = property.Value
+                            .EnumerateArray()
+                            .Where(toolCall => !IsChatToolCall(toolCall, unmatchedToolCallIds))
+                            .ToArray();
+
+                        if (remainingToolCalls.Length > 0)
+                        {
+                            writer.WritePropertyName("tool_calls");
+                            writer.WriteStartArray();
+                            foreach (var toolCall in remainingToolCalls)
+                                toolCall.WriteTo(writer);
+                            writer.WriteEndArray();
+                            wroteToolCalls = true;
+                        }
+                    }
+
+                    continue;
+                }
+
+                property.WriteTo(writer);
+            }
+
+            if (!wroteContent && !wroteToolCalls)
+                writer.WriteString("content", string.Empty);
+
+            writer.WriteEndObject();
+        });
+
+        using var document = JsonDocument.Parse(json);
+        return document.RootElement.Clone();
+    }
+
+    private static bool IsChatToolCall(JsonElement toolCall, IReadOnlyCollection<string> toolCallIds)
+    {
+        var id = TryGetString(toolCall, "id") ??
+            TryGetString(toolCall, "call_id") ??
+            TryGetString(toolCall, "tool_call_id");
+        return !string.IsNullOrWhiteSpace(id) && toolCallIds.Contains(id);
     }
 
     private static void AppendAssistantTextParts(PendingAssistantTurn pendingAssistant, IEnumerable<string> textParts)
@@ -2529,7 +2683,7 @@ public sealed class OpenAiChatAdapter : IProviderProtocolAdapter
                 TryGetString(tool, "name");
             if (string.IsNullOrWhiteSpace(name))
                 continue;
-            if (allowedToolNames is not null && allowedToolNames.Count > 0 && !allowedToolNames.Contains(name))
+            if (allowedToolNames is not null && !allowedToolNames.Contains(name))
                 continue;
 
             writer.WriteStartObject();
@@ -2784,12 +2938,35 @@ public sealed class OpenAiChatAdapter : IProviderProtocolAdapter
             var mode = toolChoice.TryGetProperty("mode", out var modeValue) && modeValue.ValueKind == JsonValueKind.String
                 ? modeValue.GetString()
                 : "auto";
+            var allowedTools = ReadAllowedChatTools(toolChoice);
+            if (allowedTools.Count == 0)
+            {
+                writer.WriteStringValue("auto");
+                return;
+            }
 
-            writer.WriteStringValue(
-                string.Equals(mode, "required", StringComparison.Ordinal) ||
-                string.Equals(mode, "none", StringComparison.Ordinal)
-                    ? mode
+            writer.WriteStartObject();
+            writer.WriteString("type", "allowed_tools");
+            writer.WriteString(
+                "mode",
+                string.Equals(mode, "required", StringComparison.Ordinal)
+                    ? "required"
                     : "auto");
+            writer.WritePropertyName("tools");
+            writer.WriteStartArray();
+            foreach (var name in allowedTools)
+            {
+                writer.WriteStartObject();
+                writer.WriteString("type", "function");
+                writer.WritePropertyName("function");
+                writer.WriteStartObject();
+                writer.WriteString("name", name);
+                writer.WriteEndObject();
+                writer.WriteEndObject();
+            }
+
+            writer.WriteEndArray();
+            writer.WriteEndObject();
             return;
         }
 
@@ -2802,6 +2979,29 @@ public sealed class OpenAiChatAdapter : IProviderProtocolAdapter
         }
 
         writer.WriteStringValue("auto");
+    }
+
+    private static List<string> ReadAllowedChatTools(JsonElement toolChoice)
+    {
+        var names = new List<string>();
+        if (!toolChoice.TryGetProperty("tools", out var toolsValue) || toolsValue.ValueKind != JsonValueKind.Array)
+            return names;
+
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var tool in toolsValue.EnumerateArray())
+        {
+            if (tool.ValueKind != JsonValueKind.Object)
+                continue;
+
+            var functionTool = ResolveFunctionToolBody(tool);
+            var name = TryGetString(functionTool, "name") ?? TryGetString(tool, "name");
+            if (string.IsNullOrWhiteSpace(name) || !seen.Add(name))
+                continue;
+
+            names.Add(name);
+        }
+
+        return names;
     }
 
     private static void WriteChatResponseFormat(Utf8JsonWriter writer, JsonElement responseFormat)

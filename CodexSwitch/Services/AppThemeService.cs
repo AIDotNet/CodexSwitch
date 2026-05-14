@@ -1,5 +1,6 @@
 using Avalonia.Media;
 using Avalonia.Styling;
+using CodexSwitchUI.Themes;
 
 namespace CodexSwitch.Services;
 
@@ -7,6 +8,11 @@ public static class AppThemeService
 {
     private static string _theme = "system";
     private static bool _isListeningForSystemTheme;
+    private static readonly CodexSwitchThemeOptions ComponentThemeOptions = CodexSwitchThemeOptions.ShadcnDefault with
+    {
+        Density = CodexSwitchDensity.Compact,
+        FontFamily = "Inter, Segoe UI, Microsoft YaHei UI"
+    };
 
     private static readonly IReadOnlyDictionary<string, ThemeColorPair> ThemeBrushes =
         new Dictionary<string, ThemeColorPair>(StringComparer.Ordinal)
@@ -107,6 +113,7 @@ public static class AppThemeService
         };
 
         EnsureSystemThemeListener(app);
+        ApplyComponentLibraryTheme(app);
         ApplyBrushes(app);
     }
 
@@ -118,9 +125,24 @@ public static class AppThemeService
         app.ActualThemeVariantChanged += (_, _) =>
         {
             if (_theme == "system")
+            {
+                ApplyComponentLibraryTheme(app);
                 ApplyBrushes(app);
+            }
         };
         _isListeningForSystemTheme = true;
+    }
+
+    private static void ApplyComponentLibraryTheme(Application app)
+    {
+        var mode = _theme switch
+        {
+            "light" => CodexSwitchThemeMode.Light,
+            "dark" => CodexSwitchThemeMode.Dark,
+            _ => CodexSwitchThemeMode.System
+        };
+
+        CodexSwitchThemeManager.Current.Apply(app, mode, ComponentThemeOptions);
     }
 
     private static void ApplyBrushes(Application app)

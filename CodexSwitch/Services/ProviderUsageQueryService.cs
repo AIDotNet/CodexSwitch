@@ -21,6 +21,14 @@ public sealed class ProviderUsageQueryService
         ProviderConfig provider,
         CancellationToken cancellationToken)
     {
+        return await QueryAsync(provider, null, cancellationToken);
+    }
+
+    public async Task<ProviderUsageQueryResult> QueryAsync(
+        ProviderConfig provider,
+        string? accountId,
+        CancellationToken cancellationToken)
+    {
         var checkedAt = DateTimeOffset.Now;
         var config = provider.UsageQuery;
         if (config is null || !config.Enabled)
@@ -29,11 +37,12 @@ public sealed class ProviderUsageQueryService
         if (string.IsNullOrWhiteSpace(config.Url))
             return ProviderUsageQueryResult.Invalid(checkedAt, "Usage query URL is empty.");
 
-        var token = await _authService.ResolveAccessTokenAsync(provider, forceRefresh: false, cancellationToken);
+        var account = ResolveAccount(provider, accountId);
+        var token = await _authService.ResolveAccessTokenAsync(provider, account?.Id, forceRefresh: false, cancellationToken);
         if (UsesApiKeyPlaceholder(config) && string.IsNullOrWhiteSpace(token))
             return ProviderUsageQueryResult.RequestFailed(checkedAt, "API key is empty.");
 
-        var url = ReplacePlaceholders(config.Url, provider, token);
+        var url = ReplacePlaceholders(config.Url, provider, token, account);
         if (!Uri.TryCreate(url, UriKind.Absolute, out var uri) ||
             (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps))
         {
@@ -52,7 +61,7 @@ public sealed class ProviderUsageQueryService
             using var request = new HttpRequestMessage(method, uri);
             request.Headers.Accept.ParseAdd("application/json");
 
-            var body = ReplacePlaceholders(config.JsonBody ?? "", provider, token);
+            var body = ReplacePlaceholders(config.JsonBody ?? "", provider, token, account);
             if (method == HttpMethod.Post && !string.IsNullOrWhiteSpace(body))
                 request.Content = new StringContent(body, Encoding.UTF8, "application/json");
 
@@ -62,7 +71,7 @@ public sealed class ProviderUsageQueryService
                 if (string.IsNullOrWhiteSpace(name))
                     continue;
 
-                var value = ReplacePlaceholders(header.Value, provider, token);
+                var value = ReplacePlaceholders(header.Value, provider, token, account);
                 if (!request.Headers.TryAddWithoutValidation(name, value))
                 {
                     request.Content ??= new StringContent("", Encoding.UTF8, "application/json");
@@ -265,12 +274,46 @@ public sealed class ProviderUsageQueryService
 
     public static string ReplacePlaceholders(string value, ProviderConfig provider, string? apiKey)
     {
+        return ReplacePlaceholders(value, provider, apiKey, ResolveAccount(provider, null));
+    }
+
+    public static string ReplacePlaceholders(
+        string value,
+        ProviderConfig provider,
+        string? apiKey,
+        OAuthAccountConfig? account)
+    {
         var baseUrl = provider.BaseUrl.TrimEnd('/');
         var origin = ResolveOrigin(provider.BaseUrl);
         return value
             .Replace("{{baseUrl}}", baseUrl, StringComparison.OrdinalIgnoreCase)
             .Replace("{{origin}}", origin, StringComparison.OrdinalIgnoreCase)
-            .Replace("{{apiKey}}", apiKey ?? "", StringComparison.OrdinalIgnoreCase);
+            .Replace("{{apiKey}}", apiKey ?? "", StringComparison.OrdinalIgnoreCase)
+            .Replace("{{accountId}}", account?.Id ?? "", StringComparison.OrdinalIgnoreCase)
+            .Replace("{{chatgptAccountId}}", account?.ChatgptAccountId ?? "", StringComparison.OrdinalIgnoreCase)
+            .Replace("{{email}}", account?.Email ?? "", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static OAuthAccountConfig? ResolveAccount(ProviderConfig provider, string? accountId)
+    {
+        if (provider.AuthMode != ProviderAuthMode.OAuth)
+            return null;
+
+        var enabledAccounts = provider.OAuthAccounts.Where(account => account.IsEnabled).ToArray();
+        if (enabledAccounts.Length == 0)
+            return null;
+
+        if (!string.IsNullOrWhiteSpace(accountId))
+        {
+            var selected = enabledAccounts.FirstOrDefault(account =>
+                string.Equals(account.Id, accountId, StringComparison.OrdinalIgnoreCase));
+            if (selected is not null)
+                return selected;
+        }
+
+        return enabledAccounts.FirstOrDefault(account =>
+            string.Equals(account.Id, provider.ActiveAccountId, StringComparison.OrdinalIgnoreCase)) ??
+            enabledAccounts[0];
     }
 
     private static ProviderUsageQueryResult Extract(

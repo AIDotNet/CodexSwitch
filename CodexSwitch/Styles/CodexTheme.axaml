@@ -1,5 +1,6 @@
 <Styles xmlns="https://github.com/avaloniaui"
-        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:ui="using:CodexSwitchUI.Controls">
     <Styles.Resources>
         <CornerRadius x:Key="CsRadiusSm">6</CornerRadius>
         <CornerRadius x:Key="CsRadiusMd">8</CornerRadius>
@@ -109,6 +110,7 @@
     <StyleInclude Source="avares://CodexSwitch/Styles/Components/ModelCatalog.axaml"/>
     <StyleInclude Source="avares://CodexSwitch/Styles/Components/StatsCard.axaml"/>
     <StyleInclude Source="avares://CodexSwitch/Styles/Components/UsageTrendChart.axaml"/>
+    <StyleInclude Source="avares://CodexSwitchUI.ECharts/Themes/UsageTrendChart.axaml"/>
     <StyleInclude Source="avares://CodexSwitch/Styles/Components/Card.axaml"/>
     <StyleInclude Source="avares://CodexSwitch/Styles/Components/Badge.axaml"/>
     <StyleInclude Source="avares://CodexSwitch/Styles/Components/Field.axaml"/>
@@ -120,4 +122,26 @@
     <StyleInclude Source="avares://CodexSwitch/Styles/Components/Kbd.axaml"/>
     <StyleInclude Source="avares://CodexSwitch/Styles/Components/ScrollArea.axaml"/>
     <StyleInclude Source="avares://CodexSwitch/Styles/Components/ContextMenu.axaml"/>
+
+    <Style Selector="ui|CodexSidebarMenuButton /template/ Border#PART_MenuButtonRoot">
+        <Setter Property="Transitions">
+            <Transitions>
+                <DoubleTransition Property="Opacity" Duration="0:0:0.12"/>
+                <BrushTransition Property="BorderBrush" Duration="0:0:0.10"/>
+                <TransformOperationsTransition Property="RenderTransform" Duration="0:0:0.10"/>
+            </Transitions>
+        </Setter>
+    </Style>
+    <Style Selector="ui|CodexSidebarMenuButton:pointerover">
+        <Setter Property="Foreground" Value="{StaticResource CsSidebarAccentForegroundBrush}"/>
+    </Style>
+    <Style Selector="ui|CodexSidebarMenuButton:pointerover /template/ Border#PART_MenuButtonRoot">
+        <Setter Property="Background" Value="{StaticResource CsSidebarAccentBrush}"/>
+    </Style>
+    <Style Selector="ui|CodexSidebarMenuButton.active">
+        <Setter Property="Foreground" Value="{StaticResource CsSidebarAccentForegroundBrush}"/>
+    </Style>
+    <Style Selector="ui|CodexSidebarMenuButton.active /template/ Border#PART_MenuButtonRoot">
+        <Setter Property="Background" Value="{StaticResource CsSidebarAccentBrush}"/>
+    </Style>
 </Styles>

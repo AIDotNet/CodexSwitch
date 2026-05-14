@@ -418,6 +418,7 @@ public sealed class AnthropicMessagesAdapterResponsesTests
             Context = new ProviderRequestContext(
                 HttpContext,
                 config,
+                ClientAppKind.Codex,
                 provider,
                 route,
                 new ProviderCostSettings(),

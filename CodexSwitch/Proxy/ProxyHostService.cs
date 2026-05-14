@@ -294,6 +294,7 @@ public sealed class ProxyHostService : IAsyncDisposable
             var context = new ProviderRequestContext(
                 httpContext,
                 _config,
+                ClientAppKind.Codex,
                 provider,
                 model,
                 costSettings,
@@ -369,6 +370,7 @@ public sealed class ProxyHostService : IAsyncDisposable
             var context = new ProviderRequestContext(
                 httpContext,
                 _config,
+                ClientAppKind.ClaudeCode,
                 provider,
                 model,
                 costSettings,

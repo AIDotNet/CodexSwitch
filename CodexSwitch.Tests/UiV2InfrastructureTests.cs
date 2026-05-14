@@ -6,6 +6,7 @@ using System.Text.Json;
 using CodexSwitch.Models;
 using CodexSwitch.Proxy;
 using CodexSwitch.Services;
+using CodexSwitch.ViewModels;
 using Microsoft.AspNetCore.Http;
 
 namespace CodexSwitch.Tests;
@@ -755,6 +756,23 @@ public sealed class UiV2InfrastructureTests : IDisposable
     }
 
     [Fact]
+    public void UsageLogItem_FromRecord_ShowsOutputTps()
+    {
+        var item = UsageLogItem.From(new UsageLogRecord
+        {
+            Timestamp = new DateTimeOffset(2026, 5, 12, 8, 15, 0, TimeSpan.Zero),
+            ProviderId = "openai",
+            RequestModel = "gpt-5.5",
+            BilledModel = "gpt-5.5",
+            Usage = new UsageTokens(100, 0, 0, 120, 0),
+            DurationMs = 3000,
+            StatusCode = 200
+        });
+
+        Assert.Equal("40.0 TPS", item.OutputTps);
+    }
+
+    [Fact]
     public void UsageLogReader_AggregatesRequestsCostAndTokens()
     {
         var paths = CreatePaths("usage");
@@ -1180,7 +1198,7 @@ public sealed class UiV2InfrastructureTests : IDisposable
     }
 
     [Fact]
-    public void UsageLogReader_LimitsRecentRowsWhileKeepingFullTotals()
+    public void UsageLogReader_PaginatesRecentRowsWhileKeepingFullTotals()
     {
         var paths = CreatePaths("usage-recent-limit");
         var writer = new UsageLogWriter(paths);
@@ -1206,9 +1224,21 @@ public sealed class UiV2InfrastructureTests : IDisposable
         Assert.Equal(100, dashboard.Requests);
         Assert.Equal(100, dashboard.InputTokens);
         Assert.Equal(100, dashboard.OutputTokens);
-        Assert.Equal(80, dashboard.Logs.Count);
+        Assert.Equal(10, dashboard.Logs.Count);
+        Assert.True(dashboard.HasMoreLogs);
         Assert.Equal(now, dashboard.Logs.First().Timestamp);
-        Assert.Equal(now.AddMinutes(-79), dashboard.Logs.Last().Timestamp);
+        Assert.Equal(now.AddMinutes(-9), dashboard.Logs.Last().Timestamp);
+
+        var secondPage = new UsageLogReader(paths).Read(
+            UsageTimeRange.Last24Hours,
+            now,
+            logOffset: 10,
+            logLimit: 10);
+
+        Assert.Equal(10, secondPage.Logs.Count);
+        Assert.True(secondPage.HasMoreLogs);
+        Assert.Equal(now.AddMinutes(-10), secondPage.Logs.First().Timestamp);
+        Assert.Equal(now.AddMinutes(-19), secondPage.Logs.Last().Timestamp);
     }
 
     [Fact]
@@ -1257,7 +1287,8 @@ public sealed class UiV2InfrastructureTests : IDisposable
         Assert.Equal(20, dashboard.Requests);
         Assert.Equal(400, dashboard.InputTokens);
         Assert.Equal(160, dashboard.OutputTokens);
-        Assert.Equal(20, dashboard.Logs.Count);
+        Assert.Equal(10, dashboard.Logs.Count);
+        Assert.True(dashboard.HasMoreLogs);
         Assert.All(dashboard.Logs, record => Assert.Equal("anthropic", record.ProviderId));
         var provider = Assert.Single(dashboard.ProviderSummaries);
         Assert.Equal("anthropic", provider.ProviderId);
@@ -1266,6 +1297,78 @@ public sealed class UiV2InfrastructureTests : IDisposable
         Assert.Equal("claude-sonnet-4-5", model.Model);
         Assert.Equal(20, model.Requests);
         Assert.Equal(20, dashboard.TrendPoints.Sum(point => point.Requests));
+    }
+
+    [Fact]
+    public void UsageLogReader_FiltersByClientAppBeforeTotals()
+    {
+        var paths = CreatePaths("usage-client-app-filter");
+        var writer = new UsageLogWriter(paths);
+        var now = new DateTimeOffset(2026, 5, 13, 12, 0, 0, TimeSpan.Zero);
+
+        writer.Append(new UsageLogRecord
+        {
+            Timestamp = now.AddMinutes(-1),
+            ClientApp = ClientAppKind.Codex,
+            ProviderId = "openai",
+            RequestModel = "gpt-5.5",
+            BilledModel = "gpt-5.5",
+            Usage = new UsageTokens(100, 0, 0, 30, 0),
+            EstimatedCost = 0.01m,
+            DurationMs = 10,
+            StatusCode = 200
+        });
+        writer.Append(new UsageLogRecord
+        {
+            Timestamp = now.AddMinutes(-2),
+            ClientApp = ClientAppKind.ClaudeCode,
+            ProviderId = "anthropic",
+            RequestModel = "claude-sonnet-4-5",
+            BilledModel = "claude-sonnet-4-5",
+            Usage = new UsageTokens(200, 0, 0, 80, 0),
+            EstimatedCost = 0.02m,
+            DurationMs = 20,
+            StatusCode = 200
+        });
+
+        var dashboard = new UsageLogReader(paths).Read(
+            UsageTimeRange.Last24Hours,
+            now,
+            clientApp: ClientAppKind.ClaudeCode);
+
+        Assert.Equal(1, dashboard.Requests);
+        Assert.Equal(200, dashboard.InputTokens);
+        Assert.Equal(80, dashboard.OutputTokens);
+        var provider = Assert.Single(dashboard.ProviderSummaries);
+        Assert.Equal("anthropic", provider.ProviderId);
+        Assert.All(dashboard.Logs, record => Assert.Equal(ClientAppKind.ClaudeCode, record.ClientApp));
+    }
+
+    [Fact]
+    public void UsageMeter_FiltersRecentSnapshotByClientApp()
+    {
+        var meter = new UsageMeter(new PriceCalculator(new ModelPricingCatalog()));
+        var now = DateTimeOffset.UtcNow;
+        meter.Record(new UsageLogRecord
+        {
+            Timestamp = now.AddSeconds(-2),
+            ClientApp = ClientAppKind.Codex,
+            Usage = new UsageTokens(10, 0, 0, 3, 0),
+            StatusCode = 200
+        });
+        meter.Record(new UsageLogRecord
+        {
+            Timestamp = now.AddSeconds(-2),
+            ClientApp = ClientAppKind.ClaudeCode,
+            Usage = new UsageTokens(20, 0, 0, 8, 0),
+            StatusCode = 200
+        });
+
+        var snapshot = meter.GetRecentSnapshot(TimeSpan.FromSeconds(10), now, ClientAppKind.ClaudeCode);
+
+        Assert.Equal(1, snapshot.Requests);
+        Assert.Equal(20, snapshot.TotalInputTokens);
+        Assert.Equal(8, snapshot.TotalOutputTokens);
     }
 
     [Fact]
@@ -1395,6 +1498,265 @@ public sealed class UiV2InfrastructureTests : IDisposable
         Assert.Equal(3.75m, Assert.Single(rule.CacheCreationInput.Tiers).PricePerUnit);
     }
 
+    [Fact]
+    public void CodexOAuthTemplate_UsesChatGptCodexBackendDefaults()
+    {
+        var provider = ProviderTemplateCatalog.CreateProvider(ProviderTemplateCatalog.CodexOAuthBuiltinId, []);
+
+        Assert.Equal("https://chatgpt.com/backend-api/codex", provider.BaseUrl);
+        Assert.Equal(ProviderAuthMode.OAuth, provider.AuthMode);
+        Assert.Equal(ProviderProtocol.OpenAiResponses, provider.Protocol);
+        Assert.Equal("localhost", provider.OAuth?.RedirectHost);
+        Assert.Equal("app_EMoamEEZ73f0CkXaXp7hrann", provider.OAuth?.ClientId);
+
+        var headers = provider.RequestOverrides!.Headers;
+        Assert.Equal("responses=experimental", headers["openai-beta"]);
+        Assert.Equal("codex_cli_rs", headers["originator"]);
+        Assert.Contains("codex_cli_rs/0.128.0", headers["User-Agent"], StringComparison.Ordinal);
+        Assert.Equal("memories", headers["x-codex-beta-features"]);
+        Assert.Equal("{{chatgptAccountId}}", headers["Chatgpt-Account-Id"]);
+    }
+
+    [Fact]
+    public void EnsureValidDefaults_MigratesCodexOAuthProviderToFixedBackendSettings()
+    {
+        var provider = new ProviderConfig
+        {
+            Id = "codex-oauth",
+            BuiltinId = ProviderTemplateCatalog.CodexOAuthBuiltinId,
+            DisplayName = "Codex OAuth",
+            BaseUrl = "https://custom.example/v1",
+            AuthMode = ProviderAuthMode.OAuth,
+            Protocol = ProviderProtocol.OpenAiChat,
+            OAuth = new ProviderOAuthSettings
+            {
+                RedirectHost = "127.0.0.1",
+                TokenUrl = "https://old.example/token",
+                ClientId = "old-client"
+            },
+            RequestOverrides = new ProviderRequestOverrides
+            {
+                Headers =
+                {
+                    ["originator"] = "old-originator"
+                }
+            }
+        };
+        var config = new AppConfig
+        {
+            ActiveProviderId = provider.Id,
+            Providers = { provider }
+        };
+
+        ConfigurationStore.EnsureValidDefaults(config);
+
+        Assert.Equal("https://chatgpt.com/backend-api/codex", provider.BaseUrl);
+        Assert.Equal(ProviderProtocol.OpenAiResponses, provider.Protocol);
+        Assert.Equal("localhost", provider.OAuth?.RedirectHost);
+        Assert.Equal("https://auth.openai.com/oauth/token", provider.OAuth?.TokenUrl);
+        Assert.Equal("app_EMoamEEZ73f0CkXaXp7hrann", provider.OAuth?.ClientId);
+        Assert.Equal("codex_cli_rs", provider.RequestOverrides?.Headers["originator"]);
+        Assert.True(provider.RequestOverrides?.Headers.ContainsKey("Chatgpt-Account-Id"));
+    }
+
+    [Fact]
+    public async Task ProviderRequestContext_CodexOAuthHeadersResolveChatGptAccountId()
+    {
+        var paths = CreatePaths("codex-oauth-headers");
+        var provider = ProviderTemplateCatalog.CreateProvider(ProviderTemplateCatalog.CodexOAuthBuiltinId, []);
+        provider.ActiveAccountId = "account";
+        provider.OAuthAccounts.Add(new OAuthAccountConfig
+        {
+            Id = "account",
+            AccessToken = "access-token",
+            RefreshToken = "refresh-token",
+            ChatgptAccountId = "workspace-123",
+            IsEnabled = true
+        });
+        using var requestDocument = JsonDocument.Parse("""{"model":"gpt-5.1-codex","previous_response_id":"resp_previous","input":"ping"}""");
+        var config = new AppConfig
+        {
+            ActiveProviderId = provider.Id,
+            Providers = { provider }
+        };
+        var writer = new UsageLogWriter(paths);
+        try
+        {
+            var authService = new ProviderAuthService(new ConfigurationStore(paths), config, new HttpClient());
+            var context = new ProviderRequestContext(
+                new DefaultHttpContext(),
+                config,
+                ClientAppKind.Codex,
+                provider,
+                provider.Models[0],
+                new ProviderCostSettings(),
+                "access-token",
+                authService,
+                requestDocument,
+                new ResponsesConversationStateStore(),
+                new UsageMeter(new PriceCalculator(new ModelPricingCatalog())),
+                new PriceCalculator(new ModelPricingCatalog()),
+                writer);
+
+            var headers = context.ResolveRequestOverrideHeaders();
+
+            Assert.Equal("workspace-123", headers["Chatgpt-Account-Id"]);
+            Assert.Equal("resp_previous", headers["session_id"]);
+            Assert.Equal("resp_previous", headers["conversation_id"]);
+            Assert.Contains("codex_cli_rs/0.128.0", headers["User-Agent"], StringComparison.Ordinal);
+        }
+        finally
+        {
+            await writer.DisposeAsync();
+        }
+    }
+
+    [Fact]
+    public void OAuthTokenResponse_ExtractsOpenAiProfileAndAuthClaims()
+    {
+        var idToken = CreateUnsignedJwt(
+            """
+            {
+              "https://api.openai.com/profile": { "email": "codex@example.com" },
+              "https://api.openai.com/auth": {
+                "chatgpt_account_id": "workspace-abc",
+                "user_id": "user-abc",
+                "chatgpt_plan_type": "plus"
+              }
+            }
+            """);
+        var token = OAuthTokenResponse.Parse(
+            $$"""{"access_token":"access","refresh_token":"refresh","id_token":"{{idToken}}","expires_in":3600}""");
+        var account = new OAuthAccountConfig
+        {
+            AccessToken = token.AccessToken,
+            RefreshToken = token.RefreshToken
+        };
+
+        new CodexOAuthHelper(new HttpClient()).EnrichAccountFromToken(account, token);
+
+        Assert.Equal("codex@example.com", token.Email);
+        Assert.Equal(idToken, account.IdToken);
+        Assert.Equal("codex@example.com", account.Email);
+        Assert.Equal("workspace-abc", account.ChatgptAccountId);
+        Assert.Equal("plus", account.PlanType);
+    }
+
+    [Fact]
+    public void ProviderAuthService_StoresCodexQuotaHeadersOnActiveOAuthAccount()
+    {
+        var paths = CreatePaths("codex-oauth-quota");
+        var provider = ProviderTemplateCatalog.CreateProvider(ProviderTemplateCatalog.CodexOAuthBuiltinId, []);
+        provider.ActiveAccountId = "active";
+        provider.OAuthAccounts.Add(new OAuthAccountConfig
+        {
+            Id = "active",
+            AccessToken = "active-token",
+            IsEnabled = true
+        });
+        provider.OAuthAccounts.Add(new OAuthAccountConfig
+        {
+            Id = "inactive",
+            AccessToken = "inactive-token",
+            IsEnabled = true
+        });
+        var config = new AppConfig
+        {
+            ActiveProviderId = provider.Id,
+            Providers = { provider }
+        };
+        using var httpClient = new HttpClient();
+        var service = new ProviderAuthService(new ConfigurationStore(paths), config, httpClient);
+        using var response = new HttpResponseMessage(HttpStatusCode.OK);
+        response.Headers.TryAddWithoutValidation("x-codex-plan-type", "plus");
+        response.Headers.TryAddWithoutValidation("x-codex-primary-used-percent", "31");
+        response.Headers.TryAddWithoutValidation("x-codex-primary-window-minutes", "300");
+        response.Headers.TryAddWithoutValidation("x-codex-secondary-used-percent", "7");
+        response.Headers.TryAddWithoutValidation("x-codex-credits-has-credits", "true");
+        response.Headers.TryAddWithoutValidation("x-codex-credits-balance", "12.50");
+
+        service.UpdateActiveAccountQuotaFromHeaders(provider, response.Headers);
+
+        var active = provider.OAuthAccounts.Single(account => account.Id == "active");
+        Assert.Equal("plus", active.PlanType);
+        Assert.Equal("plus", active.Quota?.PlanType);
+        Assert.Equal(31, active.Quota?.PrimaryUsedPercent);
+        Assert.Equal(300, active.Quota?.PrimaryWindowMinutes);
+        Assert.Equal(7, active.Quota?.SecondaryUsedPercent);
+        Assert.True(active.Quota?.HasCredits);
+        Assert.Equal("12.50", active.Quota?.CreditsBalance);
+        Assert.Null(provider.OAuthAccounts.Single(account => account.Id == "inactive").Quota);
+    }
+
+    [Fact]
+    public async Task ProviderUsageQueryService_UsesSelectedOAuthAccountPlaceholders()
+    {
+        var paths = CreatePaths("codex-oauth-usage-account");
+        var provider = new ProviderConfig
+        {
+            Id = "codex",
+            BaseUrl = "https://chatgpt.com/backend-api/codex",
+            AuthMode = ProviderAuthMode.OAuth,
+            ActiveAccountId = "account-a",
+            UsageQuery = new ProviderUsageQueryConfig
+            {
+                Enabled = true,
+                Url = "https://usage.local/{{accountId}}?workspace={{chatgptAccountId}}&email={{email}}",
+                Headers =
+                {
+                    ["Authorization"] = "Bearer {{apiKey}}",
+                    ["X-Account-Email"] = "{{email}}"
+                },
+                Extractor = new ProviderUsageExtractorConfig
+                {
+                    RemainingPath = "remaining",
+                    Unit = "credits"
+                }
+            }
+        };
+        provider.OAuthAccounts.Add(new OAuthAccountConfig
+        {
+            Id = "account-a",
+            Email = "a@example.com",
+            AccessToken = "token-a",
+            ChatgptAccountId = "workspace-a",
+            IsEnabled = true
+        });
+        provider.OAuthAccounts.Add(new OAuthAccountConfig
+        {
+            Id = "account-b",
+            Email = "b@example.com",
+            AccessToken = "token-b",
+            ChatgptAccountId = "workspace-b",
+            IsEnabled = true
+        });
+        var config = new AppConfig
+        {
+            ActiveProviderId = provider.Id,
+            Providers = { provider }
+        };
+        using var httpClient = new HttpClient(new AsyncHandler((request, _) =>
+        {
+            Assert.Equal("https://usage.local/account-b?workspace=workspace-b&email=b@example.com", request.RequestUri?.ToString());
+            Assert.Equal("Bearer", request.Headers.Authorization?.Scheme);
+            Assert.Equal("token-b", request.Headers.Authorization?.Parameter);
+            Assert.Equal("b@example.com", request.Headers.GetValues("X-Account-Email").Single());
+            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent("""{"remaining":42}""")
+            });
+        }));
+        var service = new ProviderUsageQueryService(
+            httpClient,
+            new ProviderAuthService(new ConfigurationStore(paths), config, httpClient));
+
+        var result = await service.QueryAsync(provider, "account-b", CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(42m, result.Remaining);
+        Assert.Equal("credits", result.Unit);
+    }
+
     public void Dispose()
     {
         if (Directory.Exists(_tempDirectory))
@@ -1415,6 +1777,21 @@ public sealed class UiV2InfrastructureTests : IDisposable
         var port = ((IPEndPoint)listener.LocalEndpoint).Port;
         listener.Stop();
         return port;
+    }
+
+    private static string CreateUnsignedJwt(string payloadJson)
+    {
+        return Base64Url("""{"alg":"none","typ":"JWT"}""") + "." +
+            Base64Url(payloadJson) +
+            ".signature";
+    }
+
+    private static string Base64Url(string text)
+    {
+        return Convert.ToBase64String(Encoding.UTF8.GetBytes(text))
+            .TrimEnd('=')
+            .Replace("+", "-", StringComparison.Ordinal)
+            .Replace("/", "_", StringComparison.Ordinal);
     }
 
     private sealed class AsyncHandler : HttpMessageHandler
