@@ -74,6 +74,9 @@ public sealed class CsUsageTrendChart : Control
     public static readonly StyledProperty<string> CacheHitRateLabelProperty =
         AvaloniaProperty.Register<CsUsageTrendChart, string>(nameof(CacheHitRateLabel), "Cache hit rate");
 
+    public static readonly StyledProperty<string> OutputTpsLabelProperty =
+        AvaloniaProperty.Register<CsUsageTrendChart, string>(nameof(OutputTpsLabel), "Output TPS");
+
     public static readonly StyledProperty<string> OutputLabelProperty =
         AvaloniaProperty.Register<CsUsageTrendChart, string>(nameof(OutputLabel), "Output");
 
@@ -135,6 +138,7 @@ public sealed class CsUsageTrendChart : Control
             CachedInputLabelProperty,
             CacheCreationInputLabelProperty,
             CacheHitRateLabelProperty,
+            OutputTpsLabelProperty,
             OutputLabelProperty,
             ReasoningLabelProperty,
             EmptyTextProperty,
@@ -210,6 +214,12 @@ public sealed class CsUsageTrendChart : Control
     {
         get => GetValue(CacheHitRateLabelProperty);
         set => SetValue(CacheHitRateLabelProperty, value);
+    }
+
+    public string OutputTpsLabel
+    {
+        get => GetValue(OutputTpsLabelProperty);
+        set => SetValue(OutputTpsLabelProperty, value);
     }
 
     public string OutputLabel
@@ -623,7 +633,7 @@ public sealed class CsUsageTrendChart : Control
     private void DrawTooltip(DrawingContext context, Rect plot, Point anchor, UsageTrendPoint item, long totalTokens)
     {
         const double width = 210;
-        const double height = 174;
+        const double height = 194;
         const double gutter = 14;
         var left = anchor.X <= plot.Center.X
             ? anchor.X + gutter
@@ -639,6 +649,7 @@ public sealed class CsUsageTrendChart : Control
             item.InputTokens,
             item.CachedInputTokens,
             item.CacheCreationInputTokens);
+        var outputTps = DisplayFormatters.CalculateOutputTokensPerSecond(item.OutputTokens, item.OutputDurationMs);
         context.DrawRectangle(TooltipBackgroundBrush, TooltipBorderPen, rect, 8, 8);
 
         DrawText(context, FormatTimestamp(item.Timestamp, compact: false), new Point(left + 12, top + 10), 12, TooltipTextBrush, TextAlignment.Left, EmphasisTypeface);
@@ -651,11 +662,17 @@ public sealed class CsUsageTrendChart : Control
             new Point(left + 12, top + 86),
             11,
             TooltipMutedBrush);
-        DrawBreakdownRow(context, left + 12, top + 110, TokenSeries[0].StrokeBrush, InputLabel, item.InputTokens);
-        DrawBreakdownRow(context, left + 12, top + 128, TokenSeries[1].StrokeBrush, CachedInputLabel, item.CachedInputTokens);
-        DrawBreakdownRow(context, left + 12, top + 146, TokenSeries[2].StrokeBrush, CacheCreationInputLabel, item.CacheCreationInputTokens);
-        DrawBreakdownRow(context, left + 112, top + 110, TokenSeries[3].StrokeBrush, OutputLabel, item.OutputTokens);
-        DrawBreakdownRow(context, left + 112, top + 128, TokenSeries[4].StrokeBrush, ReasoningLabel, item.ReasoningOutputTokens);
+        DrawText(
+            context,
+            $"{OutputTpsLabel}: {DisplayFormatters.FormatTokensPerSecond(outputTps)}",
+            new Point(left + 12, top + 104),
+            11,
+            TooltipMutedBrush);
+        DrawBreakdownRow(context, left + 12, top + 128, TokenSeries[0].StrokeBrush, InputLabel, item.InputTokens);
+        DrawBreakdownRow(context, left + 12, top + 146, TokenSeries[1].StrokeBrush, CachedInputLabel, item.CachedInputTokens);
+        DrawBreakdownRow(context, left + 12, top + 164, TokenSeries[2].StrokeBrush, CacheCreationInputLabel, item.CacheCreationInputTokens);
+        DrawBreakdownRow(context, left + 112, top + 128, TokenSeries[3].StrokeBrush, OutputLabel, item.OutputTokens);
+        DrawBreakdownRow(context, left + 112, top + 146, TokenSeries[4].StrokeBrush, ReasoningLabel, item.ReasoningOutputTokens);
     }
 
     private static void DrawBreakdownRow(

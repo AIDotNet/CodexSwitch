@@ -671,8 +671,11 @@ public sealed class AnthropicMessagesAdapter : IProviderProtocolAdapter
             systemBlocks.AddRange(ConvertInstructionsToSystemBlocks(requestData.Instructions.Value));
 
         var itemsToConvert = messages.Count > 0 ? requestData.NewInputItems : requestData.ConversationItems;
+        PendingAnthropicAssistantTurn? pendingAssistant = null;
         foreach (var item in itemsToConvert)
-            ConvertResponsesItemToAnthropic(item, messages, systemBlocks, thinkingEnabled);
+            ConvertResponsesItemToAnthropic(item, messages, systemBlocks, thinkingEnabled, ref pendingAssistant);
+        FlushPendingAnthropicAssistantTurn(messages, ref pendingAssistant);
+        NormalizeToolResultsAfterToolUses(messages);
 
         var system = BuildSystemValue(systemBlocks);
         return new ConversationPlan(messages, system);
@@ -728,6 +731,269 @@ public sealed class AnthropicMessagesAdapter : IProviderProtocolAdapter
         }
 
         AppendAnthropicMessage(messages, targetRole, contentBlocks);
+    }
+
+    private static void NormalizeToolResultsAfterToolUses(List<JsonElement> messages)
+    {
+        for (var index = 0; index < messages.Count; index++)
+        {
+            if (!string.Equals(TryGetString(messages[index], "role"), "assistant", StringComparison.Ordinal))
+                continue;
+
+            var toolUseIds = ExtractToolUseIds(messages[index]);
+            if (toolUseIds.Count == 0)
+                continue;
+
+            var matchedToolUseIds = MoveMatchingToolResultsAfterAssistant(messages, index, toolUseIds);
+            var unmatchedToolUseIds = toolUseIds
+                .Where(id => !matchedToolUseIds.Contains(id))
+                .ToArray();
+            if (unmatchedToolUseIds.Length > 0 &&
+                RemoveUnmatchedToolUseBlocks(messages, index, unmatchedToolUseIds))
+            {
+                index--;
+            }
+        }
+    }
+
+    private static List<string> ExtractToolUseIds(JsonElement message)
+    {
+        var ids = new List<string>();
+        if (!message.TryGetProperty("content", out var content) || content.ValueKind != JsonValueKind.Array)
+            return ids;
+
+        foreach (var block in content.EnumerateArray())
+        {
+            if (string.Equals(TryGetString(block, "type"), "tool_use", StringComparison.Ordinal))
+            {
+                var id = TryGetString(block, "id");
+                if (!string.IsNullOrWhiteSpace(id))
+                    ids.Add(id);
+            }
+        }
+
+        return ids;
+    }
+
+    private static HashSet<string> MoveMatchingToolResultsAfterAssistant(
+        List<JsonElement> messages,
+        int assistantIndex,
+        IReadOnlyList<string> toolUseIds)
+    {
+        var removedBlockIndexes = new Dictionary<int, HashSet<int>>();
+        var (orderedToolResults, matchedToolUseIds) = CollectMatchingToolResults(
+            messages,
+            assistantIndex + 1,
+            toolUseIds,
+            removedBlockIndexes);
+
+        if (orderedToolResults.Count == 0)
+            return matchedToolUseIds;
+
+        var targetIndex = assistantIndex + 1;
+        var hasImmediateUserMessage = targetIndex < messages.Count &&
+            string.Equals(TryGetString(messages[targetIndex], "role"), "user", StringComparison.Ordinal);
+
+        var targetRemainingBlocks = hasImmediateUserMessage
+            ? GetContentBlocks(messages[targetIndex])
+                .Where((_, blockIndex) => !IsMarkedForRemoval(removedBlockIndexes, targetIndex, blockIndex))
+                .ToArray()
+            : [];
+
+        RemoveMarkedToolResultBlocks(messages, removedBlockIndexes, hasImmediateUserMessage ? targetIndex : null);
+
+        var mergedBlocks = orderedToolResults
+            .Concat(targetRemainingBlocks)
+            .ToArray();
+
+        if (hasImmediateUserMessage)
+        {
+            messages[targetIndex] = RewriteMessageContent(messages[targetIndex], mergedBlocks);
+            return matchedToolUseIds;
+        }
+
+        messages.Insert(targetIndex, CreateAnthropicMessage("user", mergedBlocks));
+        return matchedToolUseIds;
+    }
+
+    private static (List<JsonElement> OrderedToolResults, HashSet<string> MatchedToolUseIds) CollectMatchingToolResults(
+        IReadOnlyList<JsonElement> messages,
+        int startIndex,
+        IReadOnlyList<string> toolUseIds,
+        Dictionary<int, HashSet<int>> removedBlockIndexes)
+    {
+        var expectedIds = new HashSet<string>(toolUseIds, StringComparer.Ordinal);
+        var foundResults = new Dictionary<string, JsonElement>(StringComparer.Ordinal);
+
+        for (var messageIndex = startIndex; messageIndex < messages.Count; messageIndex++)
+        {
+            if (!string.Equals(TryGetString(messages[messageIndex], "role"), "user", StringComparison.Ordinal))
+                continue;
+
+            var blocks = GetContentBlocks(messages[messageIndex]);
+            for (var blockIndex = 0; blockIndex < blocks.Count; blockIndex++)
+            {
+                var toolUseId = TryGetToolResultId(blocks[blockIndex]);
+                if (toolUseId is null || !expectedIds.Contains(toolUseId))
+                    continue;
+
+                if (!foundResults.ContainsKey(toolUseId))
+                    foundResults[toolUseId] = blocks[blockIndex];
+
+                MarkBlockForRemoval(removedBlockIndexes, messageIndex, blockIndex);
+            }
+        }
+
+        var ordered = new List<JsonElement>();
+        foreach (var toolUseId in toolUseIds)
+        {
+            if (foundResults.TryGetValue(toolUseId, out var block))
+                ordered.Add(block);
+        }
+
+        return (ordered, foundResults.Keys.ToHashSet(StringComparer.Ordinal));
+    }
+
+    private static bool RemoveUnmatchedToolUseBlocks(
+        List<JsonElement> messages,
+        int assistantIndex,
+        IReadOnlyCollection<string> unmatchedToolUseIds)
+    {
+        var blocks = GetContentBlocks(messages[assistantIndex]);
+        var remainingBlocks = blocks
+            .Where(block => !IsToolUseBlock(block, unmatchedToolUseIds))
+            .ToArray();
+
+        if (remainingBlocks.Length == blocks.Count)
+            return false;
+
+        if (remainingBlocks.Length == 0)
+        {
+            messages.RemoveAt(assistantIndex);
+            return true;
+        }
+
+        messages[assistantIndex] = RewriteMessageContent(messages[assistantIndex], remainingBlocks);
+        return false;
+    }
+
+    private static bool IsToolUseBlock(JsonElement block, IReadOnlyCollection<string> toolUseIds)
+    {
+        return string.Equals(TryGetString(block, "type"), "tool_use", StringComparison.Ordinal) &&
+            TryGetString(block, "id") is { } id &&
+            toolUseIds.Contains(id);
+    }
+
+    private static List<JsonElement> GetContentBlocks(JsonElement message)
+    {
+        if (!message.TryGetProperty("content", out var content))
+            return [];
+
+        return content.ValueKind switch
+        {
+            JsonValueKind.Array => content.EnumerateArray().Select(block => block.Clone()).ToList(),
+            JsonValueKind.String => [CreateAnthropicTextBlock(content.GetString() ?? string.Empty)],
+            _ => [CreateAnthropicTextBlock(ConvertJsonElementToText(content))]
+        };
+    }
+
+    private static string? TryGetToolResultId(JsonElement block)
+    {
+        return string.Equals(TryGetString(block, "type"), "tool_result", StringComparison.Ordinal)
+            ? TryGetString(block, "tool_use_id")
+            : null;
+    }
+
+    private static void MarkBlockForRemoval(
+        Dictionary<int, HashSet<int>> removedBlockIndexes,
+        int messageIndex,
+        int blockIndex)
+    {
+        if (!removedBlockIndexes.TryGetValue(messageIndex, out var blockIndexes))
+        {
+            blockIndexes = [];
+            removedBlockIndexes[messageIndex] = blockIndexes;
+        }
+
+        blockIndexes.Add(blockIndex);
+    }
+
+    private static bool IsMarkedForRemoval(
+        IReadOnlyDictionary<int, HashSet<int>> removedBlockIndexes,
+        int messageIndex,
+        int blockIndex)
+    {
+        return removedBlockIndexes.TryGetValue(messageIndex, out var blockIndexes) &&
+            blockIndexes.Contains(blockIndex);
+    }
+
+    private static void RemoveMarkedToolResultBlocks(
+        List<JsonElement> messages,
+        IReadOnlyDictionary<int, HashSet<int>> removedBlockIndexes,
+        int? skippedMessageIndex)
+    {
+        foreach (var messageIndex in removedBlockIndexes.Keys.OrderByDescending(index => index))
+        {
+            if (skippedMessageIndex.HasValue && messageIndex == skippedMessageIndex.Value)
+                continue;
+
+            var remainingBlocks = GetContentBlocks(messages[messageIndex])
+                .Where((_, blockIndex) => !IsMarkedForRemoval(removedBlockIndexes, messageIndex, blockIndex))
+                .ToArray();
+
+            if (remainingBlocks.Length == 0)
+            {
+                messages.RemoveAt(messageIndex);
+                continue;
+            }
+
+            messages[messageIndex] = RewriteMessageContent(messages[messageIndex], remainingBlocks);
+        }
+    }
+
+    private static JsonElement RewriteMessageContent(JsonElement message, IReadOnlyList<JsonElement> contentBlocks)
+    {
+        var json = ProtocolAdapterCommon.SerializeJson(writer =>
+        {
+            writer.WriteStartObject();
+            foreach (var property in message.EnumerateObject())
+            {
+                if (property.NameEquals("content"))
+                {
+                    writer.WritePropertyName("content");
+                    writer.WriteStartArray();
+                    foreach (var block in contentBlocks)
+                        block.WriteTo(writer);
+                    writer.WriteEndArray();
+                    continue;
+                }
+
+                property.WriteTo(writer);
+            }
+
+            writer.WriteEndObject();
+        });
+
+        using var document = JsonDocument.Parse(json);
+        return document.RootElement.Clone();
+    }
+
+    private static JsonElement CreateAnthropicMessage(string role, IReadOnlyList<JsonElement> contentBlocks)
+    {
+        var json = ProtocolAdapterCommon.SerializeJson(writer =>
+        {
+            writer.WriteStartObject();
+            writer.WriteString("role", role);
+            writer.WritePropertyName("content");
+            writer.WriteStartArray();
+            foreach (var block in contentBlocks)
+                block.WriteTo(writer);
+            writer.WriteEndArray();
+            writer.WriteEndObject();
+        });
+
+        using var document = JsonDocument.Parse(json);
+        return document.RootElement.Clone();
     }
 
     private static List<JsonElement> RestorePriorAnthropicContentBlocks(JsonElement item, string role)
@@ -844,14 +1110,26 @@ public sealed class AnthropicMessagesAdapter : IProviderProtocolAdapter
         JsonElement item,
         List<JsonElement> messages,
         List<JsonElement> systemBlocks,
-        bool thinkingEnabled)
+        bool thinkingEnabled,
+        ref PendingAnthropicAssistantTurn? pendingAssistant)
     {
+        if (TryCreateAnthropicThinkingBlockFromResponsesReasoning(item, thinkingEnabled, out var thinkingBlock))
+        {
+            if (pendingAssistant is not null && pendingAssistant.HasVisibleContent)
+                FlushPendingAnthropicAssistantTurn(messages, ref pendingAssistant);
+
+            pendingAssistant ??= new PendingAnthropicAssistantTurn();
+            pendingAssistant.ContentBlocks.Add(thinkingBlock);
+            return;
+        }
+
         if (IsResponsesMessage(item))
         {
             var role = NormalizeAnthropicMessageRole(ExtractRole(item));
             switch (role)
             {
                 case "system":
+                    FlushPendingAnthropicAssistantTurn(messages, ref pendingAssistant);
                     var systemContentBlocks = item.TryGetProperty("content", out var systemContent)
                         ? ConvertResponsesContentToAnthropicBlocks(systemContent, "system", allowBinaryUserMedia: false)
                         : [CreateAnthropicTextBlock(string.Empty)];
@@ -859,6 +1137,7 @@ public sealed class AnthropicMessagesAdapter : IProviderProtocolAdapter
                     break;
 
                 case "user":
+                    FlushPendingAnthropicAssistantTurn(messages, ref pendingAssistant);
                     AppendAnthropicMessage(
                         messages,
                         "user",
@@ -868,19 +1147,30 @@ public sealed class AnthropicMessagesAdapter : IProviderProtocolAdapter
                     break;
 
                 case "assistant":
-                    AppendAnthropicMessage(
-                        messages,
-                        "assistant",
-                        item.TryGetProperty("content", out var assistantContent)
-                            ? ConvertResponsesContentToAnthropicBlocks(assistantContent, "assistant", allowBinaryUserMedia: false)
-                            : []);
+                    if (pendingAssistant is not null && pendingAssistant.HasVisibleContent)
+                        FlushPendingAnthropicAssistantTurn(messages, ref pendingAssistant);
+
+                    pendingAssistant ??= new PendingAnthropicAssistantTurn();
+                    AppendAssistantReasoningContent(pendingAssistant, item, thinkingEnabled);
+                    if (item.TryGetProperty("content", out var assistantContent))
+                    {
+                        pendingAssistant.ContentBlocks.AddRange(
+                            ConvertResponsesContentToAnthropicBlocks(
+                                assistantContent,
+                                "assistant",
+                                allowBinaryUserMedia: false,
+                                thinkingEnabled));
+                    }
+
                     break;
 
                 case "tool":
+                    FlushPendingAnthropicAssistantTurn(messages, ref pendingAssistant);
                     AppendAnthropicMessage(messages, "user", [CreateAnthropicToolResultBlock(item)]);
                     break;
 
                 default:
+                    FlushPendingAnthropicAssistantTurn(messages, ref pendingAssistant);
                     AppendAnthropicFallbackItem(messages, item, ExtractItemType(item));
                     break;
             }
@@ -892,10 +1182,12 @@ public sealed class AnthropicMessagesAdapter : IProviderProtocolAdapter
         switch (type)
         {
             case "function_call":
-                AppendAnthropicMessage(messages, "assistant", [CreateAnthropicToolUseBlock(item)]);
+                pendingAssistant ??= new PendingAnthropicAssistantTurn();
+                pendingAssistant.ContentBlocks.Add(CreateAnthropicToolUseBlock(item));
                 return;
 
             case "function_call_output":
+                FlushPendingAnthropicAssistantTurn(messages, ref pendingAssistant);
                 AppendAnthropicMessage(messages, "user", [CreateAnthropicToolResultBlock(item)]);
                 return;
 
@@ -903,15 +1195,90 @@ public sealed class AnthropicMessagesAdapter : IProviderProtocolAdapter
                 return;
 
             default:
-                AppendAnthropicFallbackItem(messages, item, type);
+                var fallbackRole = InferFallbackAnthropicRole(item, type);
+                if (string.Equals(fallbackRole, "assistant", StringComparison.Ordinal))
+                {
+                    if (pendingAssistant is not null && pendingAssistant.HasVisibleContent)
+                        FlushPendingAnthropicAssistantTurn(messages, ref pendingAssistant);
+
+                    pendingAssistant ??= new PendingAnthropicAssistantTurn();
+                    pendingAssistant.ContentBlocks.Add(CreateAnthropicTextBlock(ConvertJsonElementToText(item)));
+                }
+                else
+                {
+                    FlushPendingAnthropicAssistantTurn(messages, ref pendingAssistant);
+                    AppendAnthropicMessage(messages, fallbackRole, [CreateAnthropicTextBlock(ConvertJsonElementToText(item))]);
+                }
+
                 return;
         }
+    }
+
+    private static void FlushPendingAnthropicAssistantTurn(
+        List<JsonElement> messages,
+        ref PendingAnthropicAssistantTurn? pendingAssistant)
+    {
+        if (pendingAssistant is null || !pendingAssistant.HasAnyContent)
+        {
+            pendingAssistant = null;
+            return;
+        }
+
+        AppendAnthropicMessage(messages, "assistant", pendingAssistant.ContentBlocks);
+        pendingAssistant = null;
+    }
+
+    private static void AppendAssistantReasoningContent(
+        PendingAnthropicAssistantTurn pendingAssistant,
+        JsonElement message,
+        bool thinkingEnabled)
+    {
+        if (!thinkingEnabled ||
+            !message.TryGetProperty("reasoning_content", out var reasoningContent))
+        {
+            return;
+        }
+
+        var reasoningText = ExtractKnownText(reasoningContent);
+        if (!string.IsNullOrWhiteSpace(reasoningText))
+            pendingAssistant.ContentBlocks.Add(CreateAnthropicThinkingBlock(reasoningText, TryGetString(message, "signature")));
+    }
+
+    private static bool TryCreateAnthropicThinkingBlockFromResponsesReasoning(
+        JsonElement item,
+        bool thinkingEnabled,
+        out JsonElement block)
+    {
+        block = default;
+        if (!thinkingEnabled ||
+            item.ValueKind != JsonValueKind.Object ||
+            !string.Equals(ExtractItemType(item), "reasoning", StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        var reasoningText = ExtractKnownText(item);
+        if (!string.IsNullOrWhiteSpace(reasoningText))
+        {
+            block = CreateAnthropicThinkingBlock(reasoningText, TryGetString(item, "signature"));
+            return true;
+        }
+
+        var encryptedContent = TryGetString(item, "encrypted_content") ?? TryGetString(item, "data");
+        if (!string.IsNullOrWhiteSpace(encryptedContent))
+        {
+            block = CreateAnthropicRedactedThinkingBlock(encryptedContent);
+            return true;
+        }
+
+        return false;
     }
 
     private static List<JsonElement> ConvertResponsesContentToAnthropicBlocks(
         JsonElement content,
         string role,
-        bool allowBinaryUserMedia)
+        bool allowBinaryUserMedia,
+        bool thinkingEnabled = false)
     {
         if (content.ValueKind == JsonValueKind.String)
             return [CreateAnthropicTextBlock(content.GetString() ?? string.Empty)];
@@ -921,14 +1288,15 @@ public sealed class AnthropicMessagesAdapter : IProviderProtocolAdapter
 
         var blocks = new List<JsonElement>();
         foreach (var part in content.EnumerateArray())
-            blocks.Add(ConvertResponsesContentPartToAnthropicBlock(part, role, allowBinaryUserMedia));
+            blocks.Add(ConvertResponsesContentPartToAnthropicBlock(part, role, allowBinaryUserMedia, thinkingEnabled));
         return blocks;
     }
 
     private static JsonElement ConvertResponsesContentPartToAnthropicBlock(
         JsonElement part,
         string role,
-        bool allowBinaryUserMedia)
+        bool allowBinaryUserMedia,
+        bool thinkingEnabled = false)
     {
         if (part.ValueKind == JsonValueKind.String)
             return CreateAnthropicTextBlock(part.GetString() ?? string.Empty);
@@ -943,6 +1311,36 @@ public sealed class AnthropicMessagesAdapter : IProviderProtocolAdapter
             case "output_text":
             case "text":
                 return CreateAnthropicTextBlock(ExtractTextFromContentPart(part) ?? string.Empty, TryGetOptionalObject(part, "cache_control"));
+
+            case "thinking":
+            case "reasoning_text":
+                if (thinkingEnabled && string.Equals(role, "assistant", StringComparison.Ordinal))
+                {
+                    var thinkingText = TryGetString(part, "thinking") ?? ExtractTextFromContentPart(part) ?? ExtractKnownText(part);
+                    if (!string.IsNullOrWhiteSpace(thinkingText))
+                        return CreateAnthropicThinkingBlock(thinkingText, TryGetString(part, "signature"));
+                }
+
+                return CreateAnthropicTextBlock(ExtractKnownText(part) ?? ConvertJsonElementToText(part), TryGetOptionalObject(part, "cache_control"));
+
+            case "redacted_thinking":
+                if (thinkingEnabled && string.Equals(role, "assistant", StringComparison.Ordinal))
+                {
+                    var encryptedContent = TryGetString(part, "data") ?? TryGetString(part, "encrypted_content");
+                    if (!string.IsNullOrWhiteSpace(encryptedContent))
+                        return CreateAnthropicRedactedThinkingBlock(encryptedContent);
+                }
+
+                return CreateAnthropicTextBlock(ConvertJsonElementToText(part), TryGetOptionalObject(part, "cache_control"));
+
+            case "tool_result":
+                if (string.Equals(role, "user", StringComparison.Ordinal) ||
+                    string.Equals(role, "latest_reminder", StringComparison.Ordinal))
+                {
+                    return CreateAnthropicToolResultBlock(part);
+                }
+
+                return CreateAnthropicTextBlock(ConvertJsonElementToText(part), TryGetOptionalObject(part, "cache_control"));
 
             case "input_image":
             case "image":
@@ -990,6 +1388,36 @@ public sealed class AnthropicMessagesAdapter : IProviderProtocolAdapter
                 cacheControl.Value.WriteTo(writer);
             }
 
+            writer.WriteEndObject();
+        });
+
+        using var document = JsonDocument.Parse(json);
+        return document.RootElement.Clone();
+    }
+
+    private static JsonElement CreateAnthropicThinkingBlock(string thinking, string? signature = null)
+    {
+        var json = ProtocolAdapterCommon.SerializeJson(writer =>
+        {
+            writer.WriteStartObject();
+            writer.WriteString("type", "thinking");
+            writer.WriteString("thinking", thinking);
+            if (!string.IsNullOrWhiteSpace(signature))
+                writer.WriteString("signature", signature);
+            writer.WriteEndObject();
+        });
+
+        using var document = JsonDocument.Parse(json);
+        return document.RootElement.Clone();
+    }
+
+    private static JsonElement CreateAnthropicRedactedThinkingBlock(string data)
+    {
+        var json = ProtocolAdapterCommon.SerializeJson(writer =>
+        {
+            writer.WriteStartObject();
+            writer.WriteString("type", "redacted_thinking");
+            writer.WriteString("data", data);
             writer.WriteEndObject();
         });
 
@@ -1084,6 +1512,7 @@ public sealed class AnthropicMessagesAdapter : IProviderProtocolAdapter
     {
         var callId = TryGetString(item, "call_id") ??
             TryGetString(item, "tool_call_id") ??
+            TryGetString(item, "tool_use_id") ??
             TryGetString(item, "id") ??
             ProtocolAdapterCommon.CreateFunctionCallId();
 
@@ -1480,7 +1909,9 @@ public sealed class AnthropicMessagesAdapter : IProviderProtocolAdapter
                     case "thinking":
                         var thinking = TryGetString(block, "thinking");
                         if (!string.IsNullOrWhiteSpace(thinking))
-                            orderedItems.Add((blockIndex, CreateResponsesReasoningOutput(thinking)));
+                            orderedItems.Add((blockIndex, CreateResponsesReasoningOutput(
+                                thinking,
+                                signature: TryGetString(block, "signature"))));
                         break;
 
                     case "redacted_thinking":
@@ -1604,7 +2035,8 @@ public sealed class AnthropicMessagesAdapter : IProviderProtocolAdapter
     private static JsonElement CreateResponsesReasoningOutput(
         string? reasoningText,
         string? encryptedContent = null,
-        string? itemId = null)
+        string? itemId = null,
+        string? signature = null)
     {
         var json = ProtocolAdapterCommon.SerializeJson(writer =>
         {
@@ -1628,6 +2060,8 @@ public sealed class AnthropicMessagesAdapter : IProviderProtocolAdapter
             writer.WriteEndArray();
             if (!string.IsNullOrWhiteSpace(encryptedContent))
                 writer.WriteString("encrypted_content", encryptedContent);
+            if (!string.IsNullOrWhiteSpace(signature))
+                writer.WriteString("signature", signature);
             writer.WriteEndObject();
         });
 
@@ -2137,7 +2571,8 @@ public sealed class AnthropicMessagesAdapter : IProviderProtocolAdapter
                 CreateResponsesReasoningOutput(
                     thinkingBlock.Text.Length > 0 ? thinkingBlock.Text.ToString() : null,
                     thinkingBlock.RedactedData,
-                    thinkingBlock.ItemId)));
+                    thinkingBlock.ItemId,
+                    thinkingBlock.Signature)));
         }
 
         foreach (var toolBlock in state.ContentBlocks
@@ -2406,7 +2841,8 @@ public sealed class AnthropicMessagesAdapter : IProviderProtocolAdapter
             CreateResponsesReasoningOutput(
                     block.Text.Length > 0 ? block.Text.ToString() : null,
                     block.RedactedData,
-                    block.ItemId)
+                    block.ItemId,
+                    block.Signature)
                 .WriteTo(writer);
             writer.WriteEndObject();
         });
@@ -2750,6 +3186,8 @@ public sealed class AnthropicMessagesAdapter : IProviderProtocolAdapter
                 if (string.IsNullOrWhiteSpace(data) || string.Equals(data, "[DONE]", StringComparison.Ordinal))
                     continue;
 
+                ProtocolAdapterCommon.ReportOutputActivity(context.HttpContext, eventName: null, data);
+
                 try
                 {
                     using var document = JsonDocument.Parse(data);
@@ -2854,6 +3292,72 @@ public sealed class AnthropicMessagesAdapter : IProviderProtocolAdapter
         };
     }
 
+    private static string? ExtractKnownText(JsonElement value)
+    {
+        var textParts = EnumerateKnownTextParts(value)
+            .Where(part => !string.IsNullOrWhiteSpace(part))
+            .ToArray();
+        if (textParts.Length == 0)
+            return null;
+
+        return string.Join("\n", textParts);
+    }
+
+    private static IEnumerable<string> EnumerateKnownTextParts(JsonElement value)
+    {
+        switch (value.ValueKind)
+        {
+            case JsonValueKind.String:
+                var text = value.GetString();
+                if (!string.IsNullOrWhiteSpace(text))
+                    yield return text;
+                yield break;
+
+            case JsonValueKind.Array:
+                foreach (var item in value.EnumerateArray())
+                {
+                    foreach (var nested in EnumerateKnownTextParts(item))
+                        yield return nested;
+                }
+
+                yield break;
+
+            case JsonValueKind.Object:
+                if (value.TryGetProperty("text", out var textValue) && textValue.ValueKind == JsonValueKind.String)
+                {
+                    var directText = textValue.GetString();
+                    if (!string.IsNullOrWhiteSpace(directText))
+                        yield return directText;
+                }
+
+                if (value.TryGetProperty("thinking", out var thinkingValue))
+                {
+                    foreach (var nested in EnumerateKnownTextParts(thinkingValue))
+                        yield return nested;
+                }
+
+                if (value.TryGetProperty("reasoning_content", out var reasoningContentValue))
+                {
+                    foreach (var nested in EnumerateKnownTextParts(reasoningContentValue))
+                        yield return nested;
+                }
+
+                if (value.TryGetProperty("summary", out var summaryValue))
+                {
+                    foreach (var nested in EnumerateKnownTextParts(summaryValue))
+                        yield return nested;
+                }
+
+                if (value.TryGetProperty("content", out var contentValue))
+                {
+                    foreach (var nested in EnumerateKnownTextParts(contentValue))
+                        yield return nested;
+                }
+
+                yield break;
+        }
+    }
+
     private static string? TryJoinTextParts(JsonElement contentArray)
     {
         var builder = new StringBuilder();
@@ -2937,6 +3441,20 @@ public sealed class AnthropicMessagesAdapter : IProviderProtocolAdapter
                value.TryGetInt64(out var number)
             ? number
             : null;
+    }
+
+    private sealed class PendingAnthropicAssistantTurn
+    {
+        public List<JsonElement> ContentBlocks { get; } = [];
+
+        public bool HasAnyContent => ContentBlocks.Count > 0;
+
+        public bool HasVisibleContent => ContentBlocks.Any(block =>
+        {
+            var type = TryGetString(block, "type");
+            return !string.Equals(type, "thinking", StringComparison.Ordinal) &&
+                   !string.Equals(type, "redacted_thinking", StringComparison.Ordinal);
+        });
     }
 
     private sealed class ProtocolConversionException : Exception

@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http;
 using System.Text;
 using CodexSwitch.Models;
+using CodexSwitch.Services;
 using Microsoft.AspNetCore.Http;
 
 namespace CodexSwitch.Proxy;
@@ -9,6 +10,7 @@ namespace CodexSwitch.Proxy;
 internal static class ProtocolAdapterCommon
 {
     public const int DefaultAnthropicMaxTokens = 4096;
+    public const string OutputActivityItemKey = "__CodexSwitch.OutputActivity";
 
     public static UsageLogRecord CreateRecord(
         ProviderRequestContext context,
@@ -90,6 +92,20 @@ internal static class ProtocolAdapterCommon
         await context.Response.WriteAsync($"event: {eventName}\n", cancellationToken);
         await context.Response.WriteAsync($"data: {payloadJson}\n\n", cancellationToken);
         await context.Response.Body.FlushAsync(cancellationToken);
+        ReportOutputActivity(context, eventName, payloadJson);
+    }
+
+    public static void ReportOutputActivity(HttpContext context, string? eventName, string payload)
+    {
+        var characterCount = ExtractOutputDeltaCharacterCount(eventName, payload);
+        if (characterCount <= 0)
+            return;
+
+        if (context.Items.TryGetValue(OutputActivityItemKey, out var value) &&
+            value is UsageMeter.UsageActivityScope activity)
+        {
+            activity.ReportOutputCharacters(characterCount);
+        }
     }
 
     public static string SerializeJson(Action<Utf8JsonWriter> writeAction)
@@ -101,6 +117,106 @@ internal static class ProtocolAdapterCommon
         }
 
         return Encoding.UTF8.GetString(stream.ToArray());
+    }
+
+    private static int ExtractOutputDeltaCharacterCount(string? eventName, string payload)
+    {
+        if (string.IsNullOrWhiteSpace(payload) || string.Equals(payload.Trim(), "[DONE]", StringComparison.Ordinal))
+            return 0;
+
+        try
+        {
+            using var document = JsonDocument.Parse(payload);
+            var root = document.RootElement;
+            var type = GetString(root, "type") ?? eventName ?? "";
+
+            if (IsResponsesTextDelta(type))
+                return GetStringLength(root, "delta");
+
+            if (string.Equals(type, "content_block_delta", StringComparison.Ordinal))
+                return ExtractContentBlockDeltaLength(root);
+
+            var chatDeltaLength = ExtractChatChoicesDeltaLength(root);
+            if (chatDeltaLength > 0)
+                return chatDeltaLength;
+
+            if (!string.IsNullOrWhiteSpace(eventName) && IsResponsesTextDelta(eventName))
+                return GetStringLength(root, "delta");
+
+            return 0;
+        }
+        catch (JsonException)
+        {
+            return 0;
+        }
+    }
+
+    private static int ExtractContentBlockDeltaLength(JsonElement root)
+    {
+        if (!root.TryGetProperty("delta", out var delta) || delta.ValueKind != JsonValueKind.Object)
+            return 0;
+
+        var deltaType = GetString(delta, "type") ?? "";
+        return deltaType switch
+        {
+            "text_delta" => GetStringLength(delta, "text"),
+            "thinking_delta" => GetStringLength(delta, "thinking"),
+            "input_json_delta" => GetStringLength(delta, "partial_json"),
+            _ => GetStringLength(delta, "text") +
+                GetStringLength(delta, "thinking") +
+                GetStringLength(delta, "partial_json")
+        };
+    }
+
+    private static int ExtractChatChoicesDeltaLength(JsonElement root)
+    {
+        if (!root.TryGetProperty("choices", out var choices) || choices.ValueKind != JsonValueKind.Array)
+            return 0;
+
+        var characterCount = 0;
+        foreach (var choice in choices.EnumerateArray())
+        {
+            if (!choice.TryGetProperty("delta", out var delta) || delta.ValueKind != JsonValueKind.Object)
+                continue;
+
+            characterCount += GetStringLength(delta, "content");
+            characterCount += GetStringLength(delta, "reasoning_content");
+            if (!delta.TryGetProperty("tool_calls", out var toolCalls) || toolCalls.ValueKind != JsonValueKind.Array)
+                continue;
+
+            foreach (var toolCall in toolCalls.EnumerateArray())
+            {
+                if (toolCall.TryGetProperty("function", out var function) &&
+                    function.ValueKind == JsonValueKind.Object)
+                {
+                    characterCount += GetStringLength(function, "arguments");
+                }
+            }
+        }
+
+        return characterCount;
+    }
+
+    private static bool IsResponsesTextDelta(string eventType)
+    {
+        return string.Equals(eventType, "response.output_text.delta", StringComparison.Ordinal) ||
+            string.Equals(eventType, "response.reasoning_text.delta", StringComparison.Ordinal) ||
+            string.Equals(eventType, "response.reasoning_summary_text.delta", StringComparison.Ordinal) ||
+            string.Equals(eventType, "response.function_call_arguments.delta", StringComparison.Ordinal);
+    }
+
+    private static int GetStringLength(JsonElement element, string propertyName)
+    {
+        return element.TryGetProperty(propertyName, out var value) && value.ValueKind == JsonValueKind.String
+            ? value.GetString()?.Length ?? 0
+            : 0;
+    }
+
+    private static string? GetString(JsonElement element, string propertyName)
+    {
+        return element.TryGetProperty(propertyName, out var value) && value.ValueKind == JsonValueKind.String
+            ? value.GetString()
+            : null;
     }
 
     public static string CreateResponseId()

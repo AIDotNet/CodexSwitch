@@ -146,11 +146,11 @@ public sealed class BuiltInCatalogMigrationTests
             Assert.Contains(anthropic.Models, model => model.Id == "claude-opus-4-7");
             Assert.Contains(anthropic.Models, model => model.Id == "claude-3-5-sonnet");
             AssertDefaultConversion(anthropic);
-            Assert.Equal("https://api.deepseek.com/anthropic", deepSeek.BaseUrl);
-            Assert.Equal(ProviderProtocol.AnthropicMessages, deepSeek.Protocol);
+            Assert.Equal("https://api.deepseek.com/v1", deepSeek.BaseUrl);
+            Assert.Equal(ProviderProtocol.OpenAiChat, deepSeek.Protocol);
             Assert.Contains(deepSeek.Models, model => model.Id == "deepseek-v4-flash");
             Assert.Contains(deepSeek.Models, model => model.Id == "deepseek-reasoner");
-            Assert.All(deepSeek.Models, model => Assert.Equal(ProviderProtocol.AnthropicMessages, model.Protocol));
+            Assert.All(deepSeek.Models, model => Assert.Equal(ProviderProtocol.OpenAiChat, model.Protocol));
             AssertDefaultConversion(deepSeek);
             Assert.Equal(ProviderProtocol.OpenAiChat, xiaomi.Protocol);
             Assert.Contains(xiaomi.Models, model => model.Id == "mimo-v2.5-pro");
@@ -164,18 +164,18 @@ public sealed class BuiltInCatalogMigrationTests
     }
 
     [Fact]
-    public void DeepSeekTemplate_UsesAnthropicMessagesEndpointAndRoutes()
+    public void DeepSeekTemplate_UsesOpenAiChatEndpointAndRoutes()
     {
         var provider = ProviderTemplateCatalog.CreateProvider(ProviderTemplateCatalog.DeepSeekBuiltinId, []);
 
-        Assert.Equal("https://api.deepseek.com/anthropic", provider.BaseUrl);
-        Assert.Equal(ProviderProtocol.AnthropicMessages, provider.Protocol);
+        Assert.Equal("https://api.deepseek.com/v1", provider.BaseUrl);
+        Assert.Equal(ProviderProtocol.OpenAiChat, provider.Protocol);
         Assert.True(provider.SupportsClaudeCode);
-        Assert.All(provider.Models, model => Assert.Equal(ProviderProtocol.AnthropicMessages, model.Protocol));
+        Assert.All(provider.Models, model => Assert.Equal(ProviderProtocol.OpenAiChat, model.Protocol));
     }
 
     [Fact]
-    public void LoadConfig_MigratesLegacyDeepSeekBuiltinToAnthropicMessages()
+    public void LoadConfig_MigratesLegacyDeepSeekBuiltinToOpenAiChat()
     {
         var root = CreateTempDirectory();
         try
@@ -193,12 +193,12 @@ public sealed class BuiltInCatalogMigrationTests
                         Id = "deepseek",
                         BuiltinId = ProviderTemplateCatalog.DeepSeekBuiltinId,
                         DisplayName = "DeepSeek",
-                        BaseUrl = "https://api.deepseek.com/v1",
-                        Protocol = ProviderProtocol.OpenAiChat,
+                        BaseUrl = "https://api.deepseek.com/anthropic",
+                        Protocol = ProviderProtocol.AnthropicMessages,
                         DefaultModel = "deepseek-chat",
                         Models =
                         {
-                            new ModelRouteConfig { Id = "deepseek-chat", Protocol = ProviderProtocol.OpenAiChat }
+                            new ModelRouteConfig { Id = "deepseek-chat", Protocol = ProviderProtocol.AnthropicMessages }
                         }
                     }
                 }
@@ -210,10 +210,10 @@ public sealed class BuiltInCatalogMigrationTests
             var deepSeek = Assert.Single(upgraded.Providers, provider => provider.Id == "deepseek");
 
             Assert.Equal(ProviderTemplateCatalog.DeepSeekBuiltinId, deepSeek.BuiltinId);
-            Assert.Equal("https://api.deepseek.com/anthropic", deepSeek.BaseUrl);
-            Assert.Equal(ProviderProtocol.AnthropicMessages, deepSeek.Protocol);
+            Assert.Equal("https://api.deepseek.com/v1", deepSeek.BaseUrl);
+            Assert.Equal(ProviderProtocol.OpenAiChat, deepSeek.Protocol);
             Assert.Equal("deepseek-chat", deepSeek.DefaultModel);
-            Assert.All(deepSeek.Models, model => Assert.Equal(ProviderProtocol.AnthropicMessages, model.Protocol));
+            Assert.All(deepSeek.Models, model => Assert.Equal(ProviderProtocol.OpenAiChat, model.Protocol));
         }
         finally
         {
@@ -232,8 +232,8 @@ public sealed class BuiltInCatalogMigrationTests
         var mimoV2Pro = Assert.Single(provider.Models, model => model.Id == "mimo-v2-pro");
         var mimoV25Pro = Assert.Single(provider.Models, model => model.Id == "mimo-v2.5-pro");
 
-        Assert.Equal(ProviderProtocol.OpenAiResponses, deepSeekFlash.Protocol);
-        Assert.Equal(ProviderProtocol.OpenAiResponses, deepSeekPro.Protocol);
+        Assert.Equal(ProviderProtocol.OpenAiChat, deepSeekFlash.Protocol);
+        Assert.Equal(ProviderProtocol.OpenAiChat, deepSeekPro.Protocol);
         Assert.Equal(ProviderProtocol.OpenAiResponses, mimoFlash.Protocol);
         Assert.Equal(ProviderProtocol.OpenAiResponses, mimoV2Pro.Protocol);
         Assert.Equal(ProviderProtocol.OpenAiResponses, mimoV25Pro.Protocol);
@@ -254,6 +254,69 @@ public sealed class BuiltInCatalogMigrationTests
         Assert.True(mimoV25ProCost.FastMode);
         Assert.DoesNotContain(provider.Models, model => model.Id == "deepseek-chat");
         Assert.DoesNotContain(provider.Models, model => model.Id == "deepseek-reasoner");
+    }
+
+    [Fact]
+    public void EnsureValidDefaults_MigratesRoutinAiDeepSeekRoutesToOpenAiChat()
+    {
+        var provider = ProviderTemplateCatalog.CreateProvider(ProviderTemplateCatalog.RoutinAiBuiltinId, []);
+        foreach (var route in provider.Models.Where(route => route.Id.StartsWith("deepseek-", StringComparison.OrdinalIgnoreCase)))
+            route.Protocol = ProviderProtocol.OpenAiResponses;
+
+        var config = new AppConfig
+        {
+            ActiveProviderId = provider.Id,
+            Providers = { provider }
+        };
+
+        ConfigurationStore.EnsureValidDefaults(config);
+
+        Assert.Equal(
+            ProviderProtocol.OpenAiChat,
+            provider.Models.Single(route => route.Id == "deepseek-v4-flash").Protocol);
+        Assert.Equal(
+            ProviderProtocol.OpenAiChat,
+            provider.Models.Single(route => route.Id == "deepseek-v4-pro").Protocol);
+    }
+
+    [Fact]
+    public void SaveConfig_PreservesEditedBuiltInProviderModelRouteFields()
+    {
+        var root = CreateTempDirectory();
+        try
+        {
+            var paths = new AppPaths(root, Path.Combine(root, ".codex"));
+            var store = new ConfigurationStore(paths);
+            var provider = ProviderTemplateCatalog.CreateProvider(ProviderTemplateCatalog.RoutinAiBuiltinId, []);
+            var route = provider.Models.Single(model => model.Id == "gpt-5");
+            route.DisplayName = "Custom GPT";
+            route.Protocol = ProviderProtocol.OpenAiChat;
+            route.UpstreamModel = null;
+            route.ServiceTier = null;
+            route.Cost = new ProviderCostSettings { FastMode = false };
+
+            var config = new AppConfig
+            {
+                ActiveProviderId = provider.Id,
+                Providers = { provider }
+            };
+
+            store.SaveConfig(config);
+            var reloaded = store.LoadConfig();
+            var reloadedProvider = Assert.Single(reloaded.Providers, item => item.Id == provider.Id);
+            var reloadedRoute = reloadedProvider.Models.Single(model => model.Id == "gpt-5");
+
+            Assert.Equal("Custom GPT", reloadedRoute.DisplayName);
+            Assert.Equal(ProviderProtocol.OpenAiChat, reloadedRoute.Protocol);
+            Assert.Null(reloadedRoute.UpstreamModel);
+            Assert.Null(reloadedRoute.ServiceTier);
+            var cost = Assert.IsType<ProviderCostSettings>(reloadedRoute.Cost);
+            Assert.False(cost.FastMode);
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
     }
 
     [Fact]

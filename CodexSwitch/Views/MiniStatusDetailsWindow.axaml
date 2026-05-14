@@ -4,32 +4,32 @@
         xmlns:ui="using:CodexSwitch.Controls"
         x:Class="CodexSwitch.Views.MiniStatusDetailsWindow"
         x:DataType="vm:MainWindowViewModel"
-        Width="400"
+        Width="380"
         Height="276"
-        MinWidth="400"
-        MaxWidth="400"
+        MinWidth="340"
+        MaxWidth="380"
         CanResize="False"
         ShowInTaskbar="False"
         WindowDecorations="None"
         WindowStartupLocation="Manual"
         Background="Transparent"
         Topmost="True">
-    <Border CornerRadius="8"
+    <Border CornerRadius="{StaticResource CsRadiusMd}"
             ClipToBounds="True"
-            BorderBrush="#4D334252"
+            BorderBrush="{StaticResource CsBorderBrush}"
             BorderThickness="1"
-            Background="#F014171C"
-            Padding="10">
+            Background="{StaticResource CsPopoverBrush}"
+            Padding="12">
         <ScrollViewer VerticalScrollBarVisibility="Auto"
                       HorizontalScrollBarVisibility="Disabled">
-            <StackPanel Spacing="10">
+            <StackPanel Spacing="12">
                 <Grid ColumnDefinitions="Auto,*"
                       ColumnSpacing="10">
-                    <Border Width="30"
-                            Height="30"
-                            CornerRadius="9"
-                            Background="#2633404C"
-                            BorderBrush="#40516372"
+                    <Border Width="32"
+                            Height="32"
+                            CornerRadius="{StaticResource CsRadiusMd}"
+                            Background="{StaticResource CsMutedBrush}"
+                            BorderBrush="{StaticResource CsBorderBrush}"
                             BorderThickness="1">
                         <ui:CsImageIcon Path="{Binding MiniStatusProviderIconPath}"
                                         Width="23"
@@ -41,12 +41,12 @@
                                 Spacing="1"
                                 VerticalAlignment="Center">
                         <TextBlock Text="{Binding MiniStatusProviderName}"
-                                   Foreground="#F8FAFC"
+                                   Foreground="{StaticResource CsForegroundBrush}"
                                    FontSize="15"
                                    FontWeight="SemiBold"
                                    TextTrimming="CharacterEllipsis"/>
                         <TextBlock Text="Live usage"
-                                   Foreground="#9CA3AF"
+                                   Foreground="{StaticResource CsMutedForegroundBrush}"
                                    FontSize="11"/>
                     </StackPanel>
                 </Grid>
@@ -61,112 +61,129 @@
                         <DataTemplate x:DataType="vm:MiniStatusMetricCardItem">
                             <Border Margin="0,0,6,0"
                                     Padding="10,8"
-                                    CornerRadius="7"
-                                    Background="#2432424C"
-                                    BorderBrush="#3843525E"
-                                    BorderThickness="1">
-                                <StackPanel Spacing="3">
-                                    <TextBlock Text="{Binding Label}"
-                                               Foreground="#AEBECB"
-                                               FontSize="12"/>
-                                    <TextBlock Text="{Binding Value}"
-                                               Foreground="#F8FAFC"
-                                               FontSize="20"
-                                               FontWeight="SemiBold"
-                                               TextTrimming="CharacterEllipsis"/>
-                                    <TextBlock Text="{Binding Caption}"
-                                               Foreground="#7F8EA3"
-                                               FontSize="10"
-                                               TextTrimming="CharacterEllipsis"/>
-                                </StackPanel>
-                            </Border>
-                        </DataTemplate>
-                    </ItemsControl.ItemTemplate>
-                </ItemsControl>
-
-                <ItemsControl ItemsSource="{Binding MiniStatusQuotaCards}"
-                              IsVisible="{Binding MiniStatusHasQuotaRow}">
-                    <ItemsControl.ItemsPanel>
-                        <ItemsPanelTemplate>
-                            <UniformGrid Rows="1"/>
-                        </ItemsPanelTemplate>
-                    </ItemsControl.ItemsPanel>
-                    <ItemsControl.ItemTemplate>
-                        <DataTemplate x:DataType="vm:MiniStatusQuotaCardItem">
-                            <Border Margin="0,0,6,0"
-                                    Padding="10,9"
-                                    CornerRadius="7"
-                                    Background="#27313D49"
-                                    BorderBrush="#38475B68"
+                                    CornerRadius="{StaticResource CsRadiusMd}"
+                                    Background="{StaticResource CsCardBrush}"
+                                    BorderBrush="{StaticResource CsBorderBrush}"
                                     BorderThickness="1">
                                 <Grid RowDefinitions="Auto,Auto,Auto"
-                                      RowSpacing="8">
-                                    <TextBlock Text="{Binding Title}"
-                                               Foreground="#B8C6D6"
-                                               FontSize="12"
-                                               TextAlignment="Center"
-                                               TextTrimming="CharacterEllipsis"/>
-                                    <StackPanel Grid.Row="1"
-                                                Spacing="2"
-                                                HorizontalAlignment="Center">
-                                        <TextBlock Text="{Binding Remaining}"
-                                                   Foreground="#F8FAFC"
-                                                   FontSize="27"
-                                                   FontWeight="SemiBold"
-                                                   TextAlignment="Center"
-                                                   TextTrimming="CharacterEllipsis"/>
-                                        <TextBlock Text="{Binding Total}"
-                                                   Foreground="#93A4B7"
+                                      RowSpacing="4">
+                                    <StackPanel Orientation="Horizontal"
+                                                Spacing="5">
+                                        <TextBlock Text="{Binding Label}"
+                                                   Foreground="{StaticResource CsMutedForegroundBrush}"
                                                    FontSize="12"
-                                                   TextAlignment="Center"
-                                                   TextTrimming="CharacterEllipsis"/>
+                                                   IsVisible="{Binding ShowsTextLabel}"/>
+                                        <ui:CsActivityArrow Glyph="{Binding ArrowGlyph}"
+                                                            Direction="{Binding ArrowDirection}"
+                                                            IsActive="{Binding IsActive}"
+                                                            Foreground="{StaticResource CsMutedForegroundBrush}"
+                                                            ActiveForeground="{Binding ArrowActiveForeground}"
+                                                            FontSize="12"
+                                                            Width="13"
+                                                            Height="15"
+                                                            IsVisible="{Binding ShowsArrow}"/>
                                     </StackPanel>
-                                    <Grid Grid.Row="2"
-                                          ColumnDefinitions="*,Auto"
-                                          ColumnSpacing="7">
-                                        <ProgressBar Minimum="0"
-                                                     Maximum="100"
-                                                     Value="{Binding Percent}"
-                                                     Height="10"
-                                                     VerticalAlignment="Center"
-                                                     Foreground="#38BDF8"
-                                                     Background="#25313B46"/>
-                                        <TextBlock Grid.Column="1"
-                                                   Text="{Binding PercentText}"
-                                                   Foreground="#D8E4F0"
-                                                   FontSize="11"
-                                                   MinWidth="32"
-                                                   TextAlignment="Right"/>
-                                    </Grid>
+                                    <ui:CsRollingNumber Grid.Row="1"
+                                                        Value="{Binding NumericValue}"
+                                                        UseCompactFormat="{Binding UseCompactValueFormat}"
+                                                        Foreground="{StaticResource CsForegroundBrush}"
+                                                        FontSize="20"
+                                                        FontWeight="SemiBold"
+                                                        MinWidth="24"
+                                                        MaxWidth="106"/>
+                                    <TextBlock Grid.Row="2"
+                                               Text="{Binding Caption}"
+                                               Foreground="{StaticResource CsMutedForegroundBrush}"
+                                               FontSize="10"
+                                               TextTrimming="CharacterEllipsis"/>
                                 </Grid>
                             </Border>
                         </DataTemplate>
                     </ItemsControl.ItemTemplate>
                 </ItemsControl>
 
-                <Border CornerRadius="7"
-                        Background="#2027313B"
-                        BorderBrush="#3342525F"
+                <Border CornerRadius="{StaticResource CsRadiusMd}"
+                        Background="{StaticResource CsCardBrush}"
+                        BorderBrush="{StaticResource CsBorderBrush}"
                         BorderThickness="1"
-                        Padding="10,6"
+                        Padding="10,8"
+                        IsVisible="{Binding MiniStatusHasQuotaRow}">
+                    <ItemsControl ItemsSource="{Binding MiniStatusQuotaCards}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="vm:MiniStatusQuotaCardItem">
+                                <Grid RowDefinitions="Auto,Auto"
+                                      ColumnDefinitions="Auto,*"
+                                      ColumnSpacing="12"
+                                      RowSpacing="7"
+                                      Margin="0,4">
+                                    <TextBlock Text="{Binding Title}"
+                                               Foreground="{StaticResource CsMutedForegroundBrush}"
+                                               FontSize="12"
+                                               VerticalAlignment="Center"
+                                               TextTrimming="CharacterEllipsis"/>
+                                    <StackPanel Grid.Column="1"
+                                                Orientation="Horizontal"
+                                                HorizontalAlignment="Right"
+                                                Spacing="5">
+                                        <TextBlock Text="{Binding Remaining}"
+                                                   Foreground="{StaticResource CsForegroundBrush}"
+                                                   FontSize="15"
+                                                   FontWeight="SemiBold"
+                                                   TextTrimming="CharacterEllipsis"
+                                                   MaxWidth="96"/>
+                                        <TextBlock Text="{Binding Total}"
+                                                   Foreground="{StaticResource CsMutedForegroundBrush}"
+                                                   FontSize="11"
+                                                   VerticalAlignment="Bottom"
+                                                   TextTrimming="CharacterEllipsis"
+                                                   MaxWidth="120"/>
+                                    </StackPanel>
+                                    <ProgressBar Grid.Row="1"
+                                                 Grid.ColumnSpan="2"
+                                                 Minimum="0"
+                                                 Maximum="100"
+                                                 Value="{Binding Percent}"
+                                                 Height="6"
+                                                 Foreground="{StaticResource CsSidebarPrimaryBrush}"
+                                                 Background="{StaticResource CsMutedBrush}"/>
+                                    <TextBlock Grid.Row="1"
+                                               Grid.Column="1"
+                                               Text="{Binding PercentText}"
+                                               Foreground="{StaticResource CsForegroundBrush}"
+                                               FontSize="10"
+                                               HorizontalAlignment="Right"
+                                               VerticalAlignment="Center"
+                                               Margin="0,0,2,0"/>
+                                </Grid>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </Border>
+
+                <Border CornerRadius="{StaticResource CsRadiusMd}"
+                        Background="{StaticResource CsCardBrush}"
+                        BorderBrush="{StaticResource CsBorderBrush}"
+                        BorderThickness="1"
+                        Padding="10,7"
                         IsVisible="{Binding MiniStatusHasDetails}">
                     <ItemsControl ItemsSource="{Binding MiniStatusDetails}">
                         <ItemsControl.ItemTemplate>
                             <DataTemplate x:DataType="vm:MiniStatusDetailItem">
-                                <Grid ColumnDefinitions="96,*"
-                                      ColumnSpacing="8"
+                                <Grid ColumnDefinitions="76,*"
+                                      ColumnSpacing="10"
                                       Margin="0,3">
                                     <TextBlock Text="{Binding Label}"
-                                               FontSize="13"
+                                               FontSize="12"
                                                LineHeight="18"
-                                               Foreground="#AEBECB"/>
+                                               Foreground="{StaticResource CsMutedForegroundBrush}"/>
                                     <TextBlock Grid.Column="1"
                                                Text="{Binding Value}"
-                                               FontSize="13"
+                                               FontSize="12"
                                                LineHeight="18"
-                                               Foreground="#F8FAFC"
+                                               Foreground="{StaticResource CsForegroundBrush}"
                                                TextAlignment="Right"
-                                               TextTrimming="CharacterEllipsis"/>
+                                               TextWrapping="Wrap"
+                                               MaxHeight="36"/>
                                 </Grid>
                             </DataTemplate>
                         </ItemsControl.ItemTemplate>

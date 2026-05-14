@@ -9,7 +9,17 @@ param(
     [string]$Version,
 
     [Parameter(Mandatory = $true)]
-    [string]$RuntimeIdentifier
+    [string]$RuntimeIdentifier,
+
+    [string]$MacSigningIdentity = $env:MACOS_SIGNING_IDENTITY,
+
+    [string]$MacNotaryAppleId = $env:MACOS_NOTARY_APPLE_ID,
+
+    [string]$MacNotaryTeamId = $env:MACOS_NOTARY_TEAM_ID,
+
+    [string]$MacNotaryPassword = $env:MACOS_NOTARY_PASSWORD,
+
+    [switch]$RequireMacSigning
 )
 
 $ErrorActionPreference = "Stop"
@@ -64,6 +74,15 @@ function Get-RepositoryRoot {
     return (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot "..")).Path
 }
 
+function Test-HasText {
+    param(
+        [AllowNull()]
+        [string]$Value
+    )
+
+    return -not [string]::IsNullOrWhiteSpace($Value)
+}
+
 function New-WindowsInstaller {
     param(
         [string]$PublishDirectory,
@@ -114,22 +133,115 @@ function New-WindowsInstaller {
     return $artifactPath
 }
 
+function Assert-MacSigningConfiguration {
+    param(
+        [string]$SigningIdentity,
+        [string]$NotaryAppleId,
+        [string]$NotaryTeamId,
+        [string]$NotaryPassword,
+        [switch]$RequireSigning
+    )
+
+    $missing = @()
+    if (-not (Test-HasText $SigningIdentity)) {
+        $missing += "MacSigningIdentity"
+    }
+
+    if (-not (Test-HasText $NotaryAppleId)) {
+        $missing += "MacNotaryAppleId"
+    }
+
+    if (-not (Test-HasText $NotaryTeamId)) {
+        $missing += "MacNotaryTeamId"
+    }
+
+    if (-not (Test-HasText $NotaryPassword)) {
+        $missing += "MacNotaryPassword"
+    }
+
+    if ($RequireSigning -and $missing.Count -gt 0) {
+        throw "macOS release packaging requires Developer ID signing and notarization. Missing: $($missing -join ', ')."
+    }
+}
+
+function Sign-MacAppBundle {
+    param(
+        [string]$BundlePath,
+        [string]$SigningIdentity
+    )
+
+    $developerIdSigning = Test-HasText $SigningIdentity
+    if (-not $developerIdSigning) {
+        Write-Warning "No macOS Developer ID signing identity was provided; using an ad-hoc signature for CI packaging only."
+        $SigningIdentity = "-"
+    }
+
+    $arguments = @("--force", "--deep", "--sign", $SigningIdentity)
+    if ($developerIdSigning) {
+        $arguments += @("--options", "runtime", "--timestamp")
+    }
+
+    $arguments += $BundlePath
+    Invoke-NativeTool -FilePath "codesign" -Arguments $arguments
+    Invoke-NativeTool -FilePath "codesign" -Arguments @("--verify", "--deep", "--strict", "--verbose=2", $BundlePath)
+}
+
+function Submit-MacNotarization {
+    param(
+        [string]$ArtifactPath,
+        [string]$StaplePath,
+        [string]$NotaryAppleId,
+        [string]$NotaryTeamId,
+        [string]$NotaryPassword
+    )
+
+    Invoke-NativeTool -FilePath "xcrun" -Arguments @(
+        "notarytool",
+        "submit",
+        $ArtifactPath,
+        "--apple-id",
+        $NotaryAppleId,
+        "--team-id",
+        $NotaryTeamId,
+        "--password",
+        $NotaryPassword,
+        "--wait"
+    )
+
+    Invoke-NativeTool -FilePath "xcrun" -Arguments @("stapler", "staple", $StaplePath)
+    Invoke-NativeTool -FilePath "xcrun" -Arguments @("stapler", "validate", $StaplePath)
+}
+
 function New-MacDmg {
     param(
         [string]$PublishDirectory,
         [string]$OutputDirectory,
         [string]$Version,
-        [string]$RuntimeIdentifier
+        [string]$RuntimeIdentifier,
+        [string]$SigningIdentity,
+        [string]$NotaryAppleId,
+        [string]$NotaryTeamId,
+        [string]$NotaryPassword,
+        [switch]$RequireSigning
     )
+
+    Assert-MacSigningConfiguration `
+        -SigningIdentity $SigningIdentity `
+        -NotaryAppleId $NotaryAppleId `
+        -NotaryTeamId $NotaryTeamId `
+        -NotaryPassword $NotaryPassword `
+        -RequireSigning:$RequireSigning
 
     $bundlePath = Join-Path $OutputDirectory "CodexSwitch.app"
     $contentsPath = Join-Path $bundlePath "Contents"
     $macOsPath = Join-Path $contentsPath "MacOS"
     $resourcesPath = Join-Path $contentsPath "Resources"
     $artifactPath = Join-Path $OutputDirectory "CodexSwitch-v$Version-$RuntimeIdentifier.dmg"
+    $appZipPath = Join-Path $OutputDirectory "CodexSwitch-v$Version-$RuntimeIdentifier.app.zip"
 
     Remove-Item -LiteralPath $bundlePath -Recurse -Force -ErrorAction SilentlyContinue
     Remove-Item -LiteralPath $artifactPath -Force -ErrorAction SilentlyContinue
+    Remove-Item -LiteralPath $appZipPath -Force -ErrorAction SilentlyContinue
     New-Item -ItemType Directory -Force -Path $macOsPath, $resourcesPath | Out-Null
 
     Copy-Item -Path (Join-Path $PublishDirectory "*") -Destination $macOsPath -Recurse -Force
@@ -165,6 +277,26 @@ function New-MacDmg {
 "@
 
     Write-Utf8NoBomFile -Path (Join-Path $contentsPath "Info.plist") -Value $plist
+    Sign-MacAppBundle -BundlePath $bundlePath -SigningIdentity $SigningIdentity
+
+    $canNotarize = (Test-HasText $SigningIdentity) -and
+        (Test-HasText $NotaryAppleId) -and
+        (Test-HasText $NotaryTeamId) -and
+        (Test-HasText $NotaryPassword)
+
+    if ($canNotarize) {
+        Invoke-NativeTool -FilePath "ditto" -Arguments @("-c", "-k", "--keepParent", $bundlePath, $appZipPath)
+        Submit-MacNotarization `
+            -ArtifactPath $appZipPath `
+            -StaplePath $bundlePath `
+            -NotaryAppleId $NotaryAppleId `
+            -NotaryTeamId $NotaryTeamId `
+            -NotaryPassword $NotaryPassword
+        Remove-Item -LiteralPath $appZipPath -Force
+    }
+    elseif (Test-HasText $SigningIdentity) {
+        Write-Warning "macOS app bundle was signed but not notarized; downloaded release artifacts may still be blocked by Gatekeeper."
+    }
 
     Invoke-NativeTool -FilePath "hdiutil" -Arguments @(
         "create",
@@ -180,6 +312,21 @@ function New-MacDmg {
 
     if (-not (Test-Path -LiteralPath $artifactPath)) {
         throw "Expected macOS DMG was not created: $artifactPath"
+    }
+
+    if (Test-HasText $SigningIdentity) {
+        Invoke-NativeTool -FilePath "codesign" -Arguments @("--force", "--sign", $SigningIdentity, "--timestamp", $artifactPath)
+        Invoke-NativeTool -FilePath "codesign" -Arguments @("--verify", "--verbose=2", $artifactPath)
+    }
+
+    if ($canNotarize) {
+        Submit-MacNotarization `
+            -ArtifactPath $artifactPath `
+            -StaplePath $artifactPath `
+            -NotaryAppleId $NotaryAppleId `
+            -NotaryTeamId $NotaryTeamId `
+            -NotaryPassword $NotaryPassword
+        Invoke-NativeTool -FilePath "spctl" -Arguments @("--assess", "--type", "open", "--context", "context:primary-signature", "--verbose=4", $artifactPath)
     }
 
     return $artifactPath
@@ -260,13 +407,47 @@ Comment=Local AI provider switcher for Codex
 $PublishDirectory = (Resolve-Path -LiteralPath $PublishDirectory).Path
 $OutputDirectory = (New-Item -ItemType Directory -Force -Path $OutputDirectory).FullName
 
+if (-not (Test-HasText $MacNotaryAppleId)) {
+    $MacNotaryAppleId = $env:APPLE_ID
+}
+
+if (-not (Test-HasText $MacNotaryTeamId)) {
+    $MacNotaryTeamId = $env:APPLE_TEAM_ID
+}
+
+if (-not (Test-HasText $MacNotaryPassword)) {
+    $MacNotaryPassword = $env:APPLE_APP_SPECIFIC_PASSWORD
+}
+
 Get-ChildItem -LiteralPath $PublishDirectory -Filter "*.pdb" -Recurse -File -ErrorAction SilentlyContinue |
     Remove-Item -Force
 
 $artifactPath = switch ($RuntimeIdentifier) {
     "win-x64" { New-WindowsInstaller -PublishDirectory $PublishDirectory -OutputDirectory $OutputDirectory -Version $Version -RuntimeIdentifier $RuntimeIdentifier }
-    "osx-arm64" { New-MacDmg -PublishDirectory $PublishDirectory -OutputDirectory $OutputDirectory -Version $Version -RuntimeIdentifier $RuntimeIdentifier }
-    "osx-x64" { New-MacDmg -PublishDirectory $PublishDirectory -OutputDirectory $OutputDirectory -Version $Version -RuntimeIdentifier $RuntimeIdentifier }
+    "osx-arm64" {
+        New-MacDmg `
+            -PublishDirectory $PublishDirectory `
+            -OutputDirectory $OutputDirectory `
+            -Version $Version `
+            -RuntimeIdentifier $RuntimeIdentifier `
+            -SigningIdentity $MacSigningIdentity `
+            -NotaryAppleId $MacNotaryAppleId `
+            -NotaryTeamId $MacNotaryTeamId `
+            -NotaryPassword $MacNotaryPassword `
+            -RequireSigning:$RequireMacSigning
+    }
+    "osx-x64" {
+        New-MacDmg `
+            -PublishDirectory $PublishDirectory `
+            -OutputDirectory $OutputDirectory `
+            -Version $Version `
+            -RuntimeIdentifier $RuntimeIdentifier `
+            -SigningIdentity $MacSigningIdentity `
+            -NotaryAppleId $MacNotaryAppleId `
+            -NotaryTeamId $MacNotaryTeamId `
+            -NotaryPassword $MacNotaryPassword `
+            -RequireSigning:$RequireMacSigning
+    }
     "linux-x64" { New-LinuxAppImage -PublishDirectory $PublishDirectory -OutputDirectory $OutputDirectory -Version $Version -RuntimeIdentifier $RuntimeIdentifier }
     default { throw "Unsupported runtime identifier for release packaging: $RuntimeIdentifier" }
 }

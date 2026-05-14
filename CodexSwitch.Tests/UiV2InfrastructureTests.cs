@@ -6,6 +6,7 @@ using System.Text.Json;
 using CodexSwitch.Models;
 using CodexSwitch.Proxy;
 using CodexSwitch.Services;
+using Microsoft.AspNetCore.Http;
 
 namespace CodexSwitch.Tests;
 
@@ -713,6 +714,16 @@ public sealed class UiV2InfrastructureTests : IDisposable
     }
 
     [Theory]
+    [InlineData(0d, "0.0 TPS")]
+    [InlineData(42.25d, "42.3 TPS")]
+    [InlineData(120d, "120 TPS")]
+    [InlineData(1_250d, "1.3K TPS")]
+    public void FormatTokensPerSecond_UsesReadableUnits(double value, string expected)
+    {
+        Assert.Equal(expected, DisplayFormatters.FormatTokensPerSecond(value));
+    }
+
+    [Theory]
     [InlineData(700, 300, 0, 0.3d)]
     [InlineData(700, 300, 100, 0.272727d)]
     [InlineData(0, 0, 0, 0d)]
@@ -725,6 +736,21 @@ public sealed class UiV2InfrastructureTests : IDisposable
         Assert.Equal(
             expected,
             DisplayFormatters.CalculateCacheHitRate(inputTokens, cachedInputTokens, cacheCreationInputTokens),
+            6);
+    }
+
+    [Theory]
+    [InlineData(120, 3000, 40d)]
+    [InlineData(120, 0, 0d)]
+    [InlineData(-120, 3000, 0d)]
+    public void CalculateOutputTokensPerSecond_UsesOutputTokensAndDuration(
+        long outputTokens,
+        long durationMs,
+        double expected)
+    {
+        Assert.Equal(
+            expected,
+            DisplayFormatters.CalculateOutputTokensPerSecond(outputTokens, durationMs),
             6);
     }
 
@@ -784,7 +810,50 @@ public sealed class UiV2InfrastructureTests : IDisposable
         Assert.Equal(80, trend.CacheCreationInputTokens);
         Assert.Equal(350, trend.OutputTokens);
         Assert.Equal(50, trend.ReasoningOutputTokens);
+        Assert.Equal(300, trend.OutputDurationMs);
+        Assert.Equal(1_166.666667d, DisplayFormatters.CalculateOutputTokensPerSecond(
+            trend.OutputTokens,
+            trend.OutputDurationMs), 6);
         Assert.Equal(2, trend.Requests);
+    }
+
+    [Fact]
+    public void UsageLogReader_OutputTpsDurationUsesOutputRequestsOnly()
+    {
+        var paths = CreatePaths("usage-output-tps");
+        var writer = new UsageLogWriter(paths);
+        var timestamp = new DateTimeOffset(2026, 5, 12, 8, 15, 0, TimeSpan.Zero);
+        writer.Append(new UsageLogRecord
+        {
+            Timestamp = timestamp,
+            ProviderId = "openai",
+            RequestModel = "gpt-5.5",
+            BilledModel = "gpt-5.5",
+            Usage = new UsageTokens(100, 0, 0, 50, 0),
+            DurationMs = 1000,
+            StatusCode = 200
+        });
+        writer.Append(new UsageLogRecord
+        {
+            Timestamp = timestamp.AddMinutes(10),
+            ProviderId = "openai",
+            RequestModel = "gpt-5.5",
+            BilledModel = "gpt-5.5",
+            Usage = new UsageTokens(200, 0, 0, 0, 0),
+            DurationMs = 9000,
+            StatusCode = 200
+        });
+
+        var dashboard = new UsageLogReader(paths).Read(
+            UsageTimeRange.Last24Hours,
+            new DateTimeOffset(2026, 5, 12, 9, 0, 0, TimeSpan.Zero));
+
+        var trend = Assert.Single(dashboard.TrendPoints, point => point.Requests > 0);
+        Assert.Equal(50, trend.OutputTokens);
+        Assert.Equal(1000, trend.OutputDurationMs);
+        Assert.Equal(50d, DisplayFormatters.CalculateOutputTokensPerSecond(
+            trend.OutputTokens,
+            trend.OutputDurationMs), 6);
     }
 
     [Fact]
@@ -840,6 +909,117 @@ public sealed class UiV2InfrastructureTests : IDisposable
 
         Assert.Equal(1, snapshot.Requests);
         Assert.Equal(1, snapshot.Errors);
+    }
+
+    [Fact]
+    public void UsageMeter_TracksRecentTenSecondUsage()
+    {
+        var meter = new UsageMeter(new PriceCalculator(new ModelPricingCatalog()));
+        var now = DateTimeOffset.UtcNow;
+        meter.Record(new UsageLogRecord
+        {
+            Timestamp = now.AddSeconds(-5),
+            RequestModel = "gpt-5.5",
+            BilledModel = "gpt-5.5",
+            Usage = new UsageTokens(40, 10, 0, 7, 0),
+            StatusCode = 200
+        });
+        meter.Record(new UsageLogRecord
+        {
+            Timestamp = now.AddSeconds(-11),
+            RequestModel = "gpt-5.5",
+            BilledModel = "gpt-5.5",
+            Usage = new UsageTokens(100, 0, 0, 30, 0),
+            StatusCode = 200
+        });
+
+        var snapshot = meter.GetRecentSnapshot(TimeSpan.FromSeconds(10), now);
+
+        Assert.Equal(1, snapshot.Requests);
+        Assert.Equal(50, snapshot.TotalInputTokens);
+        Assert.Equal(7, snapshot.TotalOutputTokens);
+    }
+
+    [Fact]
+    public void UsageMeter_TracksRealtimeActivity()
+    {
+        var meter = new UsageMeter(new PriceCalculator(new ModelPricingCatalog()));
+
+        var inputActivity = meter.BeginInputActivity();
+        using var outputActivity = meter.BeginOutputActivity();
+        var active = meter.GetRecentSnapshot(TimeSpan.FromMinutes(1));
+
+        Assert.True(active.IsInputActive);
+        Assert.True(active.IsOutputActive);
+
+        inputActivity.Dispose();
+        var held = meter.GetRecentSnapshot(TimeSpan.FromMinutes(1));
+
+        Assert.True(held.IsInputActive);
+        Assert.True(held.IsOutputActive);
+
+        outputActivity.Dispose();
+        var expired = meter.GetRecentSnapshot(TimeSpan.FromMinutes(1), DateTimeOffset.UtcNow.AddSeconds(5));
+
+        Assert.False(expired.IsInputActive);
+        Assert.False(expired.IsOutputActive);
+    }
+
+    [Fact]
+    public void UsageMeter_IncludesLiveOutputWhileActivityIsRunning()
+    {
+        var meter = new UsageMeter(new PriceCalculator(new ModelPricingCatalog()));
+        using var outputActivity = meter.BeginOutputActivity();
+
+        outputActivity.ReportOutputCharacters(16);
+        var active = meter.GetRecentSnapshot(TimeSpan.FromSeconds(10));
+
+        Assert.True(active.IsOutputActive);
+        Assert.True(active.TotalOutputTokens > 0);
+
+        outputActivity.Dispose();
+        var completed = meter.GetRecentSnapshot(TimeSpan.FromSeconds(10));
+
+        Assert.Equal(0, completed.TotalOutputTokens);
+    }
+
+    [Fact]
+    public void ProtocolAdapterCommon_ReportOutputActivity_UsesParsedDeltaContent()
+    {
+        var meter = new UsageMeter(new PriceCalculator(new ModelPricingCatalog()));
+        using var outputActivity = meter.BeginOutputActivity();
+        var context = new DefaultHttpContext();
+        var commonType = typeof(ProviderRequestContext).Assembly.GetType(
+            "CodexSwitch.Proxy.ProtocolAdapterCommon",
+            throwOnError: true)!;
+        var key = (string)commonType.GetField("OutputActivityItemKey")!.GetRawConstantValue()!;
+        var report = commonType.GetMethod("ReportOutputActivity")!;
+        context.Items[key] = outputActivity;
+
+        report.Invoke(null, [
+            context,
+            "response.output_text.delta",
+            """{"type":"response.output_text.delta","delta":"hello"}"""
+        ]);
+        var afterResponsesDelta = meter.GetRecentSnapshot(TimeSpan.FromSeconds(10)).TotalOutputTokens;
+
+        report.Invoke(null, [
+            context,
+            "response.created",
+            """{"type":"response.created","response":{"id":"resp_test","output_text":"this should not count"}}"""
+        ]);
+        var afterMetadata = meter.GetRecentSnapshot(TimeSpan.FromSeconds(10)).TotalOutputTokens;
+
+        report.Invoke(null, [
+            context,
+            "content_block_delta",
+            """{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":" world"}}"""
+        ]);
+        var afterAnthropicDelta = meter.GetRecentSnapshot(TimeSpan.FromSeconds(10)).TotalOutputTokens;
+
+        Assert.True(afterResponsesDelta > 0);
+        Assert.Equal(afterResponsesDelta, afterMetadata);
+        Assert.True(afterAnthropicDelta > afterMetadata);
     }
 
     [Fact]

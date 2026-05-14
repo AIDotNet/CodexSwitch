@@ -147,6 +147,7 @@
     "usage.chart.cost": "成本",
     "usage.chart.requests": "请求",
     "usage.chart.tokens": "Tokens",
+    "usage.chart.outputTps": "输出 TPS",
     "usage.refreshing": "刷新中",
     "usage.chart.empty": "当前时间范围暂无用量记录",
     "usage.filter.provider": "筛选提供商",

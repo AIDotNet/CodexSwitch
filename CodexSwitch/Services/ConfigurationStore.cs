@@ -179,7 +179,7 @@ public sealed class ConfigurationStore
         if (!HasProvider(config, ProviderTemplateCatalog.AnthropicBuiltinId, "https://api.anthropic.com/v1"))
             AddFromTemplate(config, ProviderTemplateCatalog.AnthropicBuiltinId);
 
-        if (!HasProvider(config, ProviderTemplateCatalog.DeepSeekBuiltinId, "https://api.deepseek.com/anthropic"))
+        if (!HasProvider(config, ProviderTemplateCatalog.DeepSeekBuiltinId, "https://api.deepseek.com/v1"))
             AddFromTemplate(config, ProviderTemplateCatalog.DeepSeekBuiltinId);
 
         if (!HasProvider(config, ProviderTemplateCatalog.XiaomiBuiltinId, "https://api.xiaomimimo.com/v1"))
@@ -286,9 +286,9 @@ public sealed class ConfigurationStore
                 provider.DisplayName = string.IsNullOrWhiteSpace(provider.DisplayName) ? "DeepSeek" : provider.DisplayName;
                 provider.Website ??= "https://platform.deepseek.com";
                 provider.IconSlug ??= "deepseek";
-                provider.BaseUrl = "https://api.deepseek.com/anthropic";
+                provider.BaseUrl = "https://api.deepseek.com/v1";
                 provider.AuthMode = ProviderAuthMode.ApiKey;
-                provider.Protocol = ProviderProtocol.AnthropicMessages;
+                provider.Protocol = ProviderProtocol.OpenAiChat;
                 provider.DefaultModel = string.IsNullOrWhiteSpace(provider.DefaultModel) ? "deepseek-v4-flash" : provider.DefaultModel;
                 SyncProviderTemplate(provider, ProviderTemplateCatalog.DeepSeekBuiltinId);
             }
@@ -451,6 +451,7 @@ public sealed class ConfigurationStore
         foreach (var templateModel in template.Models)
             UpsertModelRoute(provider.Models, templateModel);
 
+        MigrateBuiltInTemplateRoutes(provider, templateId);
         ProviderTemplateCatalog.EnsureDefaultModelConversion(provider);
     }
 
@@ -472,12 +473,85 @@ public sealed class ConfigurationStore
             return;
         }
 
-        existing.DisplayName = templateModel.DisplayName;
-        existing.Protocol = templateModel.Protocol;
-        existing.UpstreamModel = templateModel.UpstreamModel;
-        existing.ServiceTier = templateModel.ServiceTier;
-        existing.Cost ??= new ProviderCostSettings();
-        existing.Cost.FastMode = templateModel.FastMode;
+        existing.Cost ??= new ProviderCostSettings { FastMode = templateModel.FastMode };
+    }
+
+    private static void MigrateBuiltInTemplateRoutes(ProviderConfig provider, string templateId)
+    {
+        if (string.Equals(templateId, ProviderTemplateCatalog.DeepSeekBuiltinId, StringComparison.OrdinalIgnoreCase))
+        {
+            foreach (var route in provider.Models)
+            {
+                if (IsDefaultDeepSeekRoute(route))
+                    route.Protocol = ProviderProtocol.OpenAiChat;
+            }
+
+            return;
+        }
+
+        if (string.Equals(templateId, ProviderTemplateCatalog.RoutinAiBuiltinId, StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(templateId, ProviderTemplateCatalog.RoutinAiPlanBuiltinId, StringComparison.OrdinalIgnoreCase))
+        {
+            foreach (var route in provider.Models)
+            {
+                if (IsDefaultRoutinAiDeepSeekRoute(route))
+                    route.Protocol = ProviderProtocol.OpenAiChat;
+            }
+        }
+    }
+
+    private static bool IsDefaultDeepSeekRoute(ModelRouteConfig route)
+    {
+        if (!IsDeepSeekRouteId(route.Id) || route.Protocol != ProviderProtocol.AnthropicMessages)
+            return false;
+
+        return (string.IsNullOrWhiteSpace(route.DisplayName) ||
+                string.Equals(route.DisplayName, GetDeepSeekDisplayName(route.Id), StringComparison.OrdinalIgnoreCase)) &&
+            string.IsNullOrWhiteSpace(route.UpstreamModel) &&
+            string.IsNullOrWhiteSpace(route.ServiceTier) &&
+            route.Cost is null or { FastMode: false };
+    }
+
+    private static bool IsDefaultRoutinAiDeepSeekRoute(ModelRouteConfig route)
+    {
+        if (!IsRoutinAiDeepSeekRouteId(route.Id))
+            return false;
+
+        if (route.Protocol != ProviderProtocol.OpenAiResponses)
+            return false;
+
+        return (string.IsNullOrWhiteSpace(route.DisplayName) ||
+                string.Equals(route.DisplayName, GetDeepSeekDisplayName(route.Id), StringComparison.OrdinalIgnoreCase)) &&
+            string.IsNullOrWhiteSpace(route.UpstreamModel) &&
+            (string.IsNullOrWhiteSpace(route.ServiceTier) ||
+                string.Equals(route.ServiceTier, "priority", StringComparison.OrdinalIgnoreCase)) &&
+            route.Cost is null or { FastMode: true };
+    }
+
+    private static bool IsDeepSeekRouteId(string id)
+    {
+        return string.Equals(id, "deepseek-v4-flash", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(id, "deepseek-v4-pro", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(id, "deepseek-chat", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(id, "deepseek-reasoner", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool IsRoutinAiDeepSeekRouteId(string id)
+    {
+        return string.Equals(id, "deepseek-v4-flash", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(id, "deepseek-v4-pro", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string GetDeepSeekDisplayName(string id)
+    {
+        if (string.Equals(id, "deepseek-v4-pro", StringComparison.OrdinalIgnoreCase))
+            return "DeepSeek V4 Pro";
+        if (string.Equals(id, "deepseek-chat", StringComparison.OrdinalIgnoreCase))
+            return "DeepSeek Chat";
+        if (string.Equals(id, "deepseek-reasoner", StringComparison.OrdinalIgnoreCase))
+            return "DeepSeek Reasoner";
+
+        return "DeepSeek V4 Flash";
     }
 
     private static bool EnsurePricingDefaults(ModelPricingCatalog catalog)

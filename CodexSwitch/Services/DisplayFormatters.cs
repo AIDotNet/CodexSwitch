@@ -31,6 +31,23 @@ public static class DisplayFormatters
         return normalized.ToString("0.0%", CultureInfo.InvariantCulture);
     }
 
+    public static string FormatTokensPerSecond(double value)
+    {
+        var normalized = double.IsFinite(value) ? Math.Max(0d, value) : 0d;
+        if (normalized < 1_000d)
+        {
+            var format = normalized >= 100d ? "0" : "0.0";
+            return normalized.ToString(format, CultureInfo.InvariantCulture) + " TPS";
+        }
+
+        return normalized switch
+        {
+            < 1_000_000d => FormatScaled(normalized / 1_000d, "K TPS"),
+            < 1_000_000_000d => FormatScaled(normalized / 1_000_000d, "M TPS"),
+            _ => FormatScaled(normalized / 1_000_000_000d, "B TPS")
+        };
+    }
+
     public static string FormatByteCount(long value)
     {
         var absolute = Math.Abs(value);
@@ -55,6 +72,13 @@ public static class DisplayFormatters
         var cacheCreation = Math.Max(0d, cacheCreationInputTokens);
         var totalInput = input + cached + cacheCreation;
         return totalInput <= 0d ? 0d : cached / totalInput;
+    }
+
+    public static double CalculateOutputTokensPerSecond(long outputTokens, long durationMs)
+    {
+        var output = Math.Max(0d, outputTokens);
+        var seconds = Math.Max(0d, durationMs) / 1_000d;
+        return seconds <= 0d ? 0d : output / seconds;
     }
 
     public static string FormatUsageAmount(decimal value, string? unit)

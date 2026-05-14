@@ -16,6 +16,24 @@ This repository uses a single in-repo version source plus an automated GitHub Re
 4. Create and push a Git tag named `vX.Y.Z`. The release job checks that the tag matches `Directory.Build.props` before publishing.
 5. Wait for the tagged `ci` run to finish. It will publish the platform installers and create the GitHub Release automatically.
 
+## macOS signing and notarization
+
+Tagged releases require the macOS DMG artifacts to be signed with a Developer ID Application certificate and notarized by Apple. Without this, Gatekeeper can report the downloaded app as damaged and refuse to open it.
+
+Configure these GitHub repository secrets before pushing a release tag:
+
+- `MACOS_CERTIFICATE_BASE64`: base64-encoded `.p12` export for the Developer ID Application certificate.
+- `MACOS_CERTIFICATE_PASSWORD`: password for the `.p12` export.
+- `MACOS_KEYCHAIN_PASSWORD`: password used for the temporary CI keychain. If omitted, CI generates one for the job.
+- `MACOS_SIGNING_IDENTITY`: optional explicit identity name, for example `Developer ID Application: Example LLC (TEAMID)`. If omitted, CI uses the first imported Developer ID Application identity.
+- `MACOS_NOTARY_APPLE_ID`: Apple ID used for notarization.
+- `MACOS_NOTARY_TEAM_ID`: Apple Developer Team ID.
+- `MACOS_NOTARY_PASSWORD`: app-specific password for the Apple ID.
+
+The CI workflow also accepts the Electron Builder/OpenCowork-style aliases `CSC_LINK`, `CSC_KEY_PASSWORD`, `APPLE_ID`, `APPLE_TEAM_ID`, and `APPLE_APP_SPECIFIC_PASSWORD`. `CSC_LINK` can be a certificate URL, local `.p12` path, or base64-encoded `.p12` data.
+
+Pull requests and branch builds can still produce ad-hoc signed macOS artifacts for CI validation, but those artifacts are not suitable for public download.
+
 ## Artifact naming
 
 - `CodexSwitch-vX.Y.Z-win-x64-setup.exe`

@@ -490,6 +490,7 @@ public sealed class UsageLogReader
         private long _cacheCreationInputTokens;
         private long _outputTokens;
         private long _reasoningOutputTokens;
+        private long _outputDurationMs;
         private decimal _cost;
 
         public void Add(UsageLogRecord record)
@@ -500,6 +501,8 @@ public sealed class UsageLogReader
             _cacheCreationInputTokens += record.Usage.CacheCreationInputTokens;
             _outputTokens += record.Usage.OutputTokens;
             _reasoningOutputTokens += record.Usage.ReasoningOutputTokens;
+            if (record.Usage.OutputTokens > 0)
+                _outputDurationMs += Math.Max(0, record.DurationMs);
             _cost += record.EstimatedCost;
         }
 
@@ -514,6 +517,7 @@ public sealed class UsageLogReader
                 CacheCreationInputTokens = _cacheCreationInputTokens,
                 OutputTokens = _outputTokens,
                 ReasoningOutputTokens = _reasoningOutputTokens,
+                OutputDurationMs = _outputDurationMs,
                 Cost = _cost
             };
         }

@@ -195,6 +195,7 @@
                                           CachedInputLabel="{i18n:Tr usage.chart.cached}"
                                           CacheCreationInputLabel="{i18n:Tr usage.chart.cacheWrite}"
                                           CacheHitRateLabel="{i18n:Tr usage.metric.cacheHitRate}"
+                                          OutputTpsLabel="{i18n:Tr usage.chart.outputTps}"
                                           OutputLabel="{i18n:Tr usage.chart.output}"
                                           ReasoningLabel="{i18n:Tr usage.chart.reasoning}"
                                           EmptyText="{i18n:Tr usage.chart.empty}"

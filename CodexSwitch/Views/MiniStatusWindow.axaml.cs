@@ -6,9 +6,11 @@ namespace CodexSwitch.Views;
 
 public partial class MiniStatusWindow : Window
 {
-    internal const double WindowWidth = 400;
+    internal const double DetailsWindowWidth = 380;
+    internal const double DetailsWindowMinWidth = 340;
+    private const double CollapsedMinWidth = 170;
+    private const double CollapsedMaxWidth = 360;
     private const double CollapsedHeight = 34;
-    private const double CollapsedHeightWithQuota = 58;
     private const double ExpandedHeight = 310;
     private const double ExpandedHeightWithQuota = 430;
     private const double DetailsGap = 0;
@@ -24,9 +26,9 @@ public partial class MiniStatusWindow : Window
     public MiniStatusWindow()
     {
         InitializeComponent();
-        Width = WindowWidth;
-        MinWidth = WindowWidth;
-        MaxWidth = WindowWidth;
+        SizeToContent = SizeToContent.Width;
+        MinWidth = CollapsedMinWidth;
+        MaxWidth = CollapsedMaxWidth;
         Height = CollapsedHeight;
 
         _collapseTimer = new DispatcherTimer
@@ -234,9 +236,9 @@ public partial class MiniStatusWindow : Window
             Position = new PixelPoint(Position.X, (int)Math.Round(bottom - newHeight));
         }
 
-        Width = WindowWidth;
-        MinWidth = WindowWidth;
-        MaxWidth = WindowWidth;
+        SizeToContent = SizeToContent.Width;
+        MinWidth = CollapsedMinWidth;
+        MaxWidth = CollapsedMaxWidth;
         Height = newHeight;
         MinHeight = newHeight;
         MaxHeight = newHeight;
@@ -252,9 +254,9 @@ public partial class MiniStatusWindow : Window
         if (screen is not null)
             detailHeight = Math.Min(detailHeight, GetMaxDetailHeight(screen.WorkingArea));
 
-        _detailsWindow.Width = WindowWidth;
-        _detailsWindow.MinWidth = WindowWidth;
-        _detailsWindow.MaxWidth = WindowWidth;
+        _detailsWindow.Width = DetailsWindowWidth;
+        _detailsWindow.MinWidth = DetailsWindowMinWidth;
+        _detailsWindow.MaxWidth = DetailsWindowWidth;
         _detailsWindow.Height = detailHeight;
         _detailsWindow.MinHeight = detailHeight;
         _detailsWindow.MaxHeight = detailHeight;
@@ -266,7 +268,7 @@ public partial class MiniStatusWindow : Window
 
         if (screen is not null)
         {
-            var size = new PixelSize((int)Math.Round(WindowWidth), (int)Math.Round(detailHeight));
+            var size = new PixelSize((int)Math.Round(DetailsWindowWidth), (int)Math.Round(detailHeight));
             var workingArea = screen.WorkingArea;
             var minX = workingArea.X + PlacementMargin;
             var maxX = workingArea.X + workingArea.Width - size.Width - PlacementMargin;
@@ -292,9 +294,7 @@ public partial class MiniStatusWindow : Window
 
     private double GetCollapsedHeight()
     {
-        return _viewModel?.MiniStatusHasQuotaRow == true
-            ? CollapsedHeightWithQuota
-            : CollapsedHeight;
+        return CollapsedHeight;
     }
 
     private double GetDetailHeight()

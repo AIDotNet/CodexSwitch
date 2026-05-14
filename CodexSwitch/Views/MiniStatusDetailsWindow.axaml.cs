@@ -5,9 +5,9 @@ public partial class MiniStatusDetailsWindow : Window
     public MiniStatusDetailsWindow()
     {
         InitializeComponent();
-        Width = MiniStatusWindow.WindowWidth;
-        MinWidth = MiniStatusWindow.WindowWidth;
-        MaxWidth = MiniStatusWindow.WindowWidth;
+        Width = MiniStatusWindow.DetailsWindowWidth;
+        MinWidth = MiniStatusWindow.DetailsWindowMinWidth;
+        MaxWidth = MiniStatusWindow.DetailsWindowWidth;
         ShowActivated = false;
     }
 

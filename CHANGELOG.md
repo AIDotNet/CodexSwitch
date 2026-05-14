@@ -15,13 +15,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- Switched the built-in DeepSeek template and migration path to the Anthropic-compatible Messages API and enabled Claude Code support for DeepSeek.
+- Switched the built-in DeepSeek template and migration path back to the OpenAI-compatible Chat API while keeping Claude Code support enabled.
 - Updated Claude Code proxy settings to write the proxy root URL instead of appending `/v1`.
 - Made Windows release packaging prefer `iscc` from `PATH` and handle runners without `ProgramFiles(x86)`.
 
 ### Fixed
 
 - Automatically enable Claude Code support when a provider is switched to the Anthropic Messages protocol.
+- Signed, notarized, and Gatekeeper-validated macOS release DMGs when Apple release credentials are configured.
 
 ## [v0.0.5] - 2026-05-14
 

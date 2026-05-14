@@ -4,10 +4,10 @@
         xmlns:ui="using:CodexSwitch.Controls"
         x:Class="CodexSwitch.Views.MiniStatusWindow"
         x:DataType="vm:MainWindowViewModel"
-        Width="400"
         Height="34"
-        MinWidth="400"
-        MaxWidth="400"
+        MinWidth="170"
+        MaxWidth="360"
+        SizeToContent="Width"
         CanResize="False"
         ShowInTaskbar="False"
         WindowDecorations="None"
@@ -18,85 +18,88 @@
         PointerExited="OnPointerExited"
         PointerPressed="OnPointerPressed"
         PointerReleased="OnPointerReleased">
-    <Border CornerRadius="8"
+    <Border CornerRadius="{StaticResource CsRadiusMd}"
             ClipToBounds="True"
-            BorderBrush="#4D334252"
+            BorderBrush="{StaticResource CsBorderBrush}"
             BorderThickness="1"
-            Background="#F0121720"
+            Background="{StaticResource CsPopoverBrush}"
             Padding="10,5">
-        <StackPanel Spacing="2">
-            <Grid ColumnDefinitions="24,Auto,32,Auto,*,Auto,*"
-                  Height="22"
-                  ColumnSpacing="7"
-                  VerticalAlignment="Center">
+        <Grid ColumnDefinitions="24,Auto,Auto"
+              Height="22"
+              ColumnSpacing="8"
+              VerticalAlignment="Center">
                 <Border Width="24"
                         Height="24"
-                        CornerRadius="6"
-                        Background="#2633404C">
+                        CornerRadius="{StaticResource CsRadiusSm}"
+                        Background="{StaticResource CsMutedBrush}">
                     <ui:CsImageIcon Path="{Binding MiniStatusProviderIconPath}"
                                     Width="20"
                                     Height="20"
                                     HorizontalAlignment="Center"
                                     VerticalAlignment="Center"/>
                 </Border>
-                <TextBlock Grid.Column="1"
-                           Text="RPM"
-                           Foreground="#CBD5E1"
-                           FontSize="13"
-                           VerticalAlignment="Center"/>
-                <TextBlock Grid.Column="2"
-                           Text="{Binding MiniStatusRpmText}"
-                           Foreground="#F8FAFC"
-                           FontSize="15"
-                           FontWeight="SemiBold"
-                           TextTrimming="CharacterEllipsis"
-                           VerticalAlignment="Center"/>
-                <TextBlock Grid.Column="3"
-                           Text="&#x5165;"
-                           Foreground="#CBD5E1"
-                           FontSize="13"
-                           VerticalAlignment="Center"/>
-                <TextBlock Grid.Column="4"
-                           Text="{Binding MiniStatusInputTokensText}"
-                           Foreground="#F8FAFC"
-                           FontSize="15"
-                           FontWeight="SemiBold"
-                           TextTrimming="CharacterEllipsis"
-                           VerticalAlignment="Center"/>
-                <TextBlock Grid.Column="5"
-                           Text="&#x51FA;"
-                           Foreground="#CBD5E1"
-                           FontSize="13"
-                           VerticalAlignment="Center"/>
-                <TextBlock Grid.Column="6"
-                           Text="{Binding MiniStatusOutputTokensText}"
-                           Foreground="#F8FAFC"
-                           FontSize="15"
-                           FontWeight="SemiBold"
-                           TextTrimming="CharacterEllipsis"
-                           VerticalAlignment="Center"/>
-            </Grid>
+                <ItemsControl Grid.Column="1"
+                              ItemsSource="{Binding MiniStatusMetricCards}"
+                              VerticalAlignment="Center">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <StackPanel Orientation="Horizontal"
+                                        Spacing="12"/>
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="vm:MiniStatusMetricCardItem">
+                            <StackPanel Orientation="Horizontal"
+                                        Spacing="5"
+                                        VerticalAlignment="Center">
+                                <TextBlock Text="{Binding Label}"
+                                           Foreground="{StaticResource CsMutedForegroundBrush}"
+                                           FontSize="13"
+                                           IsVisible="{Binding ShowsTextLabel}"
+                                           VerticalAlignment="Center"/>
+                                <ui:CsActivityArrow Glyph="{Binding ArrowGlyph}"
+                                                    Direction="{Binding ArrowDirection}"
+                                                    IsActive="{Binding IsActive}"
+                                                    Foreground="{StaticResource CsMutedForegroundBrush}"
+                                                    ActiveForeground="{Binding ArrowActiveForeground}"
+                                                    FontSize="13"
+                                                    Width="14"
+                                                    Height="16"
+                                                    IsVisible="{Binding ShowsArrow}"
+                                                    VerticalAlignment="Center"/>
+                                <ui:CsRollingNumber Value="{Binding NumericValue}"
+                                                    UseCompactFormat="{Binding UseCompactValueFormat}"
+                                                    Foreground="{StaticResource CsForegroundBrush}"
+                                                    FontSize="15"
+                                                    FontWeight="SemiBold"
+                                                    MinWidth="18"
+                                                    MaxWidth="74"
+                                                    VerticalAlignment="Center"/>
+                            </StackPanel>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
 
             <StackPanel Orientation="Horizontal"
-                        Spacing="12"
+                        Spacing="10"
+                        Grid.Column="2"
                         IsVisible="{Binding MiniStatusHasQuotaRow}"
-                        Margin="32,0,0,0"
                         VerticalAlignment="Center">
-                <TextBlock Foreground="#F8FAFC"
+                <TextBlock Foreground="{StaticResource CsForegroundBrush}"
                            FontSize="14"
                            FontWeight="SemiBold"
                            IsVisible="{Binding MiniStatusHasDailyQuota}">
                     <Run Text="&#x65E5; "/>
                     <Run Text="{Binding MiniStatusDailyQuotaText}"/>
                 </TextBlock>
-                <TextBlock Foreground="#F8FAFC"
+                <TextBlock Foreground="{StaticResource CsForegroundBrush}"
                            FontSize="14"
                            FontWeight="SemiBold"
                            IsVisible="{Binding MiniStatusHasWeeklyQuota}">
                     <Run Text="&#x5468; "/>
                     <Run Text="{Binding MiniStatusWeeklyQuotaText}"/>
                 </TextBlock>
-                <TextBlock Foreground="#F8FAFC"
+                <TextBlock Foreground="{StaticResource CsForegroundBrush}"
                            FontSize="14"
                            FontWeight="SemiBold"
                            IsVisible="{Binding MiniStatusHasPackageQuota}">
@@ -104,6 +107,6 @@
                     <Run Text="{Binding MiniStatusPackageQuotaText}"/>
                 </TextBlock>
             </StackPanel>
-        </StackPanel>
+        </Grid>
     </Border>
 </Window>

@@ -147,6 +147,7 @@
     "usage.chart.cost": "コスト",
     "usage.chart.requests": "リクエスト",
     "usage.chart.tokens": "Tokens",
+    "usage.chart.outputTps": "出力 TPS",
     "usage.refreshing": "更新中",
     "usage.chart.empty": "この範囲に使用記録はありません",
     "usage.filter.provider": "プロバイダーで絞り込み",

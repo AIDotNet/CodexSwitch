@@ -2406,7 +2406,7 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
             : string.IsNullOrWhiteSpace(activeProvider.DisplayName) ? activeProvider.Id : activeProvider.DisplayName;
         MiniStatusProviderIconPath = _iconCacheService.GetIconPath(iconSlug);
 
-        var realtime = _usageMeter.GetRecentSnapshot(TimeSpan.FromMinutes(1));
+        var realtime = _usageMeter.GetRecentSnapshot(TimeSpan.FromSeconds(10));
         MiniStatusRpmText = realtime.Requests.ToString("N0", CultureInfo.InvariantCulture);
         MiniStatusInputTokensText = DisplayFormatters.FormatTokenCount(realtime.TotalInputTokens);
         MiniStatusOutputTokensText = DisplayFormatters.FormatTokenCount(realtime.TotalOutputTokens);
@@ -2425,12 +2425,26 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
         MiniStatusWeeklyQuotaText = weeklyQuota is not null && MiniStatusHasWeeklyQuota ? FormatQuotaCompact(weeklyQuota) : "";
         MiniStatusPackageQuotaText = packageQuota is not null && MiniStatusHasPackageQuota ? FormatQuotaCompact(packageQuota) : "";
 
-        UpdateMiniStatusItems(MiniStatusMetricCards, new[]
+        var metricCards = new List<MiniStatusMetricCardItem>(3)
         {
-            new MiniStatusMetricCardItem("RPM", MiniStatusRpmText, "\u6700\u8fd1 1 \u5206\u949f"),
-            new MiniStatusMetricCardItem("\u8f93\u5165", DisplayFormatters.FormatTokenCount(realtime.TotalInputTokens), "Input tokens"),
-            new MiniStatusMetricCardItem("\u8f93\u51fa", DisplayFormatters.FormatTokenCount(realtime.TotalOutputTokens), "Output tokens")
-        });
+            new(
+                "Input",
+                realtime.TotalInputTokens,
+                "Input tokens",
+                MiniStatusMetricVisualKind.Input,
+                realtime.IsInputActive,
+                UseCompactValueFormat: true),
+            new(
+                "Output",
+                realtime.TotalOutputTokens,
+                "Output tokens",
+                MiniStatusMetricVisualKind.Output,
+                realtime.IsOutputActive,
+                UseCompactValueFormat: true)
+        };
+        if (realtime.Requests > 0)
+            metricCards.Insert(0, new MiniStatusMetricCardItem("10s", realtime.Requests, "Requests"));
+        UpdateMiniStatusItems(MiniStatusMetricCards, metricCards);
 
         var quotaCards = new List<MiniStatusQuotaCardItem>(3);
         if (dailyQuota is not null && MiniStatusHasDailyQuota)
@@ -2522,7 +2536,14 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
 
     private static bool HasQuotaDisplay(UsageQuotaSnapshot? quota)
     {
-        return quota is not null && (quota.IsUnlimited || quota.Remaining is not null);
+        if (quota is null)
+            return false;
+        if (quota.IsUnlimited)
+            return true;
+        if (quota.Remaining is null)
+            return false;
+
+        return quota.Remaining.Value > 0m || quota.Total is > 0m || quota.Used is > 0m;
     }
 
     private static MiniStatusQuotaCardItem CreateQuotaCard(string title, UsageQuotaSnapshot quota)
@@ -2556,9 +2577,12 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
 
     private static string FormatQuotaCardAmount(decimal value, string? unit)
     {
-        return IsUsd(unit) || IsTokenUnit(unit)
-            ? value.ToString(value == decimal.Truncate(value) ? "0.0" : "0.##", CultureInfo.InvariantCulture)
-            : FormatQuotaAmount(value, unit);
+        if (IsUsd(unit))
+            return value.ToString(value == decimal.Truncate(value) ? "0.0" : "0.##", CultureInfo.InvariantCulture);
+        if (IsTokenUnit(unit))
+            return FormatCompactAmount(value);
+
+        return FormatQuotaAmount(value, unit);
     }
 
     private static string FormatMiniStatusModels(ProviderConfig provider)
@@ -3847,7 +3871,40 @@ public sealed record UsageMetricItem(
 
 public sealed record MiniStatusDetailItem(string Label, string Value);
 
-public sealed record MiniStatusMetricCardItem(string Label, string Value, string Caption);
+public sealed record MiniStatusMetricCardItem(
+    string Label,
+    long NumericValue,
+    string Caption,
+    MiniStatusMetricVisualKind VisualKind = MiniStatusMetricVisualKind.Text,
+    bool IsActive = false,
+    bool UseCompactValueFormat = false)
+{
+    private static readonly IBrush InputArrowActiveBrush = Brush.Parse("#38BDF8");
+    private static readonly IBrush OutputArrowActiveBrush = Brush.Parse("#34D399");
+
+    public string Value => UseCompactValueFormat
+        ? DisplayFormatters.FormatTokenCount(NumericValue)
+        : NumericValue.ToString("N0", CultureInfo.InvariantCulture);
+
+    public bool ShowsTextLabel => VisualKind == MiniStatusMetricVisualKind.Text;
+
+    public bool ShowsArrow => VisualKind is MiniStatusMetricVisualKind.Input or MiniStatusMetricVisualKind.Output;
+
+    public string ArrowGlyph => VisualKind == MiniStatusMetricVisualKind.Output ? "\u2193" : "\u2191";
+
+    public double ArrowDirection => VisualKind == MiniStatusMetricVisualKind.Output ? 1d : -1d;
+
+    public IBrush ArrowActiveForeground => VisualKind == MiniStatusMetricVisualKind.Output
+        ? OutputArrowActiveBrush
+        : InputArrowActiveBrush;
+}
+
+public enum MiniStatusMetricVisualKind
+{
+    Text,
+    Input,
+    Output
+}
 
 public sealed record MiniStatusQuotaCardItem(
     string Title,

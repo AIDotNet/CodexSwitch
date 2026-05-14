@@ -59,6 +59,14 @@ jobs:
             rid: osx-x64
 
     runs-on: ${{ matrix.runner }}
+    env:
+      MACOS_CERTIFICATE_INPUT: ${{ secrets.MACOS_CERTIFICATE_BASE64 || secrets.CSC_LINK || '' }}
+      MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD || secrets.CSC_KEY_PASSWORD || '' }}
+      MACOS_KEYCHAIN_PASSWORD: ${{ secrets.MACOS_KEYCHAIN_PASSWORD || '' }}
+      MACOS_SIGNING_IDENTITY: ${{ secrets.MACOS_SIGNING_IDENTITY || '' }}
+      MACOS_NOTARY_APPLE_ID: ${{ secrets.MACOS_NOTARY_APPLE_ID || secrets.APPLE_ID || '' }}
+      MACOS_NOTARY_TEAM_ID: ${{ secrets.MACOS_NOTARY_TEAM_ID || secrets.APPLE_TEAM_ID || '' }}
+      MACOS_NOTARY_PASSWORD: ${{ secrets.MACOS_NOTARY_PASSWORD || secrets.APPLE_APP_SPECIFIC_PASSWORD || '' }}
 
     steps:
       - name: Checkout
@@ -95,6 +103,77 @@ jobs:
           -p:DebugSymbols=false
           -o artifacts/publish/${{ matrix.rid }}
 
+      - name: Import macOS signing certificate
+        if: runner.os == 'macOS' && env.MACOS_CERTIFICATE_INPUT != ''
+        shell: pwsh
+        run: |
+          function Invoke-Security {
+            & security @args
+            if ($LASTEXITCODE -ne 0) {
+              throw "security $($args[0]) failed."
+            }
+          }
+
+          $certificatePath = Join-Path $env:RUNNER_TEMP "codexswitch_developer_id.p12"
+          $keychainPath = Join-Path $env:RUNNER_TEMP "codexswitch-signing.keychain-db"
+          $certificateInput = $env:MACOS_CERTIFICATE_INPUT
+          $keychainPassword = $env:MACOS_KEYCHAIN_PASSWORD
+          if ([string]::IsNullOrWhiteSpace($keychainPassword)) {
+            $keychainPassword = [guid]::NewGuid().ToString("N")
+          }
+
+          if ($certificateInput -match '^https?://') {
+            Invoke-WebRequest -Uri $certificateInput -OutFile $certificatePath
+          }
+          elseif (Test-Path -LiteralPath $certificateInput -PathType Leaf) {
+            Copy-Item -LiteralPath $certificateInput -Destination $certificatePath -Force
+          }
+          else {
+            $normalizedCertificate = $certificateInput -replace '\s', ''
+            try {
+              [IO.File]::WriteAllBytes($certificatePath, [Convert]::FromBase64String($normalizedCertificate))
+            }
+            catch {
+              throw "MACOS_CERTIFICATE_BASE64/CSC_LINK must be a certificate URL, local .p12 path, or base64-encoded .p12 data."
+            }
+          }
+
+          Invoke-Security create-keychain -p $keychainPassword $keychainPath
+          Invoke-Security set-keychain-settings -lut 21600 $keychainPath
+          Invoke-Security unlock-keychain -p $keychainPassword $keychainPath
+          Invoke-Security import $certificatePath -P $env:MACOS_CERTIFICATE_PASSWORD -A -t cert -f pkcs12 -k $keychainPath
+          Invoke-Security set-key-partition-list -S apple-tool:,apple: -s -k $keychainPassword $keychainPath
+          Invoke-Security list-keychains -d user -s $keychainPath
+          Invoke-Security default-keychain -s $keychainPath
+
+      - name: Resolve macOS signing identity
+        id: mac-signing
+        if: runner.os == 'macOS'
+        shell: pwsh
+        run: |
+          $identity = $env:MACOS_SIGNING_IDENTITY
+          if ([string]::IsNullOrWhiteSpace($identity)) {
+            $identityLine = & security find-identity -v -p codesigning 2>$null |
+              Select-String -Pattern "Developer ID Application" |
+              Select-Object -First 1
+
+            if ($null -ne $identityLine) {
+              $match = [regex]::Match($identityLine.Line, '"(?<identity>[^"]+)"')
+              if ($match.Success) {
+                $identity = $match.Groups["identity"].Value
+              }
+            }
+          }
+
+          if ([string]::IsNullOrWhiteSpace($identity)) {
+            Write-Host "No macOS Developer ID Application signing identity was found."
+          }
+          else {
+            Write-Host "Using macOS signing identity: $identity"
+          }
+
+          "identity=$identity" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+
       - name: Install Windows packaging tools
         if: runner.os == 'Windows'
         shell: pwsh
@@ -105,11 +184,17 @@ jobs:
         shell: pwsh
         run: |
           $version = "${{ steps.version.outputs.value }}"
+          $requireMacSigning = [bool]::Parse("${{ startsWith(github.ref, 'refs/tags/v') }}")
           ./build/Package-ReleaseArtifact.ps1 `
             -Version $version `
             -RuntimeIdentifier "${{ matrix.rid }}" `
             -PublishDirectory "artifacts/publish/${{ matrix.rid }}" `
-            -OutputDirectory "artifacts/package"
+            -OutputDirectory "artifacts/package" `
+            -MacSigningIdentity "${{ steps.mac-signing.outputs.identity }}" `
+            -MacNotaryAppleId "$env:MACOS_NOTARY_APPLE_ID" `
+            -MacNotaryTeamId "$env:MACOS_NOTARY_TEAM_ID" `
+            -MacNotaryPassword "$env:MACOS_NOTARY_PASSWORD" `
+            -RequireMacSigning:$requireMacSigning
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4

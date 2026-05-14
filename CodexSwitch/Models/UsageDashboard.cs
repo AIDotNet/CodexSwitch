@@ -99,5 +99,7 @@ public sealed class UsageTrendPoint
 
     public long ReasoningOutputTokens { get; init; }
 
+    public long OutputDurationMs { get; init; }
+
     public decimal Cost { get; init; }
 }

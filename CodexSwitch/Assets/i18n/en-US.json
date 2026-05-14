@@ -147,6 +147,7 @@
     "usage.chart.cost": "Cost",
     "usage.chart.requests": "Requests",
     "usage.chart.tokens": "Tokens",
+    "usage.chart.outputTps": "Output TPS",
     "usage.refreshing": "Refreshing",
     "usage.chart.empty": "No usage records in this range",
     "usage.filter.provider": "Filter provider",

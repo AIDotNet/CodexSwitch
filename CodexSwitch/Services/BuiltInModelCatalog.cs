@@ -16,8 +16,8 @@ public static class BuiltInModelCatalog
         OpenAiResponsesRoute("gpt-5.4", "GPT-5.4", serviceTier: "priority", fastMode: true),
         OpenAiResponsesRoute("gpt-5.4-mini", "GPT-5.4 Mini", serviceTier: "priority", fastMode: true),
         OpenAiResponsesRoute("gpt-5.3-codex", "GPT-5.3 Codex", serviceTier: "priority", fastMode: true),
-        OpenAiResponsesRoute("deepseek-v4-flash", "DeepSeek V4 Flash", serviceTier: "priority", fastMode: true),
-        OpenAiResponsesRoute("deepseek-v4-pro", "DeepSeek V4 Pro", serviceTier: "priority", fastMode: true),
+        OpenAiChatRoute("deepseek-v4-flash", "DeepSeek V4 Flash", serviceTier: "priority", fastMode: true),
+        OpenAiChatRoute("deepseek-v4-pro", "DeepSeek V4 Pro", serviceTier: "priority", fastMode: true),
         OpenAiResponsesRoute("mimo-v2-flash", "MiMo V2 Flash", serviceTier: "priority", fastMode: true),
         OpenAiResponsesRoute("mimo-v2-pro", "MiMo V2 Pro", serviceTier: "priority", fastMode: true),
         OpenAiResponsesRoute("mimo-v2.5-pro", "MiMo V2.5 Pro", serviceTier: "priority", fastMode: true)
@@ -56,10 +56,10 @@ public static class BuiltInModelCatalog
 
     public static IReadOnlyList<ProviderTemplateModel> DeepSeekModels { get; } =
     [
-        AnthropicRoute("deepseek-v4-flash", "DeepSeek V4 Flash"),
-        AnthropicRoute("deepseek-v4-pro", "DeepSeek V4 Pro"),
-        AnthropicRoute("deepseek-chat", "DeepSeek Chat"),
-        AnthropicRoute("deepseek-reasoner", "DeepSeek Reasoner")
+        OpenAiChatRoute("deepseek-v4-flash", "DeepSeek V4 Flash"),
+        OpenAiChatRoute("deepseek-v4-pro", "DeepSeek V4 Pro"),
+        OpenAiChatRoute("deepseek-chat", "DeepSeek Chat"),
+        OpenAiChatRoute("deepseek-reasoner", "DeepSeek Reasoner")
     ];
 
     public static IReadOnlyList<ProviderTemplateModel> XiaomiModels { get; } =
@@ -222,14 +222,18 @@ public static class BuiltInModelCatalog
     private static ProviderTemplateModel OpenAiChatRoute(
         string id,
         string displayName,
-        string? upstreamModel = null)
+        string? upstreamModel = null,
+        string? serviceTier = null,
+        bool fastMode = false)
     {
         return new ProviderTemplateModel
         {
             Id = id,
             DisplayName = displayName,
             Protocol = ProviderProtocol.OpenAiChat,
-            UpstreamModel = upstreamModel
+            UpstreamModel = upstreamModel,
+            ServiceTier = serviceTier,
+            FastMode = fastMode
         };
     }
 

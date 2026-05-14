@@ -1178,7 +1178,11 @@ public sealed class OpenAiResponsesAdapter : IProviderProtocolAdapter
             }
 
             if (line.StartsWith("data:", StringComparison.Ordinal))
-                dataBuilder.AppendLine(line[5..].TrimStart());
+            {
+                var data = line[5..].TrimStart();
+                dataBuilder.AppendLine(data);
+                ProtocolAdapterCommon.ReportOutputActivity(context.HttpContext, eventName, data);
+            }
         }
 
         stopwatch.Stop();

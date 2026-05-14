@@ -247,6 +247,7 @@ public sealed class ProxyHostService : IAsyncDisposable
         //     return;
         // }
 
+        using var inputActivity = _usageMeter.BeginInputActivity();
         JsonDocument document;
         try
         {
@@ -303,12 +304,23 @@ public sealed class ProxyHostService : IAsyncDisposable
                 _usageMeter,
                 _priceCalculator,
                 _usageLogWriter);
-            await adapter.HandleResponsesAsync(context, httpContext.RequestAborted);
+            inputActivity.Dispose();
+            using var outputActivity = _usageMeter.BeginOutputActivity();
+            httpContext.Items[ProtocolAdapterCommon.OutputActivityItemKey] = outputActivity;
+            try
+            {
+                await adapter.HandleResponsesAsync(context, httpContext.RequestAborted);
+            }
+            finally
+            {
+                httpContext.Items.Remove(ProtocolAdapterCommon.OutputActivityItemKey);
+            }
         }
     }
 
     private async Task HandleMessagesAsync(HttpContext httpContext)
     {
+        using var inputActivity = _usageMeter.BeginInputActivity();
         JsonDocument document;
         try
         {
@@ -367,7 +379,17 @@ public sealed class ProxyHostService : IAsyncDisposable
                 _usageMeter,
                 _priceCalculator,
                 _usageLogWriter);
-            await adapter.HandleMessagesAsync(context, httpContext.RequestAborted);
+            inputActivity.Dispose();
+            using var outputActivity = _usageMeter.BeginOutputActivity();
+            httpContext.Items[ProtocolAdapterCommon.OutputActivityItemKey] = outputActivity;
+            try
+            {
+                await adapter.HandleMessagesAsync(context, httpContext.RequestAborted);
+            }
+            finally
+            {
+                httpContext.Items.Remove(ProtocolAdapterCommon.OutputActivityItemKey);
+            }
         }
     }
 
