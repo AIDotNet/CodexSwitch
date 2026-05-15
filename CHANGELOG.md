@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v0.0.9] - 2026-05-15
+
+### Changed
+
+- Added a subtle fade/slide transition when Codex table content changes.
+- Widened the pinned table side columns so longer labels fit more comfortably.
+
 ## [v0.0.8] - 2026-05-15
 
 ### Changed
