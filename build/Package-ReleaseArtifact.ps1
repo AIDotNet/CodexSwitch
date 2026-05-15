@@ -68,6 +68,35 @@ function Invoke-NativeTool {
     }
 }
 
+function Invoke-NativeToolWithRetry {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$FilePath,
+
+        [Parameter(Mandatory = $true)]
+        [string[]]$Arguments,
+
+        [int]$MaxAttempts = 3,
+
+        [int]$RetryDelaySeconds = 5
+    )
+
+    for ($attempt = 1; $attempt -le $MaxAttempts; $attempt++) {
+        try {
+            Invoke-NativeTool -FilePath $FilePath -Arguments $Arguments
+            return
+        }
+        catch {
+            if ($attempt -ge $MaxAttempts) {
+                throw
+            }
+
+            Write-Warning "Command '$FilePath' failed on attempt $attempt of $MaxAttempts. Retrying in $RetryDelaySeconds seconds."
+            Start-Sleep -Seconds $RetryDelaySeconds
+        }
+    }
+}
+
 function Get-RepositoryRoot {
     return (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot "..")).Path
 }
@@ -197,10 +226,13 @@ function New-MacDmg {
     $resourcesPath = Join-Path $contentsPath "Resources"
     $artifactPath = Join-Path $OutputDirectory "CodexSwitch-v$Version-$RuntimeIdentifier.dmg"
     $appZipPath = Join-Path $OutputDirectory "CodexSwitch-v$Version-$RuntimeIdentifier.app.zip"
+    $dmgSourcePath = Join-Path $OutputDirectory "CodexSwitch-$RuntimeIdentifier.dmgroot"
+    $dmgBundlePath = Join-Path $dmgSourcePath "CodexSwitch.app"
 
     Remove-Item -LiteralPath $bundlePath -Recurse -Force -ErrorAction SilentlyContinue
     Remove-Item -LiteralPath $artifactPath -Force -ErrorAction SilentlyContinue
     Remove-Item -LiteralPath $appZipPath -Force -ErrorAction SilentlyContinue
+    Remove-Item -LiteralPath $dmgSourcePath -Recurse -Force -ErrorAction SilentlyContinue
     New-Item -ItemType Directory -Force -Path $macOsPath, $resourcesPath | Out-Null
 
     Copy-Item -Path (Join-Path $PublishDirectory "*") -Destination $macOsPath -Recurse -Force
@@ -257,12 +289,15 @@ function New-MacDmg {
         Write-Warning "macOS app bundle was signed but not notarized; downloaded release artifacts may still be blocked by Gatekeeper."
     }
 
-    Invoke-NativeTool -FilePath "hdiutil" -Arguments @(
+    New-Item -ItemType Directory -Force -Path $dmgSourcePath | Out-Null
+    Invoke-NativeTool -FilePath "ditto" -Arguments @($bundlePath, $dmgBundlePath)
+
+    Invoke-NativeToolWithRetry -FilePath "hdiutil" -Arguments @(
         "create",
         "-volname",
         "CodexSwitch",
         "-srcfolder",
-        $bundlePath,
+        $dmgSourcePath,
         "-ov",
         "-format",
         "UDZO",
@@ -272,6 +307,8 @@ function New-MacDmg {
     if (-not (Test-Path -LiteralPath $artifactPath)) {
         throw "Expected macOS DMG was not created: $artifactPath"
     }
+
+    Remove-Item -LiteralPath $dmgSourcePath -Recurse -Force -ErrorAction SilentlyContinue
 
     if (Test-HasText $SigningIdentity) {
         Invoke-NativeTool -FilePath "codesign" -Arguments @("--force", "--sign", $SigningIdentity, "--timestamp", $artifactPath)

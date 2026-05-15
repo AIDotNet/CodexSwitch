@@ -24,6 +24,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Normalized OpenAI Chat replay so tool outputs stay immediately after assistant tool calls and unmatched tool calls are dropped before proxying upstream.
 - Restored Codex OAuth provider defaults and account metadata consistently during config migration and refresh flows.
 - Matched Electron-style macOS packaging by always building `.app`/`.dmg` release artifacts without requiring Developer ID signing or notarization.
+- Made macOS DMG creation use a staging directory with retries so macOS 14 runners do not fail on transient `hdiutil` resource-busy errors.
 
 ## [v0.0.6] - 2026-05-14
 
