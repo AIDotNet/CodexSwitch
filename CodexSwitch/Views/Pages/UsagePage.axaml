@@ -99,102 +99,87 @@
                 </StackPanel>
             </Grid>
 
-            <ui:CodexPinnedTable Grid.Row="2"
-                                 ItemsSource="{Binding UsageLogRows}"
-                                 IsCompact="True"
-                                 IsLoading="{Binding IsUsageRefreshing}"
-                                 TransitionKey="{Binding UsageLogTableTransitionKey}"
-                                 StartColumnWidth="88"
-                                 EndColumnWidth="52"
-                                 MiddleMinWidth="954">
-                <ui:CodexPinnedTable.StartHeader>
-                    <ui:CodexTableHead Content="{i18n:Tr usage.table.time}" MinWidth="0" Padding="6,6"/>
-                </ui:CodexPinnedTable.StartHeader>
-                <ui:CodexPinnedTable.MiddleHeader>
-                    <Grid ColumnDefinitions="142,160,92,94,102,86,92,92,92">
-                        <ui:CodexTableHead Content="{i18n:Tr usage.table.provider}" MinWidth="142"/>
-                        <ui:CodexTableHead Grid.Column="1" Content="{i18n:Tr usage.table.model}" MinWidth="160"/>
-                        <ui:CodexTableHead Grid.Column="2" Content="{i18n:Tr usage.table.input}" MinWidth="92"/>
-                        <ui:CodexTableHead Grid.Column="3" Content="{i18n:Tr usage.table.cacheHit}" MinWidth="94"/>
-                        <ui:CodexTableHead Grid.Column="4" Content="{i18n:Tr usage.table.cacheWrite}" MinWidth="102"/>
-                        <ui:CodexTableHead Grid.Column="5" Content="{i18n:Tr usage.table.output}" MinWidth="86"/>
-                        <ui:CodexTableHead Grid.Column="6" Content="{i18n:Tr usage.table.outputTps}" MinWidth="92"/>
-                        <ui:CodexTableHead Grid.Column="7" Content="{i18n:Tr usage.table.cost}" MinWidth="92"/>
-                        <ui:CodexTableHead Grid.Column="8" Content="{i18n:Tr usage.table.duration}" MinWidth="92"/>
-                    </Grid>
-                </ui:CodexPinnedTable.MiddleHeader>
-                <ui:CodexPinnedTable.EndHeader>
-                    <ui:CodexTableHead Content="{i18n:Tr usage.table.status}" MinWidth="0" Padding="6,6"/>
-                </ui:CodexPinnedTable.EndHeader>
-
-                <ui:CodexPinnedTable.StartCellTemplate>
-                    <DataTemplate x:DataType="vm:UsageLogItem">
+            <ui:CodexTable Grid.Row="2"
+                           IsCompact="True"
+                           TransitionKey="{Binding UsageLogTableTransitionKey}">
+                <Grid MinWidth="1112"
+                      RowDefinitions="Auto,*">
+                    <ui:CodexTableHeader>
                         <ui:CodexTableRow>
-                            <ui:CodexTableCell MinWidth="0" Padding="6,6">
-                                <TextBlock Text="{Binding Time}" Classes="table-strong"/>
-                            </ui:CodexTableCell>
-                        </ui:CodexTableRow>
-                    </DataTemplate>
-                </ui:CodexPinnedTable.StartCellTemplate>
-
-                <ui:CodexPinnedTable.MiddleCellTemplate>
-                    <DataTemplate x:DataType="vm:UsageLogItem">
-                        <ui:CodexTableRow>
-                            <Grid ColumnDefinitions="142,160,92,94,102,86,92,92,92">
-                                <ui:CodexTableCell MinWidth="142">
-                                    <ui:CodexBadge Variant="Secondary" Padding="8,3">
-                                        <TextBlock Text="{Binding Provider}" FontSize="12" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"/>
-                                    </ui:CodexBadge>
-                                </ui:CodexTableCell>
-                                <ui:CodexTableCell Grid.Column="1" MinWidth="160">
-                                    <TextBlock Text="{Binding Model}" Classes="table-strong" Foreground="#C7D2FE"/>
-                                </ui:CodexTableCell>
-                                <ui:CodexTableCell Grid.Column="2" MinWidth="92">
-                                    <TextBlock Text="{Binding Input}" Classes="table-strong"/>
-                                </ui:CodexTableCell>
-                                <ui:CodexTableCell Grid.Column="3" MinWidth="94">
-                                    <TextBlock Text="{Binding CachedInput}" Classes="table-strong" Foreground="#C4B5FD"/>
-                                </ui:CodexTableCell>
-                                <ui:CodexTableCell Grid.Column="4" MinWidth="102">
-                                    <TextBlock Text="{Binding CacheCreationInput}" Classes="table-strong" Foreground="#FCD34D"/>
-                                </ui:CodexTableCell>
-                                <ui:CodexTableCell Grid.Column="5" MinWidth="86">
-                                    <TextBlock Text="{Binding Output}" Classes="table-strong" Foreground="#86EFAC"/>
-                                </ui:CodexTableCell>
-                                <ui:CodexTableCell Grid.Column="6" MinWidth="92">
-                                    <TextBlock Text="{Binding OutputTps}" Classes="table-strong" Foreground="#FDE047"/>
-                                </ui:CodexTableCell>
-                                <ui:CodexTableCell Grid.Column="7" MinWidth="92">
-                                    <TextBlock Text="{Binding Cost}" Classes="table-strong"/>
-                                </ui:CodexTableCell>
-                                <ui:CodexTableCell Grid.Column="8" MinWidth="92">
-                                    <TextBlock Text="{Binding Duration}" Classes="table-muted"/>
-                                </ui:CodexTableCell>
+                            <Grid ColumnDefinitions="96,142,160,92,94,102,86,92,92,92,64">
+                                <ui:CodexTableHead Content="{i18n:Tr usage.table.time}" MinWidth="96"/>
+                                <ui:CodexTableHead Grid.Column="1" Content="{i18n:Tr usage.table.provider}" MinWidth="142"/>
+                                <ui:CodexTableHead Grid.Column="2" Content="{i18n:Tr usage.table.model}" MinWidth="160"/>
+                                <ui:CodexTableHead Grid.Column="3" Content="{i18n:Tr usage.table.input}" MinWidth="92"/>
+                                <ui:CodexTableHead Grid.Column="4" Content="{i18n:Tr usage.table.cacheHit}" MinWidth="94"/>
+                                <ui:CodexTableHead Grid.Column="5" Content="{i18n:Tr usage.table.cacheWrite}" MinWidth="102"/>
+                                <ui:CodexTableHead Grid.Column="6" Content="{i18n:Tr usage.table.output}" MinWidth="86"/>
+                                <ui:CodexTableHead Grid.Column="7" Content="{i18n:Tr usage.table.outputTps}" MinWidth="92"/>
+                                <ui:CodexTableHead Grid.Column="8" Content="{i18n:Tr usage.table.cost}" MinWidth="92"/>
+                                <ui:CodexTableHead Grid.Column="9" Content="{i18n:Tr usage.table.duration}" MinWidth="92"/>
+                                <ui:CodexTableHead Grid.Column="10" Content="{i18n:Tr usage.table.status}" MinWidth="64"/>
                             </Grid>
                         </ui:CodexTableRow>
-                    </DataTemplate>
-                </ui:CodexPinnedTable.MiddleCellTemplate>
+                    </ui:CodexTableHeader>
 
-                <ui:CodexPinnedTable.EndCellTemplate>
-                    <DataTemplate x:DataType="vm:UsageLogItem">
-                        <ui:CodexTableRow>
-                            <ui:CodexTableCell MinWidth="0" Padding="6,6">
-                                <Border Background="{Binding StatusBackground}"
-                                        BorderBrush="{Binding StatusBorder}"
-                                        BorderThickness="1"
-                                        CornerRadius="6"
-                                        Padding="6,3"
-                                        HorizontalAlignment="Left">
-                                    <TextBlock Text="{Binding Status}"
-                                               Foreground="{Binding StatusForeground}"
-                                               FontSize="12"
-                                               FontWeight="SemiBold"/>
-                                </Border>
-                            </ui:CodexTableCell>
-                        </ui:CodexTableRow>
-                    </DataTemplate>
-                </ui:CodexPinnedTable.EndCellTemplate>
-            </ui:CodexPinnedTable>
+                    <ui:CodexTableBody Grid.Row="1"
+                                       ItemsSource="{Binding UsageLogRows}">
+                        <ui:CodexTableBody.ItemTemplate>
+                            <DataTemplate x:DataType="vm:UsageLogItem">
+                                <ui:CodexTableRow>
+                                    <Grid ColumnDefinitions="96,142,160,92,94,102,86,92,92,92,64">
+                                        <ui:CodexTableCell MinWidth="96" Padding="6,6">
+                                            <TextBlock Text="{Binding Time}" Classes="table-strong"/>
+                                        </ui:CodexTableCell>
+                                        <ui:CodexTableCell Grid.Column="1" MinWidth="142">
+                                            <ui:CodexBadge Variant="Secondary" Padding="7,3">
+                                                <TextBlock Text="{Binding Provider}" FontSize="12" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"/>
+                                            </ui:CodexBadge>
+                                        </ui:CodexTableCell>
+                                        <ui:CodexTableCell Grid.Column="2" MinWidth="160">
+                                            <TextBlock Text="{Binding Model}" Classes="table-strong" Foreground="#C7D2FE"/>
+                                        </ui:CodexTableCell>
+                                        <ui:CodexTableCell Grid.Column="3" MinWidth="92">
+                                            <TextBlock Text="{Binding Input}" Classes="table-strong"/>
+                                        </ui:CodexTableCell>
+                                        <ui:CodexTableCell Grid.Column="4" MinWidth="94">
+                                            <TextBlock Text="{Binding CachedInput}" Classes="table-strong" Foreground="#C4B5FD"/>
+                                        </ui:CodexTableCell>
+                                        <ui:CodexTableCell Grid.Column="5" MinWidth="102">
+                                            <TextBlock Text="{Binding CacheCreationInput}" Classes="table-strong" Foreground="#FCD34D"/>
+                                        </ui:CodexTableCell>
+                                        <ui:CodexTableCell Grid.Column="6" MinWidth="86">
+                                            <TextBlock Text="{Binding Output}" Classes="table-strong" Foreground="#86EFAC"/>
+                                        </ui:CodexTableCell>
+                                        <ui:CodexTableCell Grid.Column="7" MinWidth="92">
+                                            <TextBlock Text="{Binding OutputTps}" Classes="table-strong" Foreground="#FDE047"/>
+                                        </ui:CodexTableCell>
+                                        <ui:CodexTableCell Grid.Column="8" MinWidth="92">
+                                            <TextBlock Text="{Binding Cost}" Classes="table-strong"/>
+                                        </ui:CodexTableCell>
+                                        <ui:CodexTableCell Grid.Column="9" MinWidth="92">
+                                            <TextBlock Text="{Binding Duration}" Classes="table-muted"/>
+                                        </ui:CodexTableCell>
+                                        <ui:CodexTableCell Grid.Column="10" MinWidth="64" Padding="6,6">
+                                            <Border Background="{Binding StatusBackground}"
+                                                    BorderBrush="{Binding StatusBorder}"
+                                                    BorderThickness="1"
+                                                    CornerRadius="6"
+                                                    Padding="6,3"
+                                                    HorizontalAlignment="Left">
+                                                <TextBlock Text="{Binding Status}"
+                                                           Foreground="{Binding StatusForeground}"
+                                                           FontSize="12"
+                                                           FontWeight="SemiBold"/>
+                                            </Border>
+                                        </ui:CodexTableCell>
+                                    </Grid>
+                                </ui:CodexTableRow>
+                            </DataTemplate>
+                        </ui:CodexTableBody.ItemTemplate>
+                    </ui:CodexTableBody>
+                </Grid>
+            </ui:CodexTable>
 
             <Grid Grid.Row="3"
                   ColumnDefinitions="*,Auto"
