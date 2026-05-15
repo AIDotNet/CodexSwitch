@@ -70,6 +70,7 @@ jobs:
       MACOS_NOTARY_APPLE_ID: ${{ secrets.MACOS_NOTARY_APPLE_ID || secrets.APPLE_ID || '' }}
       MACOS_NOTARY_TEAM_ID: ${{ secrets.MACOS_NOTARY_TEAM_ID || secrets.APPLE_TEAM_ID || '' }}
       MACOS_NOTARY_PASSWORD: ${{ secrets.MACOS_NOTARY_PASSWORD || secrets.APPLE_APP_SPECIFIC_PASSWORD || '' }}
+      MACOS_RELEASE_SIGNING_CONFIGURED: ${{ (secrets.MACOS_CERTIFICATE_BASE64 != '' || secrets.CSC_LINK != '') && (secrets.MACOS_CERTIFICATE_PASSWORD != '' || secrets.CSC_KEY_PASSWORD != '') && (secrets.MACOS_NOTARY_APPLE_ID != '' || secrets.APPLE_ID != '') && (secrets.MACOS_NOTARY_TEAM_ID != '' || secrets.APPLE_TEAM_ID != '') && (secrets.MACOS_NOTARY_PASSWORD != '' || secrets.APPLE_APP_SPECIFIC_PASSWORD != '') }}
 
     steps:
       - name: Checkout
@@ -97,7 +98,16 @@ jobs:
           $version = $props.Project.PropertyGroup.Version
           "value=$version" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
 
+      - name: Skip unsigned macOS release artifact
+        if: runner.os == 'macOS' && startsWith(github.ref, 'refs/tags/v') && env.MACOS_RELEASE_SIGNING_CONFIGURED != 'true'
+        shell: pwsh
+        run: |
+          Write-Warning "Skipping ${{ matrix.rid }} release packaging because macOS Developer ID signing and notarization secrets are not configured."
+          Write-Host "Configure MACOS_CERTIFICATE_BASE64, MACOS_CERTIFICATE_PASSWORD, MACOS_NOTARY_APPLE_ID, MACOS_NOTARY_TEAM_ID, and MACOS_NOTARY_PASSWORD to publish macOS DMGs."
+          Write-Host "Alias secrets CSC_LINK, CSC_KEY_PASSWORD, APPLE_ID, APPLE_TEAM_ID, and APPLE_APP_SPECIFIC_PASSWORD are also supported."
+
       - name: Publish ${{ matrix.rid }}
+        if: runner.os != 'macOS' || !startsWith(github.ref, 'refs/tags/v') || env.MACOS_RELEASE_SIGNING_CONFIGURED == 'true'
         run: >
           dotnet publish CodexSwitch/CodexSwitch.csproj
           -c Release
@@ -110,7 +120,7 @@ jobs:
           -o artifacts/publish/${{ matrix.rid }}
 
       - name: Import macOS signing certificate
-        if: runner.os == 'macOS' && env.MACOS_CERTIFICATE_INPUT != ''
+        if: runner.os == 'macOS' && env.MACOS_CERTIFICATE_INPUT != '' && (!startsWith(github.ref, 'refs/tags/v') || env.MACOS_RELEASE_SIGNING_CONFIGURED == 'true')
         shell: pwsh
         run: |
           function Invoke-Security {
@@ -154,7 +164,7 @@ jobs:
 
       - name: Resolve macOS signing identity
         id: mac-signing
-        if: runner.os == 'macOS'
+        if: runner.os == 'macOS' && (!startsWith(github.ref, 'refs/tags/v') || env.MACOS_RELEASE_SIGNING_CONFIGURED == 'true')
         shell: pwsh
         run: |
           $identity = $env:MACOS_SIGNING_IDENTITY
@@ -187,6 +197,7 @@ jobs:
 
       - name: Package installer
         id: package
+        if: runner.os != 'macOS' || !startsWith(github.ref, 'refs/tags/v') || env.MACOS_RELEASE_SIGNING_CONFIGURED == 'true'
         shell: pwsh
         run: |
           $version = "${{ steps.version.outputs.value }}"
@@ -203,6 +214,7 @@ jobs:
             -RequireMacSigning:$requireMacSigning
 
       - name: Upload artifact
+        if: steps.package.outputs.path != ''
         uses: actions/upload-artifact@v4
         with:
           name: ${{ steps.package.outputs.name }}

@@ -18,7 +18,7 @@ This repository uses a single in-repo version source plus an automated GitHub Re
 
 ## macOS signing and notarization
 
-Tagged releases require the macOS DMG artifacts to be signed with a Developer ID Application certificate and notarized by Apple. Without this, Gatekeeper can report the downloaded app as damaged and refuse to open it.
+Tagged releases only publish macOS DMG artifacts when CI has a Developer ID Application certificate and Apple notarization credentials. Without this, Gatekeeper can report the downloaded app as damaged and refuse to open it, so tagged CI runs skip macOS DMG packaging instead of uploading unsigned public artifacts. Windows and Linux release artifacts still publish normally.
 
 Configure these GitHub repository secrets before pushing a release tag:
 
