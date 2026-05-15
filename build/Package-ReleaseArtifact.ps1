@@ -17,9 +17,7 @@ param(
 
     [string]$MacNotaryTeamId = $env:MACOS_NOTARY_TEAM_ID,
 
-    [string]$MacNotaryPassword = $env:MACOS_NOTARY_PASSWORD,
-
-    [switch]$RequireMacSigning
+    [string]$MacNotaryPassword = $env:MACOS_NOTARY_PASSWORD
 )
 
 $ErrorActionPreference = "Stop"
@@ -133,37 +131,6 @@ function New-WindowsInstaller {
     return $artifactPath
 }
 
-function Assert-MacSigningConfiguration {
-    param(
-        [string]$SigningIdentity,
-        [string]$NotaryAppleId,
-        [string]$NotaryTeamId,
-        [string]$NotaryPassword,
-        [switch]$RequireSigning
-    )
-
-    $missing = @()
-    if (-not (Test-HasText $SigningIdentity)) {
-        $missing += "MacSigningIdentity"
-    }
-
-    if (-not (Test-HasText $NotaryAppleId)) {
-        $missing += "MacNotaryAppleId"
-    }
-
-    if (-not (Test-HasText $NotaryTeamId)) {
-        $missing += "MacNotaryTeamId"
-    }
-
-    if (-not (Test-HasText $NotaryPassword)) {
-        $missing += "MacNotaryPassword"
-    }
-
-    if ($RequireSigning -and $missing.Count -gt 0) {
-        throw "macOS release packaging requires Developer ID signing and notarization. Missing: $($missing -join ', ')."
-    }
-}
-
 function Sign-MacAppBundle {
     param(
         [string]$BundlePath,
@@ -221,16 +188,8 @@ function New-MacDmg {
         [string]$SigningIdentity,
         [string]$NotaryAppleId,
         [string]$NotaryTeamId,
-        [string]$NotaryPassword,
-        [switch]$RequireSigning
+        [string]$NotaryPassword
     )
-
-    Assert-MacSigningConfiguration `
-        -SigningIdentity $SigningIdentity `
-        -NotaryAppleId $NotaryAppleId `
-        -NotaryTeamId $NotaryTeamId `
-        -NotaryPassword $NotaryPassword `
-        -RequireSigning:$RequireSigning
 
     $bundlePath = Join-Path $OutputDirectory "CodexSwitch.app"
     $contentsPath = Join-Path $bundlePath "Contents"
@@ -433,8 +392,7 @@ $artifactPath = switch ($RuntimeIdentifier) {
             -SigningIdentity $MacSigningIdentity `
             -NotaryAppleId $MacNotaryAppleId `
             -NotaryTeamId $MacNotaryTeamId `
-            -NotaryPassword $MacNotaryPassword `
-            -RequireSigning:$RequireMacSigning
+            -NotaryPassword $MacNotaryPassword
     }
     "osx-x64" {
         New-MacDmg `
@@ -445,8 +403,7 @@ $artifactPath = switch ($RuntimeIdentifier) {
             -SigningIdentity $MacSigningIdentity `
             -NotaryAppleId $MacNotaryAppleId `
             -NotaryTeamId $MacNotaryTeamId `
-            -NotaryPassword $MacNotaryPassword `
-            -RequireSigning:$RequireMacSigning
+            -NotaryPassword $MacNotaryPassword
     }
     "linux-x64" { New-LinuxAppImage -PublishDirectory $PublishDirectory -OutputDirectory $OutputDirectory -Version $Version -RuntimeIdentifier $RuntimeIdentifier }
     default { throw "Unsupported runtime identifier for release packaging: $RuntimeIdentifier" }
