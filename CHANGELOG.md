@@ -1,3 +1,39 @@
+# Changelog
+
+All notable changes to this project will be documented in this file.
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [v0.1.0] - 2026-05-21
+
+### Added
+
+- Added a Codex sessions page that inspects session metadata by provider, shows session/index distribution, and migrates historical sessions to the CodexSwitch-managed provider.
+- Added Responses WebSocket proxy support for providers that expose the OpenAI Responses websocket flow.
+- Added Claude bootstrap config handling so the installer and startup path can seed `.claude` settings automatically.
+- Added bundled macOS app icon and dock integration for the refreshed desktop shell.
+
+### Changed
+
+- Reworked Codex and Claude config writers to preserve user-authored settings, keep originals as same-name `.bak` backups, and restore from those backups on exit.
+- Refreshed icon resolution and caching to prefer bundled Codex, Claude, and Xiaomi assets with theme-aware defaults.
+- Updated the desktop shell, provider dialogs, home/models/providers/settings pages, and localized copy for the new UI pass.
+- Updated release packaging to ship the app icon on macOS and trigger Claude bootstrap during installation.
+
+### Fixed
+
+- Preserved real Codex App auth state while ignoring the local fake auth fixture.
+- Tightened OpenAI Responses and Anthropic payload handling, startup registration, and tray/window lifecycle behavior.
+- Restored changelog ordering after the divergent `v0.0.10` and `v0.0.11` release metadata lines.
+
+## [v0.0.11] - 2026-05-21
+
+### Fixed
+
+- Corrected release metadata so the published tag, assembly version, file version, informational version, changelog entry, and installer artifact names align on `v0.0.11`.
+- Recovered the release line after the accidentally created `v0.0.10` tag pointed at the `v0.0.9` source version.
+
 ## [v0.0.10] - 2026-05-20
 
 ### Added
@@ -17,20 +53,6 @@
 
 - Preserved real Codex App auth state while ignoring the local fake auth fixture.
 - Tightened OpenAI Responses and Anthropic payload handling, startup registration, and tray/window lifecycle behavior.
-
-# Changelog
-
-All notable changes to this project will be documented in this file.
-
-The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
-and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
-
-## [v0.0.11] - 2026-05-21
-
-### Fixed
-
-- Corrected release metadata so the published tag, assembly version, file version, informational version, changelog entry, and installer artifact names align on `v0.0.11`.
-- Recovered the release line after the accidentally created `v0.0.10` tag pointed at the `v0.0.9` source version.
 
 ## [v0.0.9] - 2026-05-15
 

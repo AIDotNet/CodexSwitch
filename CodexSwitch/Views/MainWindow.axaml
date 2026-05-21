@@ -95,6 +95,15 @@
                                         </ui:CodexSidebarMenuButton>
                                     </ui:CodexSidebarMenuItem>
                                     <ui:CodexSidebarMenuItem>
+                                        <ui:CodexSidebarMenuButton Command="{Binding ShowCodexSessionsCommand}"
+                                                                  IsActive="{Binding IsCodexSessionsNavSelected}">
+                                            <ui:CodexSidebarMenuButton.Icon>
+                                                <lucide:LucideIcon Kind="History" Size="17" StrokeWidth="2"/>
+                                            </ui:CodexSidebarMenuButton.Icon>
+                                            <TextBlock Text="{i18n:Tr nav.codexSessions}" TextTrimming="CharacterEllipsis"/>
+                                        </ui:CodexSidebarMenuButton>
+                                    </ui:CodexSidebarMenuItem>
+                                    <ui:CodexSidebarMenuItem>
                                         <ui:CodexSidebarMenuButton Command="{Binding ShowUsageCommand}"
                                                                   IsActive="{Binding IsLogsNavSelected}">
                                             <ui:CodexSidebarMenuButton.Icon>
@@ -160,6 +169,7 @@
                 <Grid Grid.Row="1">
                     <pages:HomePage IsVisible="{Binding IsHomePageVisible}"/>
                     <pages:ProvidersPage IsVisible="{Binding IsProvidersPageVisible}"/>
+                    <pages:CodexSessionsPage IsVisible="{Binding IsCodexSessionsPageVisible}"/>
                     <pages:AddProviderPage IsVisible="{Binding IsAddProviderPageVisible}"/>
                     <pages:UsagePage IsVisible="{Binding IsUsagePageVisible}"/>
                     <pages:ModelsPage IsVisible="{Binding IsModelsPageVisible}"/>

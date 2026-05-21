@@ -39,6 +39,7 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
     private readonly UsageLogReader _usageLogReader;
     private readonly CodexConfigWriter _codexConfigWriter;
     private readonly ClaudeCodeConfigWriter _claudeCodeConfigWriter;
+    private readonly CodexSessionMigrationService _codexSessionMigrationService;
     private readonly I18nService _i18n;
     private HttpClient _sharedHttpClient = null!;
     private IconCacheService _iconCacheService = null!;
@@ -296,6 +297,27 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
     private string _statusMessage = "";
 
     [ObservableProperty]
+    private string _codexSessionStatusMessage = "";
+
+    [ObservableProperty]
+    private bool _isCodexSessionRefreshing;
+
+    [ObservableProperty]
+    private bool _isCodexSessionMigrating;
+
+    [ObservableProperty]
+    private int _codexSessionTotalCount;
+
+    [ObservableProperty]
+    private int _codexSessionCurrentProviderCount;
+
+    [ObservableProperty]
+    private int _codexSessionMigratableCount;
+
+    [ObservableProperty]
+    private string _codexSessionCurrentProvider = CodexConfigWriter.ManagedProviderId;
+
+    [ObservableProperty]
     private string _proxyListenHost = "127.0.0.1";
 
     [ObservableProperty]
@@ -514,6 +536,7 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
         _usageLogReader = new UsageLogReader(_paths);
         _codexConfigWriter = new CodexConfigWriter(_paths);
         _claudeCodeConfigWriter = new ClaudeCodeConfigWriter(_paths);
+        _codexSessionMigrationService = new CodexSessionMigrationService(_paths);
         _startupRegistrationService = new StartupRegistrationService();
         SyncStartupRegistrationFromConfig();
         CreateNetworkServices();
@@ -548,12 +571,14 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
         MiniStatusDetails = [];
         MiniStatusMetricCards = [];
         MiniStatusQuotaCards = [];
+        CodexSessionProviderRows = [];
         ProtocolOptions = Enum.GetValues<ProviderProtocol>();
         UsageQueryMethods = ["GET", "POST"];
 
         SelectClientAppCommand = new RelayCommand<ClientAppItem>(SelectClientApp);
         ShowHomeCommand = new RelayCommand(() => CurrentPage = "Home");
         ShowProvidersCommand = new RelayCommand(() => CurrentPage = "Providers");
+        ShowCodexSessionsCommand = new RelayCommand(ShowCodexSessions);
         ShowUsageCommand = new RelayCommand(() => CurrentPage = "Usage");
         ShowModelsCommand = new RelayCommand(() => CurrentPage = "Models");
         OpenSettingsCommand = new RelayCommand(OpenSettings);
@@ -602,6 +627,8 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
         ApplyCommand = new AsyncRelayCommand(ApplyAsync);
         SaveCommand = new AsyncRelayCommand(SaveAsync);
         RefreshUsageCommand = new AsyncRelayCommand(RefreshUsageDashboardAsync);
+        RefreshCodexSessionsCommand = new AsyncRelayCommand(RefreshCodexSessionsAsync);
+        MigrateCodexSessionsCommand = new AsyncRelayCommand(MigrateCodexSessionsAsync);
         CheckForUpdatesCommand = new AsyncRelayCommand(() => CheckForUpdatesAsync(false));
         OpenLatestReleaseCommand = new RelayCommand(OpenLatestRelease);
         OpenDownloadedUpdateCommand = new RelayCommand(OpenDownloadedUpdate);
@@ -612,6 +639,7 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
         RefreshUsageQueryTemplates();
         RefreshClientApps();
         RefreshProviderRows();
+        RefreshCodexSessions();
         RefreshSettingsFields();
         RefreshPricingRows();
         RefreshModelCatalogRows();
@@ -677,6 +705,8 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
 
     public ObservableCollection<MiniStatusQuotaCardItem> MiniStatusQuotaCards { get; }
 
+    public ObservableCollection<CodexSessionProviderItem> CodexSessionProviderRows { get; }
+
     public ProviderProtocol[] ProtocolOptions { get; }
 
     public string[] UsageQueryMethods { get; }
@@ -690,6 +720,8 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
     public IRelayCommand ShowHomeCommand { get; }
 
     public IRelayCommand ShowProvidersCommand { get; }
+
+    public IRelayCommand ShowCodexSessionsCommand { get; }
 
     public IRelayCommand ShowUsageCommand { get; }
 
@@ -786,6 +818,10 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
     public IAsyncRelayCommand SaveCommand { get; }
 
     public IAsyncRelayCommand RefreshUsageCommand { get; }
+
+    public IAsyncRelayCommand RefreshCodexSessionsCommand { get; }
+
+    public IAsyncRelayCommand MigrateCodexSessionsCommand { get; }
 
     public IAsyncRelayCommand CheckForUpdatesCommand { get; }
 
@@ -904,6 +940,139 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
         DefaultClientAppIsCodex = item.Kind == ClientAppKind.Codex;
         _store.SaveConfig(_config);
         RefreshClientApps();
+    }
+
+    private void ShowCodexSessions()
+    {
+        CurrentPage = "CodexSessions";
+        _ = RefreshCodexSessionsAsync();
+    }
+
+    private void RefreshCodexSessions()
+    {
+        try
+        {
+            ApplyCodexSessionInspection(_codexSessionMigrationService.Inspect());
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException)
+        {
+            CodexSessionStatusMessage = F("codexSessions.status.failed", ex.Message);
+        }
+    }
+
+    private async Task RefreshCodexSessionsAsync()
+    {
+        if (IsCodexSessionRefreshing)
+            return;
+
+        IsCodexSessionRefreshing = true;
+        try
+        {
+            var inspection = await Task.Run(_codexSessionMigrationService.Inspect);
+            await Dispatcher.UIThread.InvokeAsync(() =>
+            {
+                ApplyCodexSessionInspection(inspection);
+                CodexSessionStatusMessage = BuildCodexSessionStatusMessage(inspection);
+            });
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException)
+        {
+            CodexSessionStatusMessage = F("codexSessions.status.failed", ex.Message);
+        }
+        finally
+        {
+            IsCodexSessionRefreshing = false;
+        }
+    }
+
+    private async Task MigrateCodexSessionsAsync()
+    {
+        if (IsCodexSessionMigrating || CodexSessionMigratableCount <= 0)
+            return;
+
+        IsCodexSessionMigrating = true;
+        try
+        {
+            var result = await Task.Run(_codexSessionMigrationService.MigrateToManagedProvider);
+            var inspection = await Task.Run(_codexSessionMigrationService.Inspect);
+            await Dispatcher.UIThread.InvokeAsync(() =>
+            {
+                ApplyCodexSessionInspection(inspection);
+                CodexSessionStatusMessage = BuildCodexSessionMigrationStatusMessage(result);
+                StatusMessage = CodexSessionStatusMessage;
+            });
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException)
+        {
+            CodexSessionStatusMessage = F("codexSessions.status.failed", ex.Message);
+        }
+        finally
+        {
+            IsCodexSessionMigrating = false;
+        }
+    }
+
+    private void ApplyCodexSessionInspection(CodexSessionInspection inspection)
+    {
+        CodexSessionProviderRows.Clear();
+        var totalSessionFiles = Math.Max(inspection.TotalSessionFileCount, 1);
+        foreach (var provider in inspection.Providers)
+        {
+            CodexSessionProviderRows.Add(new CodexSessionProviderItem
+            {
+                ModelProvider = provider.ModelProvider,
+                SessionFileCount = provider.SessionFileCount,
+                ThreadIndexEntryCount = provider.ThreadIndexCount,
+                SessionFiles = provider.SessionFileCount.ToString("N0", CultureInfo.InvariantCulture),
+                ThreadIndexEntries = provider.ThreadIndexCount.ToString("N0", CultureInfo.InvariantCulture),
+                SharePercent = provider.SessionFileCount * 100d / totalSessionFiles,
+                IsManagedProvider = provider.IsManagedProvider,
+                State = provider.IsManagedProvider
+                    ? T("codexSessions.provider.current")
+                    : T("codexSessions.provider.migratable")
+            });
+        }
+
+        CodexSessionCurrentProvider = inspection.ManagedModelProvider;
+        CodexSessionTotalCount = inspection.TotalSessionFileCount;
+        CodexSessionCurrentProviderCount = inspection.ManagedSessionFileCount;
+        CodexSessionMigratableCount = inspection.MigratableSessionFileCount;
+        CodexSessionStatusMessage = BuildCodexSessionStatusMessage(inspection);
+        OnPropertyChanged(nameof(CodexSessionCurrentProviderDetail));
+        OnPropertyChanged(nameof(CodexSessionTotalDetail));
+        OnPropertyChanged(nameof(CodexSessionMigratableDetail));
+    }
+
+    private string BuildCodexSessionStatusMessage(CodexSessionInspection inspection)
+    {
+        var message = F("codexSessions.status.ready", inspection.TotalSessionFileCount, inspection.Providers.Count);
+        if (!string.IsNullOrWhiteSpace(inspection.StateIndexStatus))
+            message += " " + F("codexSessions.status.indexWarning", FormatCodexSessionIndexStatus(inspection.StateIndexStatus));
+
+        return message;
+    }
+
+    private string BuildCodexSessionMigrationStatusMessage(CodexSessionMigrationResult result)
+    {
+        var message = F("codexSessions.status.migrated", result.UpdatedSessionFiles, result.UpdatedThreadIndexEntries);
+        if (result.FailedFiles.Count > 0)
+            message += " " + F("codexSessions.status.failedFiles", result.FailedFiles.Count);
+        if (!string.IsNullOrWhiteSpace(result.StateIndexStatus))
+            message += " " + F("codexSessions.status.indexWarning", FormatCodexSessionIndexStatus(result.StateIndexStatus));
+
+        return message;
+    }
+
+    private string FormatCodexSessionIndexStatus(string status)
+    {
+        return status switch
+        {
+            "state-db-missing" => T("codexSessions.status.stateDbMissing"),
+            "sqlite-missing" => T("codexSessions.status.sqliteMissing"),
+            "sqlite-timeout" => T("codexSessions.status.sqliteTimeout"),
+            "sqlite-failed" => T("codexSessions.status.sqliteFailed"),
+            _ => status
+        };
     }
 
     private async Task ToggleProxyAsync()
@@ -4088,6 +4257,7 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
             UnloadUsageDashboard();
         RefreshUsageQueryTemplates();
         RefreshProviderRows();
+        RefreshCodexSessions();
         RefreshModelCatalogRows();
         OnPropertyChanged(nameof(SupportedLanguages));
         OnPropertyChanged(nameof(WorkspaceTitle));
@@ -4217,11 +4387,13 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
         OnPropertyChanged(nameof(IsUsagePageVisible));
         OnPropertyChanged(nameof(IsUsageDataVisible));
         OnPropertyChanged(nameof(IsModelsPageVisible));
+        OnPropertyChanged(nameof(IsCodexSessionsPageVisible));
         OnPropertyChanged(nameof(IsSettingsPageVisible));
         OnPropertyChanged(nameof(IsClaudePageVisible));
         OnPropertyChanged(nameof(IsHomeNavSelected));
         OnPropertyChanged(nameof(IsLogsNavSelected));
         OnPropertyChanged(nameof(IsModelsNavSelected));
+        OnPropertyChanged(nameof(IsCodexSessionsNavSelected));
         OnPropertyChanged(nameof(IsSettingsNavSelected));
         OnPropertyChanged(nameof(IsClaudeNavSelected));
         OnPropertyChanged(nameof(WorkspaceTitle));
@@ -4235,6 +4407,28 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
         {
             ScheduleUsageDashboardUnload();
         }
+    }
+
+    partial void OnCodexSessionMigratableCountChanged(int value)
+    {
+        OnCodexSessionActionStateChanged();
+    }
+
+    partial void OnIsCodexSessionRefreshingChanged(bool value)
+    {
+        OnCodexSessionActionStateChanged();
+    }
+
+    partial void OnIsCodexSessionMigratingChanged(bool value)
+    {
+        OnCodexSessionActionStateChanged();
+    }
+
+    private void OnCodexSessionActionStateChanged()
+    {
+        OnPropertyChanged(nameof(CanMigrateCodexSessions));
+        OnPropertyChanged(nameof(CodexSessionMigrationButtonText));
+        OnPropertyChanged(nameof(CodexSessionRefreshButtonText));
     }
 
     partial void OnSettingsTabChanged(string value)
@@ -4427,6 +4621,8 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
 
     public bool IsModelsPageVisible => CurrentPage == "Models";
 
+    public bool IsCodexSessionsPageVisible => CurrentPage == "CodexSessions";
+
     public bool IsSettingsPageVisible => CurrentPage == "Settings";
 
     public bool IsClaudePageVisible => CurrentPage == "Claude";
@@ -4436,6 +4632,8 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
     public bool IsLogsNavSelected => IsUsagePageVisible;
 
     public bool IsModelsNavSelected => IsModelsPageVisible;
+
+    public bool IsCodexSessionsNavSelected => IsCodexSessionsPageVisible;
 
     public bool IsSettingsNavSelected => IsSettingsPageVisible;
 
@@ -4496,6 +4694,24 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
 
     public bool IsStartWithWindowsSupported => _startupRegistrationService.IsSupported;
 
+    public string CodexSessionCurrentProviderDetail => F("codexSessions.currentProviderDetail", CodexSessionCurrentProviderCount);
+
+    public string CodexSessionTotalDetail => F("codexSessions.totalSessionsDetail", CodexSessionProviderRows.Count);
+
+    public string CodexSessionMigratableDetail => F("codexSessions.migratableDetail", CodexSessionCurrentProvider);
+
+    public bool CanMigrateCodexSessions => !IsCodexSessionRefreshing &&
+        !IsCodexSessionMigrating &&
+        CodexSessionMigratableCount > 0;
+
+    public string CodexSessionMigrationButtonText => IsCodexSessionMigrating
+        ? T("codexSessions.migrating")
+        : T("codexSessions.migrate");
+
+    public string CodexSessionRefreshButtonText => IsCodexSessionRefreshing
+        ? T("codexSessions.refreshing")
+        : T("common.refresh");
+
     public string CodexIconPath => _iconCacheService.GetIconPath("codex-color");
 
     public string ClaudeCodeIconPath => _iconCacheService.GetIconPath("claudecode-color");
@@ -4554,6 +4770,7 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
         "Providers" => T("providers.title"),
         "Usage" => T("usage.logs.title"),
         "Models" => T("models.title"),
+        "CodexSessions" => T("codexSessions.title"),
         "Settings" => T("settings.title"),
         "Claude" => T("claude.title"),
         _ => T("home.title")
@@ -4962,6 +5179,25 @@ public sealed record MiniStatusQuotaCardItem(
     string PercentText,
     double Percent,
     bool IsUnlimited);
+
+public sealed class CodexSessionProviderItem
+{
+    public string ModelProvider { get; init; } = "";
+
+    public int SessionFileCount { get; init; }
+
+    public int ThreadIndexEntryCount { get; init; }
+
+    public string SessionFiles { get; init; } = "";
+
+    public string ThreadIndexEntries { get; init; } = "";
+
+    public double SharePercent { get; init; }
+
+    public bool IsManagedProvider { get; init; }
+
+    public string State { get; init; } = "";
+}
 
 public sealed class UsageLogItem
 {

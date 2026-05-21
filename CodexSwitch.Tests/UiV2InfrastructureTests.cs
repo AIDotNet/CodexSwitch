@@ -1830,6 +1830,46 @@ public sealed class UiV2InfrastructureTests : IDisposable
     }
 
     [Fact]
+    public void CodexSessionMigrationService_InspectsSessionProviders()
+    {
+        var paths = CreatePaths("codex-sessions-inspect");
+        WriteCodexSession(paths, "sessions/2026/05/17/rollout-openai.jsonl", "openai");
+        WriteCodexSession(paths, "sessions/2026/05/18/rollout-managed.jsonl", CodexConfigWriter.ManagedProviderId);
+
+        var service = new CodexSessionMigrationService(paths, sqliteExecutable: "/missing/sqlite3");
+        var inspection = service.Inspect();
+
+        Assert.Equal(2, inspection.TotalSessionFileCount);
+        Assert.Equal(1, inspection.ManagedSessionFileCount);
+        Assert.Equal(1, inspection.MigratableSessionFileCount);
+        Assert.Contains(inspection.Providers, provider =>
+            provider.ModelProvider == "openai" &&
+            provider.SessionFileCount == 1 &&
+            !provider.IsManagedProvider);
+    }
+
+    [Fact]
+    public void CodexSessionMigrationService_MigratesSessionMetadataToManagedProvider()
+    {
+        var paths = CreatePaths("codex-sessions-migrate");
+        var openAiSession = WriteCodexSession(paths, "sessions/2026/05/17/rollout-openai.jsonl", "openai");
+        WriteCodexSession(paths, "archived_sessions/rollout-managed.jsonl", CodexConfigWriter.ManagedProviderId);
+
+        var service = new CodexSessionMigrationService(paths, sqliteExecutable: "/missing/sqlite3");
+        var result = service.MigrateToManagedProvider();
+        var inspection = service.Inspect();
+
+        Assert.Equal(1, result.UpdatedSessionFiles);
+        Assert.Empty(result.FailedFiles);
+        Assert.Equal(0, inspection.MigratableSessionFileCount);
+
+        using var document = JsonDocument.Parse(File.ReadLines(openAiSession).First());
+        Assert.Equal(
+            CodexConfigWriter.ManagedProviderId,
+            document.RootElement.GetProperty("payload").GetProperty("model_provider").GetString());
+    }
+
+    [Fact]
     public void PricingRoundtrip_PreservesDisplayNameAndIconSlug()
     {
         var paths = CreatePaths("pricing");
@@ -2143,6 +2183,20 @@ public sealed class UiV2InfrastructureTests : IDisposable
         return new AppPaths(
             Path.Combine(_tempDirectory, scenario, "appdata"),
             Path.Combine(_tempDirectory, scenario, "codex"));
+    }
+
+    private static string WriteCodexSession(AppPaths paths, string relativePath, string modelProvider)
+    {
+        var path = Path.Combine(paths.CodexDirectory, relativePath.Replace('/', Path.DirectorySeparatorChar));
+        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+        File.WriteAllText(
+            path,
+            "{\"timestamp\":\"2026-05-21T00:00:00Z\",\"type\":\"session_meta\",\"payload\":{\"id\":\"" +
+            Guid.NewGuid().ToString("N") +
+            "\",\"model_provider\":\"" +
+            modelProvider +
+            "\"}}\n{\"type\":\"turn_context\"}\n");
+        return path;
     }
 
     private static int GetAvailablePort()

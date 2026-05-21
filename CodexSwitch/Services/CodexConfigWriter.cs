@@ -4,7 +4,7 @@ namespace CodexSwitch.Services;
 
 public sealed class CodexConfigWriter
 {
-    private const string ManagedProviderId = "meteor-ai";
+    public const string ManagedProviderId = "meteor-ai";
     private const string ManagedProviderName = "meteor-ai";
     private const string ManagedModel = CodexSwitchDefaults.ManagedCodexModel;
     private const string DefaultInboundApiKey = "sk-codex";
