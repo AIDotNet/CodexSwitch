@@ -5,6 +5,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v0.2.0] - 2026-05-23
+
+### Added
+
+- Added a Codex OAuth JSON import flow with a dedicated import dialog and quota probe support so existing Codex app auth can be brought into the app directly.
+- Added Responses request snapshot and usage scanner plumbing to preserve request state and extract usage across proxy paths.
+- Added a standalone bilingual docs site under `docs-site/` and the matching WeChat release article and assets.
+
+### Changed
+
+- Reworked provider auth/config handling and Responses proxy forwarding to support the new import flow, websocket usage accounting, and broader provider coverage.
+- Updated the desktop shell, provider dialogs, home/providers/pages, and localized copy for the new import and provider surfaces.
+
+### Fixed
+
+- Fixed the Codex session provider casing crash.
+
 ## [v0.1.1] - 2026-05-21
 
 ### Added
