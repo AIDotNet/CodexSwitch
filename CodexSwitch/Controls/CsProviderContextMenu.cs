@@ -20,6 +20,7 @@ public sealed class CsProviderContextMenu : ContextMenu
         Items.Add(CreateSeparator());
         Items.Add(CreateSelectItem(viewModel, provider));
         Items.Add(CreateEditItem(provider));
+        Items.Add(CreateToggleEnabledItem(provider));
         Items.Add(CreateSeparator());
         Items.Add(CreateDeleteItem(provider));
     }
@@ -83,6 +84,18 @@ public sealed class CsProviderContextMenu : ContextMenu
         {
             Header = CreateActionHeader(T("providers.edit")),
             Command = provider.EditCommand,
+            CommandParameter = provider
+        };
+        item.Classes.Add("provider-menu-item");
+        return item;
+    }
+
+    private static MenuItem CreateToggleEnabledItem(ProviderListItem provider)
+    {
+        var item = new MenuItem
+        {
+            Header = CreateActionHeader(provider.IsEnabled ? T("providers.disable") : T("providers.enable")),
+            Command = provider.ToggleEnabledCommand,
             CommandParameter = provider
         };
         item.Classes.Add("provider-menu-item");

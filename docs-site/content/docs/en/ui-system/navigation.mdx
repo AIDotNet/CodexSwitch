@@ -1,6 +1,6 @@
 ---
 title: Navigation
-description: Tabs, menus, command surfaces, collapsibles, and side navigation.
+description: Tabs, breadcrumbs, accordions, menubars, dropdown and split buttons, menus, command surfaces, collapsibles, and side navigation.
 icon: Navigation
 ---
 
@@ -8,11 +8,18 @@ Navigation components organize the desktop app shell and component gallery.
 
 ## Component families
 
-- Tabs
-- Navigation menu
-- Collapsible
-- Menu and context menu
-- Command
-- Side nav
+- Tabs for root-owned `SelectedValue`, `ValueChanged` parity with Web `onValueChange`, automatic/manual activation, loop boundaries, and horizontal/vertical roving triggers
+- Breadcrumb with Root/List/Item/Link/Page/Separator/Ellipsis anatomy, root `LinkActivated`, href metadata, current-page suppression, and dropdown composition
+- Navigation menu with Root/List/Item/Trigger/Content/Link/Indicator/Viewport anatomy, controlled `ActiveValue`, active-item change events, top-level link commands, and link activation events
+- Menubar with persistent trigger menus, `ItemSelected` leaf metadata, checkbox/radio items, submenu handoff, and loading suppression
+- Accordion with `ValueChanged` parity for Web `onValueChange`, changed item/value/index metadata, trigger/keyboard/programmatic sources, single/multiple modes, and roving trigger keys
+- Collapsible with measured content height animation, trigger click/Enter/Space toggling, `OpenChanged`, and reduced-motion final states
+- Dropdown button with trigger-owned `OpenChanged`, Escape focus return, close-on-select child buttons, and leaf menu item select dismissal
+- Split button
+- Menu and context menu with Web `onSelect`-style `ItemSelected` metadata, pointer/keyboard/programmatic sources, checkbox/radio state, submenus, shortcuts, groups, and close-on-select behavior
+- Command with search text filtering, command separators, shortcut slots, scrollable lists, loop navigation, and item-selected events
+- Kbd and KbdGroup for command hints, button trailing shortcuts, tooltip help, and input group addons
+- Side nav with root `SelectedValue`, item `Value`, `ValueChanged` parity with Web `onValueChange`, and legacy sibling-selection fallback
+- Segmented control with root `SelectedValue`, `ValueChanged` parity with Web `onValueChange`, and measured moving indicator
 
-Keep active state, keyboard movement, and narrow-window behavior visible in the docs gallery.
+Keep active state, keyboard movement, tab value changes, breadcrumb link activation, accordion value-change sources, menu item select metadata, side-nav value changes, segmented value changes, automatic/manual tab activation, trigger-owned open state, top-level link activation, checkbox/radio menu items, submenu motion, grouped shortcut tokens, and narrow-window behavior visible in the docs gallery.

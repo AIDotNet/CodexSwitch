@@ -2,6 +2,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:CodexSwitch.ViewModels"
              xmlns:ui="using:CodexSwitch.Controls"
+             xmlns:cui="using:CodexSwitchUI.Controls"
              xmlns:i18n="using:CodexSwitch.I18n"
              xmlns:lucide="using:Lucide.Avalonia"
              x:Class="CodexSwitch.Views.Dialogs.ModelEditorDialog"
@@ -19,12 +20,12 @@
                                        Classes="muted"
                                        TextWrapping="Wrap"/>
                         </StackPanel>
-                        <ui:CsIconButton Grid.Column="1"
-                                         Classes="dialog-close"
-                                         Command="{Binding CloseModelDialogCommand}"
-                                         ToolTip.Tip="{i18n:Tr common.close}">
+                        <cui:CodexIconButton Grid.Column="1"
+                                             Variant="Ghost"
+                                             Command="{Binding CloseModelDialogCommand}"
+                                             ToolTip.Tip="{i18n:Tr common.close}">
                             <lucide:LucideIcon Kind="X" Size="16" StrokeWidth="2"/>
-                        </ui:CsIconButton>
+                        </cui:CodexIconButton>
                     </Grid>
                 </Border>
 
@@ -40,18 +41,18 @@
                                 <ui:CsText Text="{i18n:Tr modelDialog.basic}"
                                            Classes="heading"
                                            Grid.ColumnSpan="3"/>
-                                <ui:CsField Grid.Row="1" Label="{i18n:Tr modelDialog.modelId}">
-                                    <ui:CsInput Text="{Binding ModelEditorId}" PlaceholderText="claude-sonnet-4-5"/>
-                                </ui:CsField>
-                                <ui:CsField Grid.Row="1" Grid.Column="1" Label="{i18n:Tr modelDialog.displayName}">
-                                    <ui:CsInput Text="{Binding ModelEditorDisplayName}" PlaceholderText="Claude Sonnet 4.5"/>
-                                </ui:CsField>
-                                <ui:CsField Grid.Row="1" Grid.Column="2" Label="{i18n:Tr modelDialog.iconSlug}">
-                                    <ui:CsInput Text="{Binding ModelEditorIconSlug}" PlaceholderText="claude"/>
-                                </ui:CsField>
-                                <ui:CsField Grid.Row="2" Grid.ColumnSpan="3" Label="{i18n:Tr modelDialog.aliases}">
-                                    <ui:CsInput Text="{Binding ModelEditorAliases}" PlaceholderText="claude-sonnet*, claude-4*"/>
-                                </ui:CsField>
+                                <cui:CodexField Grid.Row="1" Label="{i18n:Tr modelDialog.modelId}">
+                                    <cui:CodexTextBox Text="{Binding ModelEditorId}" PlaceholderText="claude-sonnet-4-5"/>
+                                </cui:CodexField>
+                                <cui:CodexField Grid.Row="1" Grid.Column="1" Label="{i18n:Tr modelDialog.displayName}">
+                                    <cui:CodexTextBox Text="{Binding ModelEditorDisplayName}" PlaceholderText="Claude Sonnet 4.5"/>
+                                </cui:CodexField>
+                                <cui:CodexField Grid.Row="1" Grid.Column="2" Label="{i18n:Tr modelDialog.iconSlug}">
+                                    <cui:CodexTextBox Text="{Binding ModelEditorIconSlug}" PlaceholderText="claude"/>
+                                </cui:CodexField>
+                                <cui:CodexField Grid.Row="2" Grid.ColumnSpan="3" Label="{i18n:Tr modelDialog.aliases}">
+                                    <cui:CodexTextBox Text="{Binding ModelEditorAliases}" PlaceholderText="claude-sonnet*, claude-4*"/>
+                                </cui:CodexField>
                             </Grid>
                         </Border>
 
@@ -66,21 +67,21 @@
                                         <ui:CsText Text="{Binding PricingUnitText}" Classes="muted"/>
                                     </ui:CsBadge>
                                 </Grid>
-                                <ui:CsField Grid.Row="1" Label="{i18n:Tr modelDialog.inputTierLimit}">
-                                    <ui:CsInput Text="{Binding ModelEditorInputTierLimit}" PlaceholderText="{i18n:Tr modelDialog.placeholderFlat}"/>
-                                </ui:CsField>
-                                <ui:CsField Grid.Row="1" Grid.Column="1" Label="{i18n:Tr modelDialog.inputPrice}">
-                                    <ui:CsInput Text="{Binding ModelEditorInputPrice}"/>
-                                </ui:CsField>
-                                <ui:CsField Grid.Row="1" Grid.Column="2" Label="{i18n:Tr modelDialog.inputOverCap}">
-                                    <ui:CsInput Text="{Binding ModelEditorInputOverflowPrice}"/>
-                                </ui:CsField>
-                                <ui:CsField Grid.Row="2" Label="{i18n:Tr modelDialog.cacheReadPrice}">
-                                    <ui:CsInput Text="{Binding ModelEditorCachedInputPrice}"/>
-                                </ui:CsField>
-                                <ui:CsField Grid.Row="2" Grid.Column="1" Label="{i18n:Tr modelDialog.cacheCreationPrice}">
-                                    <ui:CsInput Text="{Binding ModelEditorCacheCreationInputPrice}"/>
-                                </ui:CsField>
+                                <cui:CodexField Grid.Row="1" Label="{i18n:Tr modelDialog.inputTierLimit}">
+                                    <cui:CodexTextBox Text="{Binding ModelEditorInputTierLimit}" PlaceholderText="{i18n:Tr modelDialog.placeholderFlat}"/>
+                                </cui:CodexField>
+                                <cui:CodexField Grid.Row="1" Grid.Column="1" Label="{i18n:Tr modelDialog.inputPrice}">
+                                    <cui:CodexTextBox Text="{Binding ModelEditorInputPrice}"/>
+                                </cui:CodexField>
+                                <cui:CodexField Grid.Row="1" Grid.Column="2" Label="{i18n:Tr modelDialog.inputOverCap}">
+                                    <cui:CodexTextBox Text="{Binding ModelEditorInputOverflowPrice}"/>
+                                </cui:CodexField>
+                                <cui:CodexField Grid.Row="2" Label="{i18n:Tr modelDialog.cacheReadPrice}">
+                                    <cui:CodexTextBox Text="{Binding ModelEditorCachedInputPrice}"/>
+                                </cui:CodexField>
+                                <cui:CodexField Grid.Row="2" Grid.Column="1" Label="{i18n:Tr modelDialog.cacheCreationPrice}">
+                                    <cui:CodexTextBox Text="{Binding ModelEditorCacheCreationInputPrice}"/>
+                                </cui:CodexField>
                                 <Border Grid.Row="2"
                                         Grid.Column="2"
                                         Classes="dialog-note"
@@ -105,18 +106,18 @@
                                 <ui:CsText Text="{i18n:Tr modelDialog.outputMultiplier}"
                                            Classes="heading"
                                            Grid.ColumnSpan="3"/>
-                                <ui:CsField Grid.Row="1" Label="{i18n:Tr modelDialog.outputTierLimit}">
-                                    <ui:CsInput Text="{Binding ModelEditorOutputTierLimit}" PlaceholderText="{i18n:Tr modelDialog.placeholderFlat}"/>
-                                </ui:CsField>
-                                <ui:CsField Grid.Row="1" Grid.Column="1" Label="{i18n:Tr modelDialog.outputPrice}">
-                                    <ui:CsInput Text="{Binding ModelEditorOutputPrice}"/>
-                                </ui:CsField>
-                                <ui:CsField Grid.Row="1" Grid.Column="2" Label="{i18n:Tr modelDialog.outputOverCap}">
-                                    <ui:CsInput Text="{Binding ModelEditorOutputOverflowPrice}"/>
-                                </ui:CsField>
-                                <ui:CsField Grid.Row="2" Label="{i18n:Tr modelDialog.fastMultiplierOverride}">
-                                    <ui:CsInput Text="{Binding ModelEditorFastMultiplierOverride}" PlaceholderText="{i18n:Tr modelDialog.placeholderGlobal}"/>
-                                </ui:CsField>
+                                <cui:CodexField Grid.Row="1" Label="{i18n:Tr modelDialog.outputTierLimit}">
+                                    <cui:CodexTextBox Text="{Binding ModelEditorOutputTierLimit}" PlaceholderText="{i18n:Tr modelDialog.placeholderFlat}"/>
+                                </cui:CodexField>
+                                <cui:CodexField Grid.Row="1" Grid.Column="1" Label="{i18n:Tr modelDialog.outputPrice}">
+                                    <cui:CodexTextBox Text="{Binding ModelEditorOutputPrice}"/>
+                                </cui:CodexField>
+                                <cui:CodexField Grid.Row="1" Grid.Column="2" Label="{i18n:Tr modelDialog.outputOverCap}">
+                                    <cui:CodexTextBox Text="{Binding ModelEditorOutputOverflowPrice}"/>
+                                </cui:CodexField>
+                                <cui:CodexField Grid.Row="2" Label="{i18n:Tr modelDialog.fastMultiplierOverride}">
+                                    <cui:CodexTextBox Text="{Binding ModelEditorFastMultiplierOverride}" PlaceholderText="{i18n:Tr modelDialog.placeholderGlobal}"/>
+                                </cui:CodexField>
                             </Grid>
                         </Border>
                     </StackPanel>
@@ -126,16 +127,17 @@
                     <StackPanel Orientation="Horizontal"
                                 HorizontalAlignment="Right"
                                 Spacing="10">
-                        <ui:CsButton Classes="outline compact"
-                                     Command="{Binding CloseModelDialogCommand}"
-                                     Content="{i18n:Tr common.cancel}"/>
-                        <ui:CsButton Classes="compact"
-                                     Command="{Binding SaveModelCommand}">
-                            <StackPanel Orientation="Horizontal" Spacing="7">
+                        <cui:CodexButton Variant="Outline"
+                                         Size="Small"
+                                         Command="{Binding CloseModelDialogCommand}"
+                                         Content="{i18n:Tr common.cancel}"/>
+                        <cui:CodexButton Size="Small"
+                                         Command="{Binding SaveModelCommand}"
+                                         Content="{i18n:Tr modelDialog.save}">
+                            <cui:CodexButton.LeadingIcon>
                                 <lucide:LucideIcon Kind="Save" Size="14" StrokeWidth="2"/>
-                                <TextBlock Text="{i18n:Tr modelDialog.save}"/>
-                            </StackPanel>
-                        </ui:CsButton>
+                            </cui:CodexButton.LeadingIcon>
+                        </cui:CodexButton>
                     </StackPanel>
                 </Border>
             </Grid>

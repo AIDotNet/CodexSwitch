@@ -2,6 +2,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:CodexSwitch.ViewModels"
              xmlns:ui="using:CodexSwitch.Controls"
+             xmlns:cui="using:CodexSwitchUI.Controls"
              xmlns:i18n="using:CodexSwitch.I18n"
              xmlns:lucide="using:Lucide.Avalonia"
              x:Class="CodexSwitch.Views.Dialogs.CodexAuthImportDialog"
@@ -35,18 +36,18 @@
                                    Classes="muted"
                                    TextWrapping="Wrap"/>
                     </StackPanel>
-                    <ui:CsIconButton Grid.Column="1"
-                                     Classes="dialog-close"
-                                     Command="{Binding CancelCodexAuthImportCommand}"
-                                     ToolTip.Tip="{i18n:Tr common.close}">
+                    <cui:CodexIconButton Grid.Column="1"
+                                         Variant="Ghost"
+                                         Command="{Binding CancelCodexAuthImportCommand}"
+                                         ToolTip.Tip="{i18n:Tr common.close}">
                         <lucide:LucideIcon Kind="X" Size="16" StrokeWidth="2"/>
-                    </ui:CsIconButton>
+                    </cui:CodexIconButton>
                 </Grid>
 
                 <StackPanel Grid.Row="1" Spacing="10">
-                    <ui:CsTextarea Text="{Binding CodexAuthImportJson, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                   MinHeight="260"
-                                   PlaceholderText="{i18n:Tr codexAuthImport.placeholder}"/>
+                    <cui:CodexTextarea Text="{Binding CodexAuthImportJson, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                        MinHeight="260"
+                                        PlaceholderText="{i18n:Tr codexAuthImport.placeholder}"/>
                     <ui:CsText Text="{Binding CodexAuthImportResultText}"
                                Classes="muted"
                                TextWrapping="Wrap"/>
@@ -57,18 +58,19 @@
                                Classes="muted"
                                TextWrapping="Wrap"
                                VerticalAlignment="Center"/>
-                    <ui:CsButton Grid.Column="1"
-                                 Classes="outline compact"
-                                 Command="{Binding CancelCodexAuthImportCommand}"
-                                 Content="{i18n:Tr common.cancel}"/>
-                    <ui:CsButton Grid.Column="2"
-                                 Classes="compact"
-                                 Command="{Binding ImportCodexAuthJsonCommand}">
-                        <StackPanel Orientation="Horizontal" Spacing="7">
+                    <cui:CodexButton Grid.Column="1"
+                                     Variant="Outline"
+                                     Size="Small"
+                                     Command="{Binding CancelCodexAuthImportCommand}"
+                                     Content="{i18n:Tr common.cancel}"/>
+                    <cui:CodexButton Grid.Column="2"
+                                     Size="Small"
+                                     Command="{Binding ImportCodexAuthJsonCommand}"
+                                     Content="{i18n:Tr codexAuthImport.import}">
+                        <cui:CodexButton.LeadingIcon>
                             <lucide:LucideIcon Kind="Upload" Size="14" StrokeWidth="2"/>
-                            <TextBlock Text="{i18n:Tr codexAuthImport.import}"/>
-                        </StackPanel>
-                    </ui:CsButton>
+                        </cui:CodexButton.LeadingIcon>
+                    </cui:CodexButton>
                 </Grid>
             </Grid>
         </Border>

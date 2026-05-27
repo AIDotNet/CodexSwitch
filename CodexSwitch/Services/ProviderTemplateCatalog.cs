@@ -10,6 +10,8 @@ public static class ProviderTemplateCatalog
     public const string DeepSeekBuiltinId = "deepseek";
     public const string XiaomiBuiltinId = "xiaomi-mimo";
     public const string CodexOAuthBuiltinId = "codex-oauth";
+    public const string OpenAiOfficialBaseUrl = "https://api.openai.com/v1";
+    public const string XiaomiLegacyBaseUrl = "https://api.xiaomimimo.com/v1";
     private const string CodexClientVersion = "0.128.0";
     private const string CodexCliUserAgent = "codex_cli_rs/" + CodexClientVersion +
         " (Windows 10.0.26200; x86_64) vscode/1.110.0";
@@ -64,7 +66,7 @@ public static class ProviderTemplateCatalog
             DisplayName = "OpenAI Official",
             Description = "Official OpenAI Responses API",
             Website = "https://platform.openai.com",
-            BaseUrl = "https://api.openai.com/v1",
+            BaseUrl = OpenAiOfficialBaseUrl,
             Protocol = ProviderProtocol.OpenAiResponses,
             DefaultModel = CodexSwitchDefaults.ManagedCodexModel,
             IconSlug = "openai",
@@ -108,7 +110,7 @@ public static class ProviderTemplateCatalog
             DisplayName = "Xiaomi MiMo",
             Description = "Official Xiaomi MiMo OpenAI-compatible chat API",
             Website = "https://platform.xiaomimimo.com",
-            BaseUrl = "https://api.xiaomimimo.com/v1",
+            BaseUrl = OpenAiOfficialBaseUrl,
             Protocol = ProviderProtocol.OpenAiChat,
             DefaultModel = "mimo-v2.5-pro",
             IconSlug = "xiaomi",

@@ -1,10 +1,50 @@
 ---
 title: Data Display
-description: Table、ranked chart、card、separator、typography 和 ECharts theme adapter。
+description: Table、Data Table 模式、Chart 组合层、bar/line chart、item、aspect ratio、carousel、pagination、scroll area、ranked chart、card、separator、typography 和 ECharts theme adapter。
 icon: Table2
 ---
 
-Data display 组件用于 provider 列表、模型目录、用量仪表盘和图表界面。
+Data display 组件用于 provider 列表、模型目录、Data Table 工作流、Chart 组合界面、item row、固定比例媒体槽、轮播轨道、用量仪表盘和图表界面。
+
+## 组件族
+
+- Table
+- Data Table 模式，覆盖过滤、排序、列可见性、行选择、行操作和分页
+- Item：media/title/description 行、尾部 actions、selected/loading/disabled 状态、group 和 separator
+- Aspect Ratio：固定 video、square、portrait 和 bounded media slot，内容会被 viewport 裁剪
+- Carousel
+- Chart 组合层：container、legend、tooltip content、indicator style 和 refresh motion
+- Bar Chart：原生 vertical/horizontal plot、grid line、active-bar tooltip state、`ActiveItemChanged`、negative value 和 tokenized redraw motion
+- Line Chart：原生 line/area plot、grid line、point dot、active-point tooltip state、`ActivePointChanged` 和 tokenized redraw motion
+- Image Icon：provider bitmap、`ImageLoaded` / `ImageLoadFailed` 生命周期事件，以及 source-state class
+- Pagination
+- Scroll area
+- Ranked 和 usage charts，包括 ranked row 和 usage pie slice 的 `ActiveItemChanged`
+- Card
+- Separator
+- Typography
+
+Carousel 覆盖 Web 的组合路径：selected-index 状态、previous/next 命令、loop 边界、横向和纵向 orientation、键盘导航、status text、`SelectionChanged` source metadata、old/new item metadata，以及 Docs 中每个案例自己的内联 AXAML 源码展开。
+
+Pagination 覆盖 Web 的分页导航契约：boundary/sibling ellipsis、current page 状态、first/previous/next/last 命令、键盘导航、loading suppression、compact mode，以及 `PageChanged` 对 page item、action、keyboard 和 programmatic 变更的 source metadata。
+
+Item 覆盖 Web 的行组合路径：media、title、description、content、action、footer、group、separator、pointer activation、Enter/Space activation、command guard 和嵌套 action slot。
+
+Aspect Ratio 覆盖 shadcn 的 ratio primitive：video、square、portrait、empty、width/height/contain fit mode、clipped content、pointer hover motion、RatioChanged 事件，并且 Docs 中每个渲染案例下方都能展开自己的 AXAML 源码。
+
+Data Table 覆盖 shadcn guide 的组合模式：使用 Table primitives 搭配 TextBox 过滤、Dropdown 列可见性、Checkbox 行选择、行操作菜单、选择摘要、Pagination 和 TransitionKey 刷新动画。每个 desktop Docs 案例都先渲染组件，再在该案例下方展开本地 AXAML。
+
+Chart 覆盖 shadcn Recharts helper 的组合模式，但不会把库锁死到某一个图表引擎：`CodexChartContainer`、`CodexChartLegend`、`CodexChartLegendItem`、`CodexChartTooltipContent` 和 `CodexChartTooltipItem` 可以包裹 bar chart、line chart、usage pie、ranked bar、ECharts 或自定义 chart content，并复用 config 颜色、tooltip label、indicator style 和 tokenized refresh motion。
+
+Bar Chart 补上常见 Web dashboard 示例需要的原生 Avalonia vertical/horizontal plot：有序 `ItemsSource` item 驱动圆角柱、grid line、axis label、negative value 的 zero baseline、empty state、active bar、tooltip interpolation、reduced-motion 行为，并且 Docs 中每个案例都能展开自己的 AXAML。
+
+Line Chart 补上常见 Web chart 示例需要的原生 Avalonia plot：有序 `ItemsSource` point 驱动平滑折线、可选 area fill、grid line、point marker、empty state、active point、tooltip interpolation、reduced-motion 行为，并且 Docs 中每个案例都能展开自己的 AXAML。
+
+Usage Pie Chart 现在也补齐了和新原生图表一致的事件契约：pointer hover 会更新 `ActiveIndex`，用 old/new slice metadata 触发 `ActiveItemChanged`，同时保留 slice emphasis、tooltip interpolation 和 reduced-motion refresh 的确定性。
+
+Ranked Bar Chart 现在也使用同一套可观察的 active-item 契约：pointer hover 会更新 `ActiveIndex`，用 old/new row metadata 触发 `ActiveItemChanged`，并暴露 `has-active-row` 供 Web-style active row 样式使用。
+
+Image Icon 现在对齐 Web image 生命周期：`Path` 变化会重新加载 avares 或本地文件 source，成功触发 `ImageLoaded`，缺失或不可读资源触发 `ImageLoadFailed`，并通过 `HasSource`、`IsMissing`、`IsEmpty`、`LastLoadError` 驱动状态 class 和 Docs 案例。
 
 ## Chart adapter
 

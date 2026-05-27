@@ -1,14 +1,18 @@
 ---
 title: Feedback
-description: Toast、badge、avatar、spinner、progress、skeleton 和加载状态。
+description: Toast、badge、avatar、empty state、spinner、progress、skeleton 和加载状态。
 icon: BellRing
 ---
 
-Feedback 组件让后台操作变得可见：provider 状态、代理状态、OAuth 进度、更新检查、加载和用量刷新。
+Feedback 组件让后台操作变得可见：provider 状态、代理状态、OAuth 进度、更新检查、空结果、加载和用量刷新。
 
 ## 审查状态
 
 - Success、warning、error 和 neutral 变体。
+- Alert anatomy：icon、title、description、rich content、action slot 和默认 glyph 行为。
+- Badge anatomy 和 interaction：variant、status dot、inline icon content、spinner content、link-like badge、command activation、focus-visible 和 keyboard activation。
+- Avatar anatomy 和 interaction：image loading status、delayed fallback、error fallback、status badge、AvatarGroup 重叠布局和 AvatarGroupCount 溢出成员。
 - 长文本换行。
 - 加载和空状态。
+- Empty state 的主/次操作，包括 loading 和 disabled 触发抑制。
 - Reduced-motion 预期。

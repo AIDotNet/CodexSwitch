@@ -311,6 +311,9 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
     private bool _isCodexSessionMigrating;
 
     [ObservableProperty]
+    private bool _isCodexSessionRestoring;
+
+    [ObservableProperty]
     private int _codexSessionTotalCount;
 
     [ObservableProperty]
@@ -318,6 +321,12 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
 
     [ObservableProperty]
     private int _codexSessionMigratableCount;
+
+    [ObservableProperty]
+    private int _codexSessionRestorableCount;
+
+    [ObservableProperty]
+    private int _codexSessionRestorableIndexCount;
 
     [ObservableProperty]
     private string _codexSessionCurrentProvider = CodexConfigWriter.ManagedProviderId;
@@ -634,6 +643,7 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
         SelectClaudeCodeModelCommand = new RelayCommand<string>(SelectClaudeCodeModel);
         SaveClaudeCodeSettingsCommand = new AsyncRelayCommand(SaveClaudeCodeSettingsAsync);
         EditProviderCommand = new RelayCommand<ProviderListItem>(OpenEditProvider);
+        ToggleProviderEnabledCommand = new RelayCommand<ProviderListItem>(row => _ = ToggleProviderEnabledAsync(row));
         AddProviderCommand = new RelayCommand(OpenAddProvider);
         SelectProviderTemplateCommand = new RelayCommand<ProviderTemplateItem>(SelectProviderTemplate);
         SelectUsageQueryTemplateCommand = new RelayCommand<UsageQueryTemplateItem>(SelectUsageQueryTemplate);
@@ -667,6 +677,7 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
         RefreshUsageCommand = new AsyncRelayCommand(RefreshUsageDashboardAsync);
         RefreshCodexSessionsCommand = new AsyncRelayCommand(RefreshCodexSessionsAsync);
         MigrateCodexSessionsCommand = new AsyncRelayCommand(MigrateCodexSessionsAsync);
+        RestoreCodexSessionsCommand = new AsyncRelayCommand(RestoreCodexSessionsAsync);
         CheckForUpdatesCommand = new AsyncRelayCommand(() => CheckForUpdatesAsync(false));
         OpenLatestReleaseCommand = new RelayCommand(OpenLatestRelease);
         OpenDownloadedUpdateCommand = new RelayCommand(OpenDownloadedUpdate);
@@ -807,6 +818,8 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
 
     public IRelayCommand<ProviderListItem> EditProviderCommand { get; }
 
+    public IRelayCommand<ProviderListItem> ToggleProviderEnabledCommand { get; }
+
     public IRelayCommand AddProviderCommand { get; }
 
     public IRelayCommand<ProviderTemplateItem> SelectProviderTemplateCommand { get; }
@@ -872,6 +885,8 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
     public IAsyncRelayCommand RefreshCodexSessionsCommand { get; }
 
     public IAsyncRelayCommand MigrateCodexSessionsCommand { get; }
+
+    public IAsyncRelayCommand RestoreCodexSessionsCommand { get; }
 
     public IAsyncRelayCommand CheckForUpdatesCommand { get; }
 
@@ -1039,7 +1054,7 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
 
     private async Task MigrateCodexSessionsAsync()
     {
-        if (IsCodexSessionMigrating || CodexSessionMigratableCount <= 0)
+        if (IsCodexSessionMigrating || !CanMigrateCodexSessions)
             return;
 
         IsCodexSessionMigrating = true;
@@ -1061,6 +1076,33 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
         finally
         {
             IsCodexSessionMigrating = false;
+        }
+    }
+
+    private async Task RestoreCodexSessionsAsync()
+    {
+        if (IsCodexSessionRestoring || !CanRestoreCodexSessions)
+            return;
+
+        IsCodexSessionRestoring = true;
+        try
+        {
+            var result = await Task.Run(_codexSessionMigrationService.RestoreOriginalProviders);
+            var inspection = await Task.Run(_codexSessionMigrationService.Inspect);
+            await Dispatcher.UIThread.InvokeAsync(() =>
+            {
+                ApplyCodexSessionInspection(inspection);
+                CodexSessionStatusMessage = BuildCodexSessionRestoreStatusMessage(result);
+                StatusMessage = CodexSessionStatusMessage;
+            });
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException)
+        {
+            CodexSessionStatusMessage = F("codexSessions.status.failed", ex.Message);
+        }
+        finally
+        {
+            IsCodexSessionRestoring = false;
         }
     }
 
@@ -1089,10 +1131,13 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
         CodexSessionTotalCount = inspection.TotalSessionFileCount;
         CodexSessionCurrentProviderCount = inspection.ManagedSessionFileCount;
         CodexSessionMigratableCount = inspection.MigratableSessionFileCount;
+        CodexSessionRestorableCount = inspection.RestorableSessionFileCount;
+        CodexSessionRestorableIndexCount = inspection.RestorableThreadIndexCount;
         CodexSessionStatusMessage = BuildCodexSessionStatusMessage(inspection);
         OnPropertyChanged(nameof(CodexSessionCurrentProviderDetail));
         OnPropertyChanged(nameof(CodexSessionTotalDetail));
         OnPropertyChanged(nameof(CodexSessionMigratableDetail));
+        OnPropertyChanged(nameof(CodexSessionRestorableDetail));
     }
 
     private string BuildCodexSessionStatusMessage(CodexSessionInspection inspection)
@@ -1109,6 +1154,17 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
         var message = F("codexSessions.status.migrated", result.UpdatedSessionFiles, result.UpdatedThreadIndexEntries);
         if (result.FailedFiles.Count > 0)
             message += " " + F("codexSessions.status.failedFiles", result.FailedFiles.Count);
+        if (!string.IsNullOrWhiteSpace(result.StateIndexStatus))
+            message += " " + F("codexSessions.status.indexWarning", FormatCodexSessionIndexStatus(result.StateIndexStatus));
+
+        return message;
+    }
+
+    private string BuildCodexSessionRestoreStatusMessage(CodexSessionRestoreResult result)
+    {
+        var message = F("codexSessions.status.restored", result.RestoredSessionFiles, result.RestoredThreadIndexEntries);
+        if (result.FailedFiles.Count > 0)
+            message += " " + F("codexSessions.status.failedRestoreFiles", result.FailedFiles.Count);
         if (!string.IsNullOrWhiteSpace(result.StateIndexStatus))
             message += " " + F("codexSessions.status.indexWarning", FormatCodexSessionIndexStatus(result.StateIndexStatus));
 
@@ -1581,6 +1637,27 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
                 : _config.ActiveCodexProviderId;
 
         return string.Equals(providerId, activeId, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private async Task ToggleProviderEnabledAsync(ProviderListItem? row)
+    {
+        if (row is null)
+            return;
+
+        var provider = _config.Providers.FirstOrDefault(item =>
+            string.Equals(item.Id, row.Id, StringComparison.OrdinalIgnoreCase));
+        if (provider is null)
+            return;
+
+        provider.Enabled = !provider.Enabled;
+        _store.SaveConfig(_config);
+        RefreshProviderRows();
+        SelectProvider(FindProviderRow(row.ClientApp, provider.Id) ??
+            SelectedProviderRows.FirstOrDefault(item => item.IsActive) ??
+            SelectedProviderRows.FirstOrDefault());
+        StatusMessage = provider.Enabled ? T("status.providerEnabled") : T("status.providerDisabled");
+        if (_config.Proxy.Enabled)
+            await ReloadProxyConfigAsync();
     }
 
     private void SelectProvider(ProviderListItem? row)
@@ -2598,6 +2675,7 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
 
         var wasCodexActive = string.Equals(provider.Id, _config.ActiveCodexProviderId, StringComparison.OrdinalIgnoreCase);
         var wasClaudeActive = string.Equals(provider.Id, _config.ActiveClaudeCodeProviderId, StringComparison.OrdinalIgnoreCase);
+        RememberDeletedBuiltInProvider(provider);
         _config.Providers.Remove(provider);
         RemoveProviderUsageState(provider.Id);
         if (wasCodexActive)
@@ -2617,6 +2695,20 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
         StatusMessage = T("status.providerRemoved");
         if ((wasCodexActive || wasClaudeActive) && _config.Proxy.Enabled)
             await ReloadProxyConfigAsync();
+    }
+
+    private void RememberDeletedBuiltInProvider(ProviderConfig provider)
+    {
+        if (string.IsNullOrWhiteSpace(provider.BuiltinId))
+            return;
+
+        if (_config.DeletedBuiltinProviderIds.Any(id =>
+                string.Equals(id, provider.BuiltinId, StringComparison.OrdinalIgnoreCase)))
+        {
+            return;
+        }
+
+        _config.DeletedBuiltinProviderIds.Add(provider.BuiltinId.Trim());
     }
 
     private void SelectOAuthAccount(OAuthAccountListItem? row)
@@ -3006,6 +3098,7 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
             SelectCommand = SelectProviderCommand,
             ChangeDefaultModelCommand = ChangeProviderDefaultModelCommand,
             EditCommand = EditProviderCommand,
+            ToggleEnabledCommand = ToggleProviderEnabledCommand,
             DeleteCommand = RequestRemoveProviderCommand
         };
 
@@ -4842,6 +4935,18 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
         OnCodexSessionActionStateChanged();
     }
 
+    partial void OnCodexSessionRestorableCountChanged(int value)
+    {
+        OnCodexSessionActionStateChanged();
+        OnPropertyChanged(nameof(CodexSessionRestorableDetail));
+    }
+
+    partial void OnCodexSessionRestorableIndexCountChanged(int value)
+    {
+        OnCodexSessionActionStateChanged();
+        OnPropertyChanged(nameof(CodexSessionRestorableDetail));
+    }
+
     partial void OnIsCodexSessionRefreshingChanged(bool value)
     {
         OnCodexSessionActionStateChanged();
@@ -4852,10 +4957,17 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
         OnCodexSessionActionStateChanged();
     }
 
+    partial void OnIsCodexSessionRestoringChanged(bool value)
+    {
+        OnCodexSessionActionStateChanged();
+    }
+
     private void OnCodexSessionActionStateChanged()
     {
         OnPropertyChanged(nameof(CanMigrateCodexSessions));
+        OnPropertyChanged(nameof(CanRestoreCodexSessions));
         OnPropertyChanged(nameof(CodexSessionMigrationButtonText));
+        OnPropertyChanged(nameof(CodexSessionRestoreButtonText));
         OnPropertyChanged(nameof(CodexSessionRefreshButtonText));
     }
 
@@ -5128,13 +5240,25 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
 
     public string CodexSessionMigratableDetail => F("codexSessions.migratableDetail", CodexSessionCurrentProvider);
 
+    public string CodexSessionRestorableDetail => F("codexSessions.restorableDetail", CodexSessionRestorableIndexCount);
+
     public bool CanMigrateCodexSessions => !IsCodexSessionRefreshing &&
         !IsCodexSessionMigrating &&
+        !IsCodexSessionRestoring &&
         CodexSessionMigratableCount > 0;
+
+    public bool CanRestoreCodexSessions => !IsCodexSessionRefreshing &&
+        !IsCodexSessionMigrating &&
+        !IsCodexSessionRestoring &&
+        (CodexSessionRestorableCount > 0 || CodexSessionRestorableIndexCount > 0);
 
     public string CodexSessionMigrationButtonText => IsCodexSessionMigrating
         ? T("codexSessions.migrating")
         : T("codexSessions.migrate");
+
+    public string CodexSessionRestoreButtonText => IsCodexSessionRestoring
+        ? T("codexSessions.restoring")
+        : T("codexSessions.restore");
 
     public string CodexSessionRefreshButtonText => IsCodexSessionRefreshing
         ? T("codexSessions.refreshing")
@@ -5320,6 +5444,8 @@ public sealed partial class ProviderListItem : ObservableObject
     public IRelayCommand<ProviderDefaultModelChange>? ChangeDefaultModelCommand { get; init; }
 
     public IRelayCommand<ProviderListItem>? EditCommand { get; init; }
+
+    public IRelayCommand<ProviderListItem>? ToggleEnabledCommand { get; init; }
 
     public IRelayCommand<ProviderListItem>? DeleteCommand { get; init; }
 

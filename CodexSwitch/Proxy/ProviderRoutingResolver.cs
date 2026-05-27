@@ -12,24 +12,12 @@ public static class ProviderRoutingResolver
 
     public static ProviderRouteSelection? Resolve(AppConfig config, string? requestModel, ClientAppKind kind)
     {
-        var activeProvider = ResolveActiveProvider(config, kind);
-        if (activeProvider is null)
+        var activeProvider = ResolveSelectedProvider(config, kind);
+        if (activeProvider is null || !activeProvider.Enabled)
             return null;
 
         if (string.IsNullOrWhiteSpace(requestModel))
             return new ProviderRouteSelection(activeProvider, ResolveModel(activeProvider, activeProvider.DefaultModel));
-
-        if (ProviderSupports(activeProvider, [requestModel]))
-            return new ProviderRouteSelection(activeProvider, ResolveModel(activeProvider, requestModel));
-
-        foreach (var provider in config.Providers.Where(provider => provider.Enabled))
-        {
-            if (string.Equals(provider.Id, activeProvider.Id, StringComparison.OrdinalIgnoreCase))
-                continue;
-
-            if (ProviderSupportsClient(provider, kind) && ProviderSupports(provider, [requestModel]))
-                return new ProviderRouteSelection(provider, ResolveModel(provider, requestModel));
-        }
 
         return new ProviderRouteSelection(activeProvider, ResolveModel(activeProvider, requestModel));
     }
@@ -86,13 +74,7 @@ public static class ProviderRoutingResolver
 
     public static ProviderConfig? ResolveActiveProvider(AppConfig config, ClientAppKind kind)
     {
-        var activeProviderId = kind == ClientAppKind.Codex
-            ? string.IsNullOrWhiteSpace(config.ActiveCodexProviderId) ? config.ActiveProviderId : config.ActiveCodexProviderId
-            : config.ActiveClaudeCodeProviderId;
-
-        var activeProvider = config.Providers.FirstOrDefault(provider =>
-            ProviderSupportsClient(provider, kind) &&
-            string.Equals(provider.Id, activeProviderId, StringComparison.OrdinalIgnoreCase));
+        var activeProvider = ResolveSelectedProvider(config, kind);
         if (activeProvider is { Enabled: true })
             return activeProvider;
 
@@ -100,6 +82,17 @@ public static class ProviderRoutingResolver
                 provider.Enabled &&
                 ProviderSupportsClient(provider, kind)) ??
             activeProvider;
+    }
+
+    public static ProviderConfig? ResolveSelectedProvider(AppConfig config, ClientAppKind kind)
+    {
+        var activeProviderId = kind == ClientAppKind.Codex
+            ? string.IsNullOrWhiteSpace(config.ActiveCodexProviderId) ? config.ActiveProviderId : config.ActiveCodexProviderId
+            : config.ActiveClaudeCodeProviderId;
+
+        return config.Providers.FirstOrDefault(provider =>
+            ProviderSupportsClient(provider, kind) &&
+            string.Equals(provider.Id, activeProviderId, StringComparison.OrdinalIgnoreCase));
     }
 
     public static ModelRouteConfig? ResolveModel(ProviderConfig provider, string? requestModel)

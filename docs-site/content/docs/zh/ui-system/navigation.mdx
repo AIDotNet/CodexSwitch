@@ -1,6 +1,6 @@
 ---
 title: Navigation
-description: Tabs、menus、command surfaces、collapsibles 和侧边导航。
+description: Tabs、breadcrumb、accordion、menubar、dropdown/split buttons、menus、command surfaces、collapsibles 和侧边导航。
 icon: Navigation
 ---
 
@@ -8,11 +8,18 @@ icon: Navigation
 
 ## 组件族
 
-- Tabs
-- Navigation menu
-- Collapsible
-- Menu 和 context menu
-- Command
-- Side nav
+- Tabs：root-owned `SelectedValue`、与 Web `onValueChange` 对齐的 `ValueChanged`、automatic/manual activation、loop boundary，以及横向/纵向 roving trigger
+- Breadcrumb：覆盖 Root/List/Item/Link/Page/Separator/Ellipsis 结构、root `LinkActivated`、href metadata、current-page suppression 和 dropdown composition
+- Navigation menu：覆盖 Root/List/Item/Trigger/Content/Link/Indicator/Viewport 结构、受控 `ActiveValue`、active-item change event、顶层 link command 和 link activation event
+- Menubar：persistent trigger menu、`ItemSelected` leaf metadata、checkbox/radio item、submenu handoff 和 loading suppression
+- Accordion：与 Web `onValueChange` 对齐的 `ValueChanged`、changed item/value/index metadata、trigger/keyboard/programmatic source、single/multiple mode 和 roving trigger key
+- Collapsible：测量内容高度动画、trigger click/Enter/Space toggle、`OpenChanged` 和 reduced-motion final state
+- Dropdown button：trigger 自持 `OpenChanged`、Escape 焦点返回、child button close-on-select，以及叶子菜单项 select 后关闭
+- Split button
+- Menu 和 context menu：Web `onSelect` 风格 `ItemSelected` metadata、pointer/keyboard/programmatic source、checkbox/radio state、submenu、shortcut、group 和 close-on-select behavior
+- Command：覆盖 SearchText 过滤、command separator、shortcut slot、可滚动列表、loop navigation 和 item-selected event
+- Kbd 和 KbdGroup：用于 command hint、button trailing shortcut、tooltip 帮助内容和 input group addon
+- Side nav：root `SelectedValue`、item `Value`、与 Web `onValueChange` 对齐的 `ValueChanged`，并保留 legacy sibling-selection fallback
+- Segmented control：root `SelectedValue`、与 Web `onValueChange` 对齐的 `ValueChanged`，以及测量后的移动 indicator
 
-保持 active 状态、键盘移动和窄窗口行为在组件画廊中可见。
+保持 active 状态、键盘移动、tab value change、breadcrumb link activation、accordion value-change source、menu item select metadata、side-nav value change、segmented value change、automatic/manual tab activation、trigger 自持 open 状态、顶层 link 激活、checkbox/radio 菜单项、submenu 动画、组合快捷键 token 和窄窗口行为在组件画廊中可见。

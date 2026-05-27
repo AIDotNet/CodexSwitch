@@ -101,8 +101,7 @@
     <ScrollViewer>
         <Grid Margin="24,12,24,28"
               RowDefinitions="Auto,*"
-              RowSpacing="18"
-              PointerPressed="ProviderContextHost_OnPointerPressed">
+              RowSpacing="18">
             <ui:CodexSection Title="{i18n:Tr providers.title}"
                              Description="{i18n:Tr providers.description}">
                 <ui:CodexSection.Actions>

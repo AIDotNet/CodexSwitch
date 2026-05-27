@@ -505,7 +505,7 @@ public sealed class UiV2InfrastructureTests : IDisposable
     }
 
     [Fact]
-    public async Task ProxyHostService_Responses_FailsOverToNextEnabledProviderOnTransientFailure()
+    public async Task ProxyHostService_Responses_UsesOnlyActiveProviderOnTransientFailure()
     {
         var paths = CreatePaths("responses-failover");
         var config = CreateResponsesProxyConfig(
@@ -536,15 +536,15 @@ public sealed class UiV2InfrastructureTests : IDisposable
             new StringContent("""{"model":"switch-model","input":"ping"}""", Encoding.UTF8, "application/json"));
         var body = await response.Content.ReadAsStringAsync();
 
-        Assert.Equal(["bad.test", "good.test"], calledHosts);
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        Assert.Contains("\"resp_1\"", body, StringComparison.Ordinal);
-        Assert.Equal(2, meter.Snapshot.Requests);
+        Assert.Equal(["bad.test"], calledHosts);
+        Assert.Equal(HttpStatusCode.ServiceUnavailable, response.StatusCode);
+        Assert.Contains("The selected provider is temporarily unavailable", body, StringComparison.Ordinal);
+        Assert.Equal(1, meter.Snapshot.Requests);
         Assert.Equal(1, meter.Snapshot.Errors);
     }
 
     [Fact]
-    public async Task ProxyHostService_Responses_SkipsDisabledProviders()
+    public async Task ProxyHostService_Responses_DoesNotFallbackFromDisabledSelectedProvider()
     {
         var paths = CreatePaths("responses-disabled-skip");
         var config = CreateResponsesProxyConfig(
@@ -572,8 +572,8 @@ public sealed class UiV2InfrastructureTests : IDisposable
             $"http://127.0.0.1:{config.Proxy.Port}/v1/responses",
             new StringContent("""{"model":"switch-model","input":"ping"}""", Encoding.UTF8, "application/json"));
 
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        Assert.Equal(["good.test"], calledHosts);
+        Assert.Equal(HttpStatusCode.ServiceUnavailable, response.StatusCode);
+        Assert.Empty(calledHosts);
     }
 
     [Fact]
@@ -601,9 +601,9 @@ public sealed class UiV2InfrastructureTests : IDisposable
         var body = await response.Content.ReadAsStringAsync();
 
         Assert.Equal(HttpStatusCode.ServiceUnavailable, response.StatusCode);
-        Assert.Contains("All enabled providers are temporarily unavailable", body, StringComparison.Ordinal);
-        Assert.Equal(2, meter.Snapshot.Requests);
-        Assert.Equal(2, meter.Snapshot.Errors);
+        Assert.Contains("The selected provider is temporarily unavailable", body, StringComparison.Ordinal);
+        Assert.Equal(1, meter.Snapshot.Requests);
+        Assert.Equal(1, meter.Snapshot.Errors);
     }
 
     [Fact]
@@ -2131,6 +2131,37 @@ public sealed class UiV2InfrastructureTests : IDisposable
         Assert.Equal(
             CodexConfigWriter.ManagedProviderId,
             document.RootElement.GetProperty("payload").GetProperty("model_provider").GetString());
+        Assert.Equal(
+            "openai",
+            document.RootElement.GetProperty("payload").GetProperty("codexswitch_original_model_provider").GetString());
+    }
+
+    [Fact]
+    public void CodexSessionMigrationService_RestoresMigratedSessionMetadataToOriginalProvider()
+    {
+        var paths = CreatePaths("codex-sessions-restore");
+        var migratedSession = WriteCodexSession(
+            paths,
+            "sessions/2026/05/17/rollout-migrated.jsonl",
+            CodexConfigWriter.ManagedProviderId,
+            originalModelProvider: "openai");
+
+        var service = new CodexSessionMigrationService(paths, sqliteExecutable: "/missing/sqlite3");
+        var before = service.Inspect();
+
+        var result = service.RestoreOriginalProviders();
+        var after = service.Inspect();
+
+        Assert.Equal(1, before.RestorableSessionFileCount);
+        Assert.Equal(1, result.RestoredSessionFiles);
+        Assert.Empty(result.FailedFiles);
+        Assert.Equal(0, after.RestorableSessionFileCount);
+        Assert.Equal(1, after.MigratableSessionFileCount);
+
+        using var document = JsonDocument.Parse(File.ReadLines(migratedSession).First());
+        var payload = document.RootElement.GetProperty("payload");
+        Assert.Equal("openai", payload.GetProperty("model_provider").GetString());
+        Assert.False(payload.TryGetProperty("codexswitch_original_model_provider", out _));
     }
 
     [Fact]
@@ -2459,17 +2490,26 @@ public sealed class UiV2InfrastructureTests : IDisposable
         return writer;
     }
 
-    private static string WriteCodexSession(AppPaths paths, string relativePath, string modelProvider)
+    private static string WriteCodexSession(
+        AppPaths paths,
+        string relativePath,
+        string modelProvider,
+        string? originalModelProvider = null)
     {
         var path = Path.Combine(paths.CodexDirectory, relativePath.Replace('/', Path.DirectorySeparatorChar));
         Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+        var originalProviderJson = string.IsNullOrWhiteSpace(originalModelProvider)
+            ? ""
+            : ",\"codexswitch_original_model_provider\":\"" + originalModelProvider + "\"";
         File.WriteAllText(
             path,
             "{\"timestamp\":\"2026-05-21T00:00:00Z\",\"type\":\"session_meta\",\"payload\":{\"id\":\"" +
             Guid.NewGuid().ToString("N") +
             "\",\"model_provider\":\"" +
             modelProvider +
-            "\"}}\n{\"type\":\"turn_context\"}\n");
+            "\"" +
+            originalProviderJson +
+            "}}\n{\"type\":\"turn_context\"}\n");
         return path;
     }
 

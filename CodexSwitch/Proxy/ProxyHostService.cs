@@ -541,46 +541,21 @@ public sealed class ProxyHostService : IAsyncDisposable
         string? requestModel,
         ClientAppKind clientApp)
     {
-        var candidates = new List<ProviderRouteSelection>();
-        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        var activeProvider = ProviderRoutingResolver.ResolveActiveProvider(config, clientApp);
-
-        void AddCandidate(ProviderConfig? provider)
+        var activeProvider = ProviderRoutingResolver.ResolveSelectedProvider(config, clientApp);
+        if (activeProvider is null ||
+            !activeProvider.Enabled ||
+            !ProviderRoutingResolver.ProviderSupportsClient(activeProvider, clientApp))
         {
-            if (provider is null ||
-                !provider.Enabled ||
-                !ProviderRoutingResolver.ProviderSupportsClient(provider, clientApp) ||
-                !seen.Add(provider.Id))
-            {
-                return;
-            }
-
-            var resolvedRequestModel = ResolveRequestModelForProvider(provider, requestModel, clientApp);
-            candidates.Add(new ProviderRouteSelection(provider, ProviderRoutingResolver.ResolveModel(provider, resolvedRequestModel)));
+            return [];
         }
 
-        AddCandidate(activeProvider);
-
-        if (!string.IsNullOrWhiteSpace(requestModel))
-        {
-            foreach (var provider in config.Providers)
-            {
-                if (ProviderRoutingResolver.ProviderSupportsClient(provider, clientApp) &&
-                    provider.Enabled &&
-                    ProviderRoutingResolver.ProviderSupports(provider, [requestModel]))
-                {
-                    AddCandidate(provider);
-                }
-            }
-        }
-
-        if (candidates.Count == 0)
-        {
-            foreach (var provider in config.Providers)
-                AddCandidate(provider);
-        }
-
-        return candidates;
+        var resolvedRequestModel = ResolveRequestModelForProvider(activeProvider, requestModel, clientApp);
+        return
+        [
+            new ProviderRouteSelection(
+                activeProvider,
+                ProviderRoutingResolver.ResolveModel(activeProvider, resolvedRequestModel))
+        ];
     }
 
     private static string ResolveRequestModelForProvider(
@@ -624,12 +599,12 @@ public sealed class ProxyHostService : IAsyncDisposable
     private static async Task WriteAllProvidersUnavailableAsync(HttpContext httpContext, IReadOnlyList<string> attempts)
     {
         var detail = attempts.Count == 0
-            ? "No enabled provider is available for this request."
+            ? "No selected provider is available for this request."
             : string.Join("; ", attempts.Take(5));
         await WriteJsonErrorAsync(
             httpContext,
             StatusCodes.Status503ServiceUnavailable,
-            "All enabled providers are temporarily unavailable. " + detail);
+            "The selected provider is temporarily unavailable. " + detail);
     }
 
     private static Task ApplyLowLatencyClientConnectionAsync(HttpContext httpContext, Func<Task> next)
@@ -659,7 +634,11 @@ public sealed class ProxyHostService : IAsyncDisposable
     private Task WriteModelsAsync(HttpContext httpContext)
     {
         var now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
-        var models = ProviderRoutingResolver.CollectModelListings(_config)
+        var provider = ProviderRoutingResolver.ResolveSelectedProvider(_config, ClientAppKind.Codex);
+        var modelConfig = new AppConfig();
+        if (provider is not null)
+            modelConfig.Providers.Add(provider);
+        var models = ProviderRoutingResolver.CollectModelListings(modelConfig)
             .Select(model => new ModelInfoResponse
             {
                 Id = model.Id,

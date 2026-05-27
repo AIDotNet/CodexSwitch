@@ -152,6 +152,7 @@ public sealed class BuiltInCatalogMigrationTests
             Assert.Contains(deepSeek.Models, model => model.Id == "deepseek-reasoner");
             Assert.All(deepSeek.Models, model => Assert.Equal(ProviderProtocol.OpenAiChat, model.Protocol));
             AssertDefaultConversion(deepSeek);
+            Assert.Equal(ProviderTemplateCatalog.OpenAiOfficialBaseUrl, xiaomi.BaseUrl);
             Assert.Equal(ProviderProtocol.OpenAiChat, xiaomi.Protocol);
             Assert.Contains(xiaomi.Models, model => model.Id == "mimo-v2.5-pro");
             Assert.Contains(xiaomi.Models, model => model.Id == "mimo-v2-flash");
@@ -172,6 +173,63 @@ public sealed class BuiltInCatalogMigrationTests
         Assert.Equal(ProviderProtocol.OpenAiChat, provider.Protocol);
         Assert.True(provider.SupportsClaudeCode);
         Assert.All(provider.Models, model => Assert.Equal(ProviderProtocol.OpenAiChat, model.Protocol));
+    }
+
+    [Fact]
+    public void XiaomiTemplate_UsesOpenAiEndpointAndRoutes()
+    {
+        var provider = ProviderTemplateCatalog.CreateProvider(ProviderTemplateCatalog.XiaomiBuiltinId, []);
+
+        Assert.Equal(ProviderTemplateCatalog.OpenAiOfficialBaseUrl, provider.BaseUrl);
+        Assert.Equal(ProviderProtocol.OpenAiChat, provider.Protocol);
+        Assert.Contains(provider.Models, model => model.Id == "mimo-v2.5-pro");
+        Assert.DoesNotContain(provider.Models, model => model.Id == "gpt-5.4");
+        AssertDefaultConversion(provider);
+    }
+
+    [Fact]
+    public void EnsureValidDefaults_PreservesXiaomiTemplateWhenUsingOpenAiEndpoint()
+    {
+        var provider = ProviderTemplateCatalog.CreateProvider(ProviderTemplateCatalog.XiaomiBuiltinId, []);
+        var config = new AppConfig
+        {
+            ActiveProviderId = provider.Id,
+            Providers = { provider }
+        };
+
+        ConfigurationStore.EnsureValidDefaults(config);
+
+        Assert.Equal(ProviderTemplateCatalog.XiaomiBuiltinId, provider.BuiltinId);
+        Assert.Equal(ProviderTemplateCatalog.OpenAiOfficialBaseUrl, provider.BaseUrl);
+        Assert.Equal("mimo-v2.5-pro", provider.DefaultModel);
+        Assert.Contains(provider.Models, model => model.Id == "mimo-v2.5-pro");
+        Assert.DoesNotContain(provider.Models, model => model.Id == "gpt-5.4");
+    }
+
+    [Fact]
+    public void EnsureValidDefaults_MigratesLegacyXiaomiEndpointToOpenAiEndpoint()
+    {
+        var provider = new ProviderConfig
+        {
+            Id = "xiaomi-mimo",
+            BuiltinId = ProviderTemplateCatalog.XiaomiBuiltinId,
+            DisplayName = "Xiaomi MiMo",
+            BaseUrl = ProviderTemplateCatalog.XiaomiLegacyBaseUrl,
+            Protocol = ProviderProtocol.OpenAiChat,
+            DefaultModel = "mimo-v2.5-pro"
+        };
+        var config = new AppConfig
+        {
+            ActiveProviderId = provider.Id,
+            Providers = { provider }
+        };
+
+        ConfigurationStore.EnsureValidDefaults(config);
+
+        Assert.Equal(ProviderTemplateCatalog.OpenAiOfficialBaseUrl, provider.BaseUrl);
+        Assert.Equal(ProviderTemplateCatalog.XiaomiBuiltinId, provider.BuiltinId);
+        Assert.Contains(provider.Models, model => model.Id == "mimo-v2.5-pro");
+        Assert.DoesNotContain(provider.Models, model => model.Id == "gpt-5.4");
     }
 
     [Fact]
@@ -378,7 +436,7 @@ public sealed class BuiltInCatalogMigrationTests
     }
 
     [Fact]
-    public void ProviderRoutingResolver_RoutesByRequestedModelAcrossProviders()
+    public void ProviderRoutingResolver_UsesActiveProviderForRequestedModel()
     {
         var config = new AppConfig
         {
@@ -395,18 +453,18 @@ public sealed class BuiltInCatalogMigrationTests
         var selection = ProviderRoutingResolver.Resolve(config, "claude-sonnet-4-5");
 
         Assert.NotNull(selection);
-        Assert.Equal("anthropic", selection!.Provider.Id);
-        Assert.Equal("claude-sonnet-4-5", selection.Model?.Id);
+        Assert.Equal("openai-official", selection!.Provider.Id);
+        Assert.Equal(CodexSwitchDefaults.ManagedCodexModel, selection.Model?.Id);
 
         var deepSeekSelection = ProviderRoutingResolver.Resolve(config, "deepseek-reasoner");
         Assert.NotNull(deepSeekSelection);
-        Assert.Equal("deepseek", deepSeekSelection!.Provider.Id);
-        Assert.Equal("deepseek-reasoner", deepSeekSelection.Model?.Id);
+        Assert.Equal("openai-official", deepSeekSelection!.Provider.Id);
+        Assert.Equal(CodexSwitchDefaults.ManagedCodexModel, deepSeekSelection.Model?.Id);
 
         var xiaomiSelection = ProviderRoutingResolver.Resolve(config, "mimo-v2-pro");
         Assert.NotNull(xiaomiSelection);
-        Assert.Equal("xiaomi-mimo", xiaomiSelection!.Provider.Id);
-        Assert.Equal("mimo-v2-pro", xiaomiSelection.Model?.Id);
+        Assert.Equal("openai-official", xiaomiSelection!.Provider.Id);
+        Assert.Equal(CodexSwitchDefaults.ManagedCodexModel, xiaomiSelection.Model?.Id);
 
         var listings = ProviderRoutingResolver.CollectModelListings(config);
         var gpt54 = Assert.Single(listings, item => item.Id == "gpt-5.4");
@@ -415,6 +473,40 @@ public sealed class BuiltInCatalogMigrationTests
         Assert.Contains("openai-official", gpt54.ProviderIds);
         Assert.Contains("deepseek", deepSeekFlash.ProviderIds);
         Assert.Contains("xiaomi-mimo", mimoPro.ProviderIds);
+    }
+
+    [Fact]
+    public void LoadConfig_DoesNotRestoreDeletedBuiltInProvider()
+    {
+        var root = CreateTempDirectory();
+        try
+        {
+            var paths = new AppPaths(root, Path.Combine(root, ".codex"));
+            var store = new ConfigurationStore(paths);
+            var legacy = new AppConfig
+            {
+                ActiveProviderId = "openai-official",
+                ActiveCodexProviderId = "openai-official",
+                DeletedBuiltinProviderIds = { ProviderTemplateCatalog.DeepSeekBuiltinId },
+                Providers =
+                {
+                    ProviderTemplateCatalog.CreateProvider(ProviderTemplateCatalog.OpenAiOfficialBuiltinId, [])
+                }
+            };
+
+            WriteJson(paths.ConfigPath, legacy);
+
+            var loaded = store.LoadConfig();
+
+            Assert.DoesNotContain(loaded.Providers, provider =>
+                string.Equals(provider.BuiltinId, ProviderTemplateCatalog.DeepSeekBuiltinId, StringComparison.OrdinalIgnoreCase));
+            Assert.Contains(loaded.DeletedBuiltinProviderIds, id =>
+                string.Equals(id, ProviderTemplateCatalog.DeepSeekBuiltinId, StringComparison.OrdinalIgnoreCase));
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
     }
 
     [Fact]

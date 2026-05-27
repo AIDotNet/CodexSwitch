@@ -1,6 +1,6 @@
 ---
 title: Forms
-description: Buttons, inputs, selects, checks, switches, sliders, and form states.
+description: Fields, labels, buttons, button groups, input groups, OTP inputs, toggles, inputs, selects, comboboxes, native selects, calendars, date pickers, checks, radio groups, switches, sliders, and form states.
 icon: TextCursorInput
 ---
 
@@ -9,9 +9,23 @@ Form components cover the main provider, model, settings, and auth workflows.
 ## Component families
 
 - Button
+- Button Group for related action clusters, separators, text, nested groups, and input composition
+- Split Button for primary commands plus Web-style menu trigger state, `OpenChanged`, close-on-select action rows, loading suppression, and focus return
+- Input Group for input addons, action buttons, focus-within rings, keyboard hints, and textarea footers
+- Input OTP for grouped one-time password slots, separators, paste entry, pattern filtering, invalid state, and keyboard navigation
+- Label for target-associated form text, required markers, access keys, and disabled target styling
+- Field labels, descriptions, required state, messages, horizontal/responsive orientation, FieldGroup, FieldSet, FieldContent, FieldSeparator, and FieldError
 - TextBox
-- Select
-- Checkbox and Radio
-- Switch and Slider
+- Select for trigger, selected value, placeholder, popup motion, disabled items, `ValueChanged` parity with Web `onValueChange`, and `OpenChanged` parity with Web `onOpenChange`
+- Combobox for filterable predefined selection, open and closed popup motion, highlighted and selected items, `SelectionChanged` old/new item/index/value/source metadata, clear action, loading and empty slots, and Arrow, Enter, and Escape behavior
+- Native Select for option values, optgroup labels, disabled options, invalid state, native selection behavior, `ValueChanged` old/new option values, and `OpenChanged` popup state
+- Calendar for single dates, ranges, outside days, week numbers, disabled bounds, keyboard navigation, `SelectedDateChanged`, `RangeChanged`, and `DisplayDateChanged` month control
+- Date Picker for popover plus calendar composition, single and range selection, clear action, open/close motion, Escape dismissal, and loading/disabled guards
+- Checkbox for label-target anatomy, checked/unchecked/indeterminate state classes, `CheckedStateChanged` parity with Web `onCheckedChange`, disabled guards, intent, and Field/FieldSet composition
+- Radio and Radio Group for root-owned value, item values, `ValueChanged` old/new item/index/value metadata, orientation, loop, required, disabled, and loading suppression
+- Switch and standalone Toggle for two-state controls with `CheckedChanged` / `PressedChanged` Web event parity, plus Toggle Group as its own page for single/multiple values, `spacing=2` default gaps, `spacing=0` connected items, vertical orientation, disabled items, and roving keyboard focus
+- Slider for tokenized track/thumb states, hover/pressed/dragging motion, `ValueChanging` parity with Web `onValueChange`, and `ValueCommitted` parity with Web `onValueCommit`
 
-When adding form behavior, test hover, focus, disabled, validation, and keyboard states.
+Field coverage now follows the current shadcn Field contract: grouped fieldsets, legends, responsive field groups, content/title/description slots, inline separators, invalid state, and one-or-many error messages all render as component-owned primitives with inline AXAML examples in Docs. Select coverage now includes default, state, anatomy, and interaction cases, with each rendered example exposing its own local AXAML code expansion below the component. Native Select now exposes the same explicit value/open event path while preserving option value and optgroup semantics. Calendar now surfaces DayPicker-style `onSelect` and `onMonthChange` parity through selected-date, range, active-date, and display-date change events. Switch and standalone Toggle interaction cases now surface live checked/pressed changes while keeping the local AXAML expansion under each rendered component. Toggle Group coverage is also split from standalone Toggle so every group state, anatomy, and interaction case has its own rendered example and local AXAML code expansion. Slider coverage now includes value-change and value-commit event previews, keyboard commit behavior, vertical orientation, disabled guards, and per-example AXAML expansion.
+
+When adding form behavior, test field messaging, field group layout, fieldset legend state, field error updates, select value/open events, native select value/open events, slider value-change/value-commit events, checkbox checked-state events, label target focus, hover, focus-visible, focus-within, disabled, validation, pressed, dragging, grouped selection, toggle group value changes, connected spacing, item positions, roving arrows, radio group value changes, radio roving arrows, child action grouping, OTP paste and slot navigation, combobox filtering, highlighted option movement, clear reset, native option selection, calendar selected-date/range/month events, calendar range and month navigation, date picker popover selection and dismissal, loading add-on buttons, and keyboard states.

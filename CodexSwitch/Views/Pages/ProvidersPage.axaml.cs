@@ -2,6 +2,7 @@ using CodexSwitch.Controls;
 using Avalonia.Animation;
 using Avalonia.Animation.Easings;
 using Avalonia.Input;
+using Avalonia.Interactivity;
 using Avalonia.Media;
 using Avalonia.VisualTree;
 
@@ -16,13 +17,36 @@ public partial class ProvidersPage : UserControl
     public ProvidersPage()
     {
         InitializeComponent();
+        AddHandler(
+            InputElement.PointerPressedEvent,
+            ProviderContextHost_OnPointerPressed,
+            RoutingStrategies.Bubble,
+            handledEventsToo: true);
+        AddHandler(
+            InputElement.ContextRequestedEvent,
+            ProviderContextHost_OnContextRequested,
+            RoutingStrategies.Bubble,
+            handledEventsToo: true);
     }
 
-    private void ProviderContextHost_OnPointerPressed(object? sender, Avalonia.Input.PointerPressedEventArgs e)
+    private void ProviderContextHost_OnPointerPressed(object? sender, PointerPressedEventArgs e)
     {
-        if (DataContext is not MainWindowViewModel viewModel ||
-            !e.GetCurrentPoint(this).Properties.IsRightButtonPressed ||
-            e.Source is not Control source ||
+        if (!e.GetCurrentPoint(this).Properties.IsRightButtonPressed)
+            return;
+
+        OpenProviderContextMenu(e.Source as Control, () => e.Handled = true);
+    }
+
+    private void ProviderContextHost_OnContextRequested(object? sender, ContextRequestedEventArgs e)
+    {
+        OpenProviderContextMenu(e.Source as Control, () => e.Handled = true);
+    }
+
+    private void OpenProviderContextMenu(Control? source, Action markHandled)
+    {
+        if (_providerDrag is not null ||
+            DataContext is not MainWindowViewModel viewModel ||
+            source is null ||
             FindProviderRow(source) is not { } row ||
             row.DataContext is not ProviderListItem item)
         {
@@ -30,7 +54,7 @@ public partial class ProvidersPage : UserControl
         }
 
         CsProviderContextMenu.OpenFor(row, viewModel, item);
-        e.Handled = true;
+        markHandled();
     }
 
     private void ProviderDragHandle_OnPointerPressed(object? sender, PointerPressedEventArgs e)

@@ -7,6 +7,8 @@ namespace CodexSwitch.Services;
 public sealed class CodexSessionMigrationService
 {
     private const int SqliteTimeoutMilliseconds = 5000;
+    private const string OriginalModelProviderPropertyName = "codexswitch_original_model_provider";
+    private const string ThreadProviderBackupTableName = "codexswitch_thread_provider_backup";
     private static readonly string[] SessionDirectoryNames = ["sessions", "archived_sessions"];
     private readonly AppPaths _paths;
     private readonly string? _sqliteExecutable;
@@ -29,6 +31,12 @@ public sealed class CodexSessionMigrationService
                 group => group.First().ModelProvider.Trim(),
                 group => group.Sum(summary => summary.ThreadIndexCount),
                 StringComparer.OrdinalIgnoreCase);
+        var restorableThreadIndexCount = 0;
+        if (string.IsNullOrWhiteSpace(indexStatus))
+        {
+            restorableThreadIndexCount = TryLoadThreadBackupCount(out var backupIndexStatus);
+            indexStatus = backupIndexStatus;
+        }
         var providerIds = fileCounts.Keys
             .Concat(indexCounts.Keys)
             .Where(provider => !string.IsNullOrWhiteSpace(provider))
@@ -50,7 +58,9 @@ public sealed class CodexSessionMigrationService
             StateDatabasePath,
             CodexConfigWriter.ManagedProviderId,
             summaries,
-            indexStatus);
+            indexStatus,
+            files.Count(CanRestoreSessionFile),
+            restorableThreadIndexCount);
     }
 
     public CodexSessionMigrationResult MigrateToManagedProvider()
@@ -65,8 +75,14 @@ public sealed class CodexSessionMigrationService
         {
             try
             {
-                if (RewriteSessionFileProvider(file.Path, CodexConfigWriter.ManagedProviderId))
+                if (RewriteSessionFileProvider(
+                    file.Path,
+                    CodexConfigWriter.ManagedProviderId,
+                    originalProvider: file.ModelProvider,
+                    removeOriginalProvider: false))
+                {
                     updatedFiles++;
+                }
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException)
             {
@@ -78,6 +94,41 @@ public sealed class CodexSessionMigrationService
         return new CodexSessionMigrationResult(
             updatedFiles,
             updatedThreadEntries,
+            indexStatus,
+            failedFiles);
+    }
+
+    public CodexSessionRestoreResult RestoreOriginalProviders()
+    {
+        var files = LoadSessionFileRecords()
+            .Where(CanRestoreSessionFile)
+            .ToArray();
+        var restoredFiles = 0;
+        var failedFiles = new List<string>();
+
+        foreach (var file in files)
+        {
+            try
+            {
+                if (RewriteSessionFileProvider(
+                    file.Path,
+                    file.OriginalModelProvider!,
+                    originalProvider: null,
+                    removeOriginalProvider: true))
+                {
+                    restoredFiles++;
+                }
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException)
+            {
+                failedFiles.Add(file.Path);
+            }
+        }
+
+        var restoredThreadEntries = TryRestoreThreadIndex(out var indexStatus);
+        return new CodexSessionRestoreResult(
+            restoredFiles,
+            restoredThreadEntries,
             indexStatus,
             failedFiles);
     }
@@ -112,17 +163,18 @@ public sealed class CodexSessionMigrationService
 
             foreach (var file in files)
             {
-                if (TryReadSessionFileProvider(file, out var provider))
-                    records.Add(new CodexSessionFileRecord(file, provider));
+                if (TryReadSessionFileProvider(file, out var provider, out var originalProvider))
+                    records.Add(new CodexSessionFileRecord(file, provider, originalProvider));
             }
         }
 
         return records;
     }
 
-    private bool TryReadSessionFileProvider(string path, out string provider)
+    private bool TryReadSessionFileProvider(string path, out string provider, out string? originalProvider)
     {
         provider = "";
+        originalProvider = null;
         try
         {
             using var reader = new StreamReader(path, Encoding.UTF8, detectEncodingFromByteOrderMarks: true);
@@ -142,6 +194,12 @@ public sealed class CodexSessionMigrationService
             }
 
             provider = modelProvider.GetString()?.Trim() ?? "";
+            if (payload.TryGetProperty(OriginalModelProviderPropertyName, out var originalModelProvider) &&
+                originalModelProvider.ValueKind == JsonValueKind.String)
+            {
+                originalProvider = originalModelProvider.GetString()?.Trim();
+            }
+
             return !string.IsNullOrWhiteSpace(provider);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException)
@@ -150,7 +208,11 @@ public sealed class CodexSessionMigrationService
         }
     }
 
-    private static bool RewriteSessionFileProvider(string path, string provider)
+    private static bool RewriteSessionFileProvider(
+        string path,
+        string provider,
+        string? originalProvider,
+        bool removeOriginalProvider)
     {
         var tempPath = path + "." + Guid.NewGuid().ToString("N") + ".tmp";
         try
@@ -166,7 +228,11 @@ public sealed class CodexSessionMigrationService
                 if (!IsSessionMeta(document.RootElement))
                     return false;
 
-                writer.WriteLine(RewriteSessionMetaProvider(document.RootElement, provider));
+                writer.WriteLine(RewriteSessionMetaProvider(
+                    document.RootElement,
+                    provider,
+                    originalProvider,
+                    removeOriginalProvider));
                 string? line;
                 while ((line = reader.ReadLine()) is not null)
                     writer.WriteLine(line);
@@ -182,7 +248,11 @@ public sealed class CodexSessionMigrationService
         }
     }
 
-    private static string RewriteSessionMetaProvider(JsonElement root, string provider)
+    private static string RewriteSessionMetaProvider(
+        JsonElement root,
+        string provider,
+        string? originalProvider,
+        bool removeOriginalProvider)
     {
         using var stream = new MemoryStream();
         using (var writer = new Utf8JsonWriter(stream))
@@ -193,7 +263,7 @@ public sealed class CodexSessionMigrationService
                 if (property.NameEquals("payload") && property.Value.ValueKind == JsonValueKind.Object)
                 {
                     writer.WritePropertyName(property.Name);
-                    WritePayloadWithProvider(writer, property.Value, provider);
+                    WritePayloadWithProvider(writer, property.Value, provider, originalProvider, removeOriginalProvider);
                     continue;
                 }
 
@@ -206,9 +276,15 @@ public sealed class CodexSessionMigrationService
         return Encoding.UTF8.GetString(stream.ToArray());
     }
 
-    private static void WritePayloadWithProvider(Utf8JsonWriter writer, JsonElement payload, string provider)
+    private static void WritePayloadWithProvider(
+        Utf8JsonWriter writer,
+        JsonElement payload,
+        string provider,
+        string? originalProvider,
+        bool removeOriginalProvider)
     {
         var wroteProvider = false;
+        var wroteOriginalProvider = false;
         writer.WriteStartObject();
         foreach (var property in payload.EnumerateObject())
         {
@@ -219,11 +295,28 @@ public sealed class CodexSessionMigrationService
                 continue;
             }
 
+            if (property.NameEquals(OriginalModelProviderPropertyName))
+            {
+                if (!removeOriginalProvider && !string.IsNullOrWhiteSpace(originalProvider))
+                {
+                    writer.WriteString(property.Name, originalProvider);
+                    wroteOriginalProvider = true;
+                }
+
+                continue;
+            }
+
             property.WriteTo(writer);
         }
 
         if (!wroteProvider)
             writer.WriteString("model_provider", provider);
+        if (!removeOriginalProvider &&
+            !wroteOriginalProvider &&
+            !string.IsNullOrWhiteSpace(originalProvider))
+        {
+            writer.WriteString(OriginalModelProviderPropertyName, originalProvider);
+        }
 
         writer.WriteEndObject();
     }
@@ -234,6 +327,13 @@ public sealed class CodexSessionMigrationService
             root.TryGetProperty("type", out var type) &&
             type.ValueKind == JsonValueKind.String &&
             string.Equals(type.GetString(), "session_meta", StringComparison.Ordinal);
+    }
+
+    private static bool CanRestoreSessionFile(CodexSessionFileRecord file)
+    {
+        return string.Equals(file.ModelProvider, CodexConfigWriter.ManagedProviderId, StringComparison.OrdinalIgnoreCase) &&
+            !string.IsNullOrWhiteSpace(file.OriginalModelProvider) &&
+            !string.Equals(file.OriginalModelProvider, CodexConfigWriter.ManagedProviderId, StringComparison.OrdinalIgnoreCase);
     }
 
     private IReadOnlyList<CodexSessionProviderSummary> TryLoadThreadIndexCounts(out string? status)
@@ -282,6 +382,50 @@ public sealed class CodexSessionMigrationService
         return summaries;
     }
 
+    private int TryLoadThreadBackupCount(out string? status)
+    {
+        status = null;
+        if (!File.Exists(StateDatabasePath))
+        {
+            status = "state-db-missing";
+            return 0;
+        }
+
+        if (!TryResolveSqliteExecutable(out var sqlite))
+        {
+            status = "sqlite-missing";
+            return 0;
+        }
+
+        var tableName = EscapeSqlString(ThreadProviderBackupTableName);
+        var existsResult = RunSqlite(
+            sqlite,
+            StateDatabasePath,
+            $"select count(*) from sqlite_master where type = 'table' and name = '{tableName}';");
+        if (!existsResult.Succeeded)
+        {
+            status = existsResult.Error;
+            return 0;
+        }
+
+        var existsLine = SplitLines(existsResult.Output).LastOrDefault();
+        if (!int.TryParse(existsLine, out var exists) || exists <= 0)
+            return 0;
+
+        var countResult = RunSqlite(
+            sqlite,
+            StateDatabasePath,
+            $"select count(*) from {ThreadProviderBackupTableName};");
+        if (!countResult.Succeeded)
+        {
+            status = countResult.Error;
+            return 0;
+        }
+
+        var countLine = SplitLines(countResult.Output).LastOrDefault();
+        return int.TryParse(countLine, out var count) ? count : 0;
+    }
+
     private int TryUpdateThreadIndex(out string? status)
     {
         status = null;
@@ -300,7 +444,7 @@ public sealed class CodexSessionMigrationService
         var result = RunSqlite(
             sqlite,
             StateDatabasePath,
-            "update threads set model_provider = 'meteor-ai' where model_provider <> 'meteor-ai'; select changes();");
+            BuildThreadIndexMigrationSql());
         if (!result.Succeeded)
         {
             status = result.Error;
@@ -309,6 +453,82 @@ public sealed class CodexSessionMigrationService
 
         var changedLine = SplitLines(result.Output).LastOrDefault();
         return int.TryParse(changedLine, out var changed) ? changed : 0;
+    }
+
+    private int TryRestoreThreadIndex(out string? status)
+    {
+        status = null;
+        if (!File.Exists(StateDatabasePath))
+        {
+            status = "state-db-missing";
+            return 0;
+        }
+
+        if (!TryResolveSqliteExecutable(out var sqlite))
+        {
+            status = "sqlite-missing";
+            return 0;
+        }
+
+        var result = RunSqlite(
+            sqlite,
+            StateDatabasePath,
+            BuildThreadIndexRestoreSql());
+        if (!result.Succeeded)
+        {
+            status = result.Error;
+            return 0;
+        }
+
+        var changedLine = SplitLines(result.Output).LastOrDefault();
+        return int.TryParse(changedLine, out var changed) ? changed : 0;
+    }
+
+    private static string BuildThreadIndexMigrationSql()
+    {
+        var provider = EscapeSqlString(CodexConfigWriter.ManagedProviderId);
+        return $"""
+            begin immediate;
+            create table if not exists {ThreadProviderBackupTableName} (
+                thread_rowid integer primary key,
+                model_provider text not null
+            );
+            insert or replace into {ThreadProviderBackupTableName}(thread_rowid, model_provider)
+            select rowid, model_provider from threads where model_provider <> '{provider}';
+            update threads set model_provider = '{provider}' where model_provider <> '{provider}';
+            select changes();
+            commit;
+            """;
+    }
+
+    private static string BuildThreadIndexRestoreSql()
+    {
+        var provider = EscapeSqlString(CodexConfigWriter.ManagedProviderId);
+        return $"""
+            begin immediate;
+            create table if not exists {ThreadProviderBackupTableName} (
+                thread_rowid integer primary key,
+                model_provider text not null
+            );
+            update threads
+            set model_provider = (
+                select backup.model_provider
+                from {ThreadProviderBackupTableName} backup
+                where backup.thread_rowid = threads.rowid
+            )
+            where model_provider = '{provider}'
+                and rowid in (select thread_rowid from {ThreadProviderBackupTableName});
+            select changes();
+            delete from {ThreadProviderBackupTableName}
+            where thread_rowid not in (select rowid from threads)
+                or thread_rowid in (select rowid from threads where model_provider <> '{provider}');
+            commit;
+            """;
+    }
+
+    private static string EscapeSqlString(string value)
+    {
+        return value.Replace("'", "''", StringComparison.Ordinal);
     }
 
     private bool TryResolveSqliteExecutable(out string executable)
@@ -425,7 +645,7 @@ public sealed class CodexSessionMigrationService
         }
     }
 
-    private sealed record CodexSessionFileRecord(string Path, string ModelProvider);
+    private sealed record CodexSessionFileRecord(string Path, string ModelProvider, string? OriginalModelProvider);
 
     private sealed record SqliteCommandResult(bool Succeeded, string Output, string? Error);
 }
@@ -435,7 +655,9 @@ public sealed record CodexSessionInspection(
     string StateDatabasePath,
     string ManagedModelProvider,
     IReadOnlyList<CodexSessionProviderSummary> Providers,
-    string? StateIndexStatus)
+    string? StateIndexStatus,
+    int RestorableSessionFileCount,
+    int RestorableThreadIndexCount)
 {
     public int TotalSessionFileCount => Providers.Sum(provider => provider.SessionFileCount);
 
@@ -457,5 +679,11 @@ public sealed record CodexSessionProviderSummary(
 public sealed record CodexSessionMigrationResult(
     int UpdatedSessionFiles,
     int UpdatedThreadIndexEntries,
+    string? StateIndexStatus,
+    IReadOnlyList<string> FailedFiles);
+
+public sealed record CodexSessionRestoreResult(
+    int RestoredSessionFiles,
+    int RestoredThreadIndexEntries,
     string? StateIndexStatus,
     IReadOnlyList<string> FailedFiles);

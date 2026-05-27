@@ -1,6 +1,6 @@
 ---
 title: Forms
-description: Button、input、select、checkbox、switch、slider 和表单状态。
+description: Field、label、button、button group、input group、OTP input、toggle、input、select、combobox、native select、calendar、date picker、checkbox、radio group、switch、slider 和表单状态。
 icon: TextCursorInput
 ---
 
@@ -9,9 +9,23 @@ icon: TextCursorInput
 ## 组件族
 
 - Button
+- Button Group：相关动作分组、separator、text、嵌套组和 input 组合
+- Split Button：主命令加 Web 风格 menu trigger state、`OpenChanged`、close-on-select action row、loading suppression 和焦点返回
+- Input Group：输入前后缀、动作按钮、focus-within ring、快捷键提示和 textarea footer
+- Input OTP：分组验证码 slot、separator、paste 输入、pattern 过滤、invalid state 和键盘导航
+- Label：关联目标控件、必填标记、access key 和 disabled target 样式
+- Field 标签、描述、必填状态、消息、横向/响应式 orientation、FieldGroup、FieldSet、FieldContent、FieldSeparator 和 FieldError
 - TextBox
-- Select
-- Checkbox 和 Radio
-- Switch 和 Slider
+- Select：trigger、selected value、placeholder、popup 动画、disabled item、与 Web `onValueChange` 对齐的 `ValueChanged`，以及与 Web `onOpenChange` 对齐的 `OpenChanged`
+- Combobox：可过滤的预定义选择、popup 打开/关闭动画、高亮项/选中项、`SelectionChanged` old/new item/index/value/source metadata、清除动作、loading/empty slot，以及 Arrow、Enter、Escape 行为
+- Native Select：option value、optgroup label、disabled option、invalid state、原生选择行为、`ValueChanged` old/new option value，以及 `OpenChanged` popup state
+- Calendar：单日期、日期范围、outside day、week number、disabled bounds、键盘导航、`SelectedDateChanged`、`RangeChanged` 和 `DisplayDateChanged` 月份控制
+- Date Picker：Popover + Calendar 组合、单选和范围选择、清除动作、打开/关闭动画、Escape 关闭，以及 loading/disabled guard
+- Checkbox：label-target anatomy、checked/unchecked/indeterminate state class、与 Web `onCheckedChange` 对齐的 `CheckedStateChanged`、disabled guard、intent，以及 Field/FieldSet 组合
+- Radio 和 Radio Group：root-owned value、item value、`ValueChanged` old/new item/index/value metadata、orientation、loop、required、disabled 与 loading suppression
+- Switch 和独立 Toggle：用于两态控件，并补齐 `CheckedChanged` / `PressedChanged` 的 Web 事件对齐；Toggle Group 作为独立页面覆盖 single/multiple value、默认 `spacing=2` 间距、`spacing=0` 连接态、垂直方向、disabled item 和 roving keyboard focus
+- Slider：token 化 track/thumb 状态、hover/pressed/dragging 动画、与 Web `onValueChange` 对齐的 `ValueChanging`，以及与 Web `onValueCommit` 对齐的 `ValueCommitted`
 
-新增表单行为时，应测试 hover、focus、disabled、validation 和键盘状态。
+Field 现在覆盖当前 shadcn Field 契约：grouped fieldset、legend、responsive field group、content/title/description slot、inline separator、invalid state，以及单条或多条 error message，Docs 中都有独立 AXAML 案例并可在渲染案例下方展开源码。Select 现在覆盖 default、state、anatomy 和 interaction 案例，每个渲染案例下方都会展开自己的本地 AXAML。Native Select 现在也暴露明确的 value/open event 路径，同时保留 option value 和 optgroup 语义。Calendar 现在通过 selected-date、range、active-date 和 display-date change event 暴露 DayPicker 风格的 `onSelect` 与 `onMonthChange` 对齐路径。Switch 和独立 Toggle 的 interaction 案例现在会展示实时 checked/pressed 变化，同时继续把本地 AXAML 展开源码放在每个渲染组件下方。Toggle Group 也已经从独立 Toggle 中拆出，group 的 state、anatomy 和 interaction 都在渲染案例下方提供对应 AXAML 展开源码。Slider 现在补齐 value-change/value-commit 事件预览、键盘 commit 行为、垂直方向、disabled guard 和每个案例下方的 AXAML 展开源码。
+
+新增表单行为时，应测试 field 消息、field group layout、fieldset legend state、field error updates、select value/open event、native select value/open event、slider value-change/value-commit event、checkbox checked-state event、label target focus、hover、focus-visible、focus-within、disabled、validation、pressed、dragging、分组选中、toggle group value change、连接态 spacing、item position、roving arrows、radio group value change、radio roving arrows、子动作分组、OTP paste 和 slot navigation、combobox filtering、高亮项移动、clear reset、native option selection、calendar selected-date/range/month event、calendar range 与 month navigation、date picker popover 选择和关闭、加载态 addon 按钮和键盘状态。

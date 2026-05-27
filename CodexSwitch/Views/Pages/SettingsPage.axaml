@@ -2,6 +2,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:CodexSwitch.ViewModels"
              xmlns:ui="using:CodexSwitch.Controls"
+             xmlns:cui="using:CodexSwitchUI.Controls"
              xmlns:i18n="using:CodexSwitch.I18n"
              xmlns:lucide="using:Lucide.Avalonia"
              x:Class="CodexSwitch.Views.Pages.SettingsPage"
@@ -13,221 +14,223 @@
               RowSpacing="18">
             <Grid ColumnDefinitions="Auto,*,Auto,Auto"
                   ColumnSpacing="10">
-                <ui:CsIconButton Command="{Binding BackFromSettingsCommand}">
+                <cui:CodexIconButton Variant="Outline"
+                                     Command="{Binding BackFromSettingsCommand}">
                     <lucide:LucideIcon Kind="ArrowLeft" Size="17" StrokeWidth="2"/>
-                </ui:CsIconButton>
+                </cui:CodexIconButton>
                 <ui:CsText Grid.Column="1"
                            Text="{i18n:Tr settings.title}"
                            Classes="title"
                            VerticalAlignment="Center"/>
-                <ui:CsButton Grid.Column="2"
-                             Classes="outline compact"
-                             Command="{Binding ApplyCommand}"
-                             Content="{i18n:Tr common.apply}"/>
-                <ui:CsButton Grid.Column="3"
-                             Classes="compact"
-                             Command="{Binding SaveCommand}"
-                             Content="{i18n:Tr common.save}"/>
+                <cui:CodexButton Grid.Column="2"
+                                 Variant="Outline"
+                                 Size="Small"
+                                 Command="{Binding ApplyCommand}"
+                                 Content="{i18n:Tr common.apply}"/>
+                <cui:CodexButton Grid.Column="3"
+                                 Size="Small"
+                                 Command="{Binding SaveCommand}"
+                                 Content="{i18n:Tr common.save}"/>
             </Grid>
 
-            <ui:CsSegmentedControl Grid.Row="1">
+            <cui:CodexSegmentedControl Grid.Row="1">
                 <Grid ColumnDefinitions="*,*,*,*,*,*" ColumnSpacing="4">
-                    <ui:CsSegmentedButton IsSelected="{Binding IsGeneralSettingsVisible}"
-                                          Command="{Binding SelectSettingsTabCommand}"
-                                          CommandParameter="General"
-                                          Content="{i18n:Tr settings.tab.general}"/>
-                    <ui:CsSegmentedButton Grid.Column="1"
-                                          IsSelected="{Binding IsRouteSettingsVisible}"
-                                          Command="{Binding SelectSettingsTabCommand}"
-                                          CommandParameter="Route"
-                                          Content="{i18n:Tr settings.tab.route}"/>
-                    <ui:CsSegmentedButton Grid.Column="2"
-                                          IsSelected="{Binding IsAuthSettingsVisible}"
-                                          Command="{Binding SelectSettingsTabCommand}"
-                                          CommandParameter="Auth"
-                                          Content="{i18n:Tr settings.tab.auth}"/>
-                    <ui:CsSegmentedButton Grid.Column="3"
-                                          IsSelected="{Binding IsAdvancedSettingsVisible}"
-                                          Command="{Binding SelectSettingsTabCommand}"
-                                          CommandParameter="Advanced"
-                                          Content="{i18n:Tr settings.tab.advanced}"/>
-                    <ui:CsSegmentedButton Grid.Column="4"
-                                          IsSelected="{Binding IsUsageSettingsVisible}"
-                                          Command="{Binding SelectSettingsTabCommand}"
-                                          CommandParameter="Usage"
-                                          Content="{i18n:Tr settings.tab.usage}"/>
-                    <ui:CsSegmentedButton Grid.Column="5"
-                                          IsSelected="{Binding IsAboutSettingsVisible}"
-                                          Command="{Binding SelectSettingsTabCommand}"
-                                          CommandParameter="About"
-                                          Content="{i18n:Tr settings.tab.about}"/>
+                    <cui:CodexSegmentedButton IsSelected="{Binding IsGeneralSettingsVisible}"
+                                              Command="{Binding SelectSettingsTabCommand}"
+                                              CommandParameter="General"
+                                              Content="{i18n:Tr settings.tab.general}"/>
+                    <cui:CodexSegmentedButton Grid.Column="1"
+                                              IsSelected="{Binding IsRouteSettingsVisible}"
+                                              Command="{Binding SelectSettingsTabCommand}"
+                                              CommandParameter="Route"
+                                              Content="{i18n:Tr settings.tab.route}"/>
+                    <cui:CodexSegmentedButton Grid.Column="2"
+                                              IsSelected="{Binding IsAuthSettingsVisible}"
+                                              Command="{Binding SelectSettingsTabCommand}"
+                                              CommandParameter="Auth"
+                                              Content="{i18n:Tr settings.tab.auth}"/>
+                    <cui:CodexSegmentedButton Grid.Column="3"
+                                              IsSelected="{Binding IsAdvancedSettingsVisible}"
+                                              Command="{Binding SelectSettingsTabCommand}"
+                                              CommandParameter="Advanced"
+                                              Content="{i18n:Tr settings.tab.advanced}"/>
+                    <cui:CodexSegmentedButton Grid.Column="4"
+                                              IsSelected="{Binding IsUsageSettingsVisible}"
+                                              Command="{Binding SelectSettingsTabCommand}"
+                                              CommandParameter="Usage"
+                                              Content="{i18n:Tr settings.tab.usage}"/>
+                    <cui:CodexSegmentedButton Grid.Column="5"
+                                              IsSelected="{Binding IsAboutSettingsVisible}"
+                                              Command="{Binding SelectSettingsTabCommand}"
+                                              CommandParameter="About"
+                                              Content="{i18n:Tr settings.tab.about}"/>
                 </Grid>
-            </ui:CsSegmentedControl>
+            </cui:CodexSegmentedControl>
 
             <Grid Grid.Row="2"
                   RowDefinitions="Auto,Auto,Auto,Auto,Auto"
                   RowSpacing="16">
-                <ui:CsSection Title="{i18n:Tr settings.language.title}"
-                              Description="{i18n:Tr settings.language.description}"
-                              IsVisible="{Binding IsGeneralSettingsVisible}">
-                    <ui:CsSelect ItemsSource="{Binding SupportedLanguages}"
-                                 SelectedItem="{Binding SelectedLanguage, Mode=TwoWay}"
-                                 HorizontalAlignment="Left"
-                                 MinWidth="220">
-                        <ui:CsSelect.ItemTemplate>
+                <cui:CodexSection Title="{i18n:Tr settings.language.title}"
+                                  Description="{i18n:Tr settings.language.description}"
+                                  IsVisible="{Binding IsGeneralSettingsVisible}">
+                    <cui:CodexSelect ItemsSource="{Binding SupportedLanguages}"
+                                      SelectedItem="{Binding SelectedLanguage, Mode=TwoWay}"
+                                      HorizontalAlignment="Left"
+                                      MinWidth="220">
+                        <cui:CodexSelect.ItemTemplate>
                             <DataTemplate x:DataType="i18n:I18nLanguageOption">
                                 <TextBlock Text="{Binding NativeName}"/>
                             </DataTemplate>
-                        </ui:CsSelect.ItemTemplate>
-                    </ui:CsSelect>
-                </ui:CsSection>
+                        </cui:CodexSelect.ItemTemplate>
+                    </cui:CodexSelect>
+                </cui:CodexSection>
 
-                <ui:CsSection Grid.Row="1"
-                              Title="{i18n:Tr settings.theme.title}"
-                              Description="{i18n:Tr settings.theme.description}"
-                              IsVisible="{Binding IsGeneralSettingsVisible}">
-                    <ui:CsSegmentedControl>
+                <cui:CodexSection Grid.Row="1"
+                                  Title="{i18n:Tr settings.theme.title}"
+                                  Description="{i18n:Tr settings.theme.description}"
+                                  IsVisible="{Binding IsGeneralSettingsVisible}">
+                    <cui:CodexSegmentedControl>
                         <Grid ColumnDefinitions="*,*,*" ColumnSpacing="4">
-                            <ui:CsSegmentedButton IsSelected="{Binding IsLightThemeSelected}"
-                                                  Command="{Binding SelectThemeCommand}"
-                                                  CommandParameter="light"
-                                                  Content="{i18n:Tr settings.theme.light}"/>
-                            <ui:CsSegmentedButton Grid.Column="1"
-                                                  IsSelected="{Binding IsDarkThemeSelected}"
-                                                  Command="{Binding SelectThemeCommand}"
-                                                  CommandParameter="dark"
-                                                  Content="{i18n:Tr settings.theme.dark}"/>
-                            <ui:CsSegmentedButton Grid.Column="2"
-                                                  IsSelected="{Binding IsSystemThemeSelected}"
-                                                  Command="{Binding SelectThemeCommand}"
-                                                  CommandParameter="system"
-                                                  Content="{i18n:Tr settings.theme.system}"/>
+                            <cui:CodexSegmentedButton IsSelected="{Binding IsLightThemeSelected}"
+                                                      Command="{Binding SelectThemeCommand}"
+                                                      CommandParameter="light"
+                                                      Content="{i18n:Tr settings.theme.light}"/>
+                            <cui:CodexSegmentedButton Grid.Column="1"
+                                                      IsSelected="{Binding IsDarkThemeSelected}"
+                                                      Command="{Binding SelectThemeCommand}"
+                                                      CommandParameter="dark"
+                                                      Content="{i18n:Tr settings.theme.dark}"/>
+                            <cui:CodexSegmentedButton Grid.Column="2"
+                                                      IsSelected="{Binding IsSystemThemeSelected}"
+                                                      Command="{Binding SelectThemeCommand}"
+                                                      CommandParameter="system"
+                                                      Content="{i18n:Tr settings.theme.system}"/>
                         </Grid>
-                    </ui:CsSegmentedControl>
-                </ui:CsSection>
+                    </cui:CodexSegmentedControl>
+                </cui:CodexSection>
 
-                <ui:CsSection Grid.Row="2"
-                              Title="{i18n:Tr settings.desktop.title}"
-                              Description="{i18n:Tr settings.desktop.description}"
-                              IsVisible="{Binding IsGeneralSettingsVisible}">
+                <cui:CodexSection Grid.Row="2"
+                                  Title="{i18n:Tr settings.desktop.title}"
+                                  Description="{i18n:Tr settings.desktop.description}"
+                                  IsVisible="{Binding IsGeneralSettingsVisible}">
                     <StackPanel Spacing="12">
-                        <ui:CsSwitch Content="{i18n:Tr settings.desktop.startWithWindows}"
-                                     IsEnabled="{Binding IsStartWithWindowsSupported}"
-                                     IsChecked="{Binding StartWithWindows}"/>
-                        <ui:CsSwitch Content="{i18n:Tr settings.desktop.openCodexDefault}"
-                                     IsChecked="{Binding DefaultClientAppIsCodex}"/>
+                        <cui:CodexSwitch Content="{i18n:Tr settings.desktop.startWithWindows}"
+                                         IsEnabled="{Binding IsStartWithWindowsSupported}"
+                                         IsChecked="{Binding StartWithWindows}"/>
+                        <cui:CodexSwitch Content="{i18n:Tr settings.desktop.openCodexDefault}"
+                                         IsChecked="{Binding DefaultClientAppIsCodex}"/>
                     </StackPanel>
-                </ui:CsSection>
+                </cui:CodexSection>
 
-                <ui:CsSection Title="{i18n:Tr settings.proxy.title}"
-                              Description="{i18n:Tr settings.proxy.description}"
-                              IsVisible="{Binding IsRouteSettingsVisible}">
+                <cui:CodexSection Title="{i18n:Tr settings.proxy.title}"
+                                  Description="{i18n:Tr settings.proxy.description}"
+                                  IsVisible="{Binding IsRouteSettingsVisible}">
                     <Grid ColumnDefinitions="*,140"
                           RowDefinitions="Auto,Auto"
                           ColumnSpacing="12"
                           RowSpacing="12">
-                        <ui:CsField Label="{i18n:Tr settings.proxy.host}">
-                            <ui:CsInput Text="{Binding ProxyListenHost}"/>
-                        </ui:CsField>
-                        <ui:CsField Grid.Column="1" Label="{i18n:Tr settings.proxy.port}">
-                            <ui:CsInput Text="{Binding ProxyPort}"/>
-                        </ui:CsField>
-                        <ui:CsSwitch Grid.Row="1"
-                                     Content="{i18n:Tr settings.proxy.enabled}"
-                                     IsChecked="{Binding ProxyEnabled}"/>
+                        <cui:CodexField Label="{i18n:Tr settings.proxy.host}">
+                            <cui:CodexTextBox Text="{Binding ProxyListenHost}"/>
+                        </cui:CodexField>
+                        <cui:CodexField Grid.Column="1" Label="{i18n:Tr settings.proxy.port}">
+                            <cui:CodexTextBox Text="{Binding ProxyPort}"/>
+                        </cui:CodexField>
+                        <cui:CodexSwitch Grid.Row="1"
+                                         Content="{i18n:Tr settings.proxy.enabled}"
+                                         IsChecked="{Binding ProxyEnabled}"/>
                     </Grid>
-                </ui:CsSection>
+                </cui:CodexSection>
 
-                <ui:CsSection Grid.Row="1"
-                              Title="{i18n:Tr settings.outboundProxy.title}"
-                              Description="{i18n:Tr settings.outboundProxy.description}"
-                              IsVisible="{Binding IsRouteSettingsVisible}">
+                <cui:CodexSection Grid.Row="1"
+                                  Title="{i18n:Tr settings.outboundProxy.title}"
+                                  Description="{i18n:Tr settings.outboundProxy.description}"
+                                  IsVisible="{Binding IsRouteSettingsVisible}">
                     <StackPanel Spacing="12">
-                        <ui:CsField Label="{i18n:Tr settings.outboundProxy.mode}">
-                            <ui:CsSegmentedControl>
+                        <cui:CodexField Label="{i18n:Tr settings.outboundProxy.mode}">
+                            <cui:CodexSegmentedControl>
                                 <Grid ColumnDefinitions="*,*,*" ColumnSpacing="4">
-                                    <ui:CsSegmentedButton IsSelected="{Binding IsSystemNetworkProxySelected}"
-                                                          Command="{Binding SelectNetworkProxyModeCommand}"
-                                                          CommandParameter="System"
-                                                          Content="{i18n:Tr settings.outboundProxy.mode.system}"/>
-                                    <ui:CsSegmentedButton Grid.Column="1"
-                                                          IsSelected="{Binding IsCustomNetworkProxySelected}"
-                                                          Command="{Binding SelectNetworkProxyModeCommand}"
-                                                          CommandParameter="Custom"
-                                                          Content="{i18n:Tr settings.outboundProxy.mode.custom}"/>
-                                    <ui:CsSegmentedButton Grid.Column="2"
-                                                          IsSelected="{Binding IsDisabledNetworkProxySelected}"
-                                                          Command="{Binding SelectNetworkProxyModeCommand}"
-                                                          CommandParameter="Disabled"
-                                                          Content="{i18n:Tr settings.outboundProxy.mode.disabled}"/>
+                                    <cui:CodexSegmentedButton IsSelected="{Binding IsSystemNetworkProxySelected}"
+                                                              Command="{Binding SelectNetworkProxyModeCommand}"
+                                                              CommandParameter="System"
+                                                              Content="{i18n:Tr settings.outboundProxy.mode.system}"/>
+                                    <cui:CodexSegmentedButton Grid.Column="1"
+                                                              IsSelected="{Binding IsCustomNetworkProxySelected}"
+                                                              Command="{Binding SelectNetworkProxyModeCommand}"
+                                                              CommandParameter="Custom"
+                                                              Content="{i18n:Tr settings.outboundProxy.mode.custom}"/>
+                                    <cui:CodexSegmentedButton Grid.Column="2"
+                                                              IsSelected="{Binding IsDisabledNetworkProxySelected}"
+                                                              Command="{Binding SelectNetworkProxyModeCommand}"
+                                                              CommandParameter="Disabled"
+                                                              Content="{i18n:Tr settings.outboundProxy.mode.disabled}"/>
                                 </Grid>
-                            </ui:CsSegmentedControl>
-                        </ui:CsField>
-                        <ui:CsField Label="{i18n:Tr settings.outboundProxy.customUrl}">
-                            <ui:CsInput Text="{Binding NetworkProxyUrl}"
-                                        PlaceholderText="{i18n:Tr settings.outboundProxy.customUrlPlaceholder}"/>
-                        </ui:CsField>
-                        <ui:CsSwitch Content="{i18n:Tr settings.outboundProxy.bypassLocal}"
-                                     IsChecked="{Binding NetworkProxyBypassOnLocal}"/>
+                            </cui:CodexSegmentedControl>
+                        </cui:CodexField>
+                        <cui:CodexField Label="{i18n:Tr settings.outboundProxy.customUrl}">
+                            <cui:CodexTextBox Text="{Binding NetworkProxyUrl}"
+                                              PlaceholderText="{i18n:Tr settings.outboundProxy.customUrlPlaceholder}"/>
+                        </cui:CodexField>
+                        <cui:CodexSwitch Content="{i18n:Tr settings.outboundProxy.bypassLocal}"
+                                         IsChecked="{Binding NetworkProxyBypassOnLocal}"/>
                     </StackPanel>
-                </ui:CsSection>
+                </cui:CodexSection>
 
-                <ui:CsSection Grid.Row="2"
-                              Title="{i18n:Tr settings.outboundConnection.title}"
-                              Description="{i18n:Tr settings.outboundConnection.description}"
-                              IsVisible="{Binding IsRouteSettingsVisible}">
+                <cui:CodexSection Grid.Row="2"
+                                  Title="{i18n:Tr settings.outboundConnection.title}"
+                                  Description="{i18n:Tr settings.outboundConnection.description}"
+                                  IsVisible="{Binding IsRouteSettingsVisible}">
                     <Grid ColumnDefinitions="*,160"
                           ColumnSpacing="12">
-                        <ui:CsField Label="{i18n:Tr settings.outboundConnection.httpVersion}">
-                            <ui:CsSelect ItemsSource="{Binding HttpVersionOptions}"
-                                         SelectedItem="{Binding NetworkHttpVersion, Mode=TwoWay}"/>
-                        </ui:CsField>
-                        <ui:CsField Grid.Column="1" Label="{i18n:Tr settings.outboundConnection.connectTimeout}">
-                            <ui:CsInput Text="{Binding NetworkConnectTimeoutSeconds}"/>
-                        </ui:CsField>
+                        <cui:CodexField Label="{i18n:Tr settings.outboundConnection.httpVersion}">
+                            <cui:CodexSelect ItemsSource="{Binding HttpVersionOptions}"
+                                             SelectedItem="{Binding NetworkHttpVersion, Mode=TwoWay}"/>
+                        </cui:CodexField>
+                        <cui:CodexField Grid.Column="1" Label="{i18n:Tr settings.outboundConnection.connectTimeout}">
+                            <cui:CodexTextBox Text="{Binding NetworkConnectTimeoutSeconds}"/>
+                        </cui:CodexField>
                     </Grid>
-                </ui:CsSection>
+                </cui:CodexSection>
 
-                <ui:CsSection Grid.Row="3"
-                              Title="{i18n:Tr settings.resilience.title}"
-                              Description="{i18n:Tr settings.resilience.description}"
-                              IsVisible="{Binding IsRouteSettingsVisible}">
+                <cui:CodexSection Grid.Row="3"
+                                  Title="{i18n:Tr settings.resilience.title}"
+                                  Description="{i18n:Tr settings.resilience.description}"
+                                  IsVisible="{Binding IsRouteSettingsVisible}">
                     <Grid RowDefinitions="Auto,Auto"
                           ColumnDefinitions="*,160"
                           ColumnSpacing="12"
                           RowSpacing="12">
-                        <ui:CsSwitch Content="{i18n:Tr settings.resilience.enabled}"
-                                     IsChecked="{Binding CircuitBreakerEnabled}"/>
-                        <ui:CsField Grid.Column="1" Label="{i18n:Tr settings.resilience.failureThreshold}">
-                            <ui:CsInput Text="{Binding CircuitBreakerFailureThreshold}"/>
-                        </ui:CsField>
-                        <ui:CsField Grid.Row="1"
-                                    Grid.ColumnSpan="2"
-                                    Label="{i18n:Tr settings.resilience.recoveryDelays}">
-                            <ui:CsInput Text="{Binding CircuitBreakerRecoveryDelaySeconds}"
-                                        PlaceholderText="5,15,30,60,120"/>
-                        </ui:CsField>
+                        <cui:CodexSwitch Content="{i18n:Tr settings.resilience.enabled}"
+                                         IsChecked="{Binding CircuitBreakerEnabled}"/>
+                        <cui:CodexField Grid.Column="1" Label="{i18n:Tr settings.resilience.failureThreshold}">
+                            <cui:CodexTextBox Text="{Binding CircuitBreakerFailureThreshold}"/>
+                        </cui:CodexField>
+                        <cui:CodexField Grid.Row="1"
+                                        Grid.ColumnSpan="2"
+                                        Label="{i18n:Tr settings.resilience.recoveryDelays}">
+                            <cui:CodexTextBox Text="{Binding CircuitBreakerRecoveryDelaySeconds}"
+                                              PlaceholderText="5,15,30,60,120"/>
+                        </cui:CodexField>
                     </Grid>
-                </ui:CsSection>
+                </cui:CodexSection>
 
-                <ui:CsSection Title="{i18n:Tr settings.auth.title}"
-                              Description="{i18n:Tr settings.auth.description}"
-                              IsVisible="{Binding IsAuthSettingsVisible}">
+                <cui:CodexSection Title="{i18n:Tr settings.auth.title}"
+                                  Description="{i18n:Tr settings.auth.description}"
+                                  IsVisible="{Binding IsAuthSettingsVisible}">
                     <StackPanel Spacing="12">
-                        <ui:CsSwitch Content="{i18n:Tr settings.auth.preserveCodexAppAuth}"
-                                     IsChecked="{Binding PreserveCodexAppAuth}"/>
-                        <ui:CsSwitch Content="{i18n:Tr settings.auth.useFakeCodexAppAuth}"
-                                     IsChecked="{Binding UseFakeCodexAppAuth}"/>
-                        <ui:CsField Label="{i18n:Tr settings.auth.inboundApiKey}">
-                            <ui:CsInput Text="{Binding InboundApiKey}"/>
-                        </ui:CsField>
+                        <cui:CodexSwitch Content="{i18n:Tr settings.auth.preserveCodexAppAuth}"
+                                         IsChecked="{Binding PreserveCodexAppAuth}"/>
+                        <cui:CodexSwitch Content="{i18n:Tr settings.auth.useFakeCodexAppAuth}"
+                                         IsChecked="{Binding UseFakeCodexAppAuth}"/>
+                        <cui:CodexField Label="{i18n:Tr settings.auth.inboundApiKey}">
+                            <cui:CodexTextBox Text="{Binding InboundApiKey}"/>
+                        </cui:CodexField>
                     </StackPanel>
-                </ui:CsSection>
+                </cui:CodexSection>
 
                 <StackPanel IsVisible="{Binding IsAdvancedSettingsVisible}"
                             Spacing="14">
-                    <ui:CsSection Title="{i18n:Tr settings.paths.title}"
-                                  Description="{i18n:Tr settings.paths.description}">
+                    <cui:CodexSection Title="{i18n:Tr settings.paths.title}"
+                                      Description="{i18n:Tr settings.paths.description}">
                         <StackPanel Spacing="6">
                             <ui:CsText Text="{Binding AppDataRootPath}" Classes="muted"/>
                             <ui:CsText Text="{Binding CodexConfigFilePath}" Classes="muted"/>
@@ -235,40 +238,40 @@
                             <ui:CsText Text="{Binding ClaudeSettingsFilePath}" Classes="muted"/>
                             <ui:CsText Text="{Binding UsageLogFilePath}" Classes="muted"/>
                         </StackPanel>
-                    </ui:CsSection>
-                    <ui:CsSection Title="{i18n:Tr settings.notes.title}"
-                                  Description="{i18n:Tr settings.notes.description}">
+                    </cui:CodexSection>
+                    <cui:CodexSection Title="{i18n:Tr settings.notes.title}"
+                                      Description="{i18n:Tr settings.notes.description}">
                         <ui:CsText Text="{i18n:Tr settings.notes.releaseWorkflow}"
                                    Classes="muted"/>
-                    </ui:CsSection>
+                    </cui:CodexSection>
                 </StackPanel>
 
-                <ui:CsSection Title="{i18n:Tr settings.usagePricing.title}"
-                              Description="{i18n:Tr settings.usagePricing.description}"
-                              IsVisible="{Binding IsUsageSettingsVisible}">
+                <cui:CodexSection Title="{i18n:Tr settings.usagePricing.title}"
+                                  Description="{i18n:Tr settings.usagePricing.description}"
+                                  IsVisible="{Binding IsUsageSettingsVisible}">
                     <Grid ColumnDefinitions="0.8*,1*,1*,1*"
                           ColumnSpacing="12">
-                        <ui:CsField Label="{i18n:Tr settings.usagePricing.currency}">
-                            <ui:CsInput Text="{Binding PricingCurrency}"/>
-                        </ui:CsField>
-                        <ui:CsField Grid.Column="1" Label="{i18n:Tr settings.usagePricing.billingUnit}">
-                            <ui:CsInput Text="{Binding BillingUnitTokens}"/>
-                        </ui:CsField>
-                        <ui:CsField Grid.Column="2" Label="{i18n:Tr settings.usagePricing.defaultFast}">
-                            <ui:CsInput Text="{Binding DefaultFastMultiplier}"/>
-                        </ui:CsField>
-                        <ui:CsField Grid.Column="3" Label="{i18n:Tr settings.usagePricing.gpt55Fast}">
-                            <ui:CsInput Text="{Binding Gpt55FastMultiplier}"/>
-                        </ui:CsField>
+                        <cui:CodexField Label="{i18n:Tr settings.usagePricing.currency}">
+                            <cui:CodexTextBox Text="{Binding PricingCurrency}"/>
+                        </cui:CodexField>
+                        <cui:CodexField Grid.Column="1" Label="{i18n:Tr settings.usagePricing.billingUnit}">
+                            <cui:CodexTextBox Text="{Binding BillingUnitTokens}"/>
+                        </cui:CodexField>
+                        <cui:CodexField Grid.Column="2" Label="{i18n:Tr settings.usagePricing.defaultFast}">
+                            <cui:CodexTextBox Text="{Binding DefaultFastMultiplier}"/>
+                        </cui:CodexField>
+                        <cui:CodexField Grid.Column="3" Label="{i18n:Tr settings.usagePricing.gpt55Fast}">
+                            <cui:CodexTextBox Text="{Binding Gpt55FastMultiplier}"/>
+                        </cui:CodexField>
                     </Grid>
-                </ui:CsSection>
+                </cui:CodexSection>
 
-                <ui:CsSection Title="{i18n:Tr settings.version.title}"
-                              Description="{i18n:Tr settings.version.description}"
-                              IsVisible="{Binding IsAboutSettingsVisible}">
+                <cui:CodexSection Title="{i18n:Tr settings.version.title}"
+                                  Description="{i18n:Tr settings.version.description}"
+                                  IsVisible="{Binding IsAboutSettingsVisible}">
                     <StackPanel Spacing="16">
-                        <ui:CsSwitch Content="{i18n:Tr settings.version.autoCheck}"
-                                     IsChecked="{Binding AutoUpdateCheckEnabled}"/>
+                        <cui:CodexSwitch Content="{i18n:Tr settings.version.autoCheck}"
+                                         IsChecked="{Binding AutoUpdateCheckEnabled}"/>
 
                         <Grid RowDefinitions="Auto,Auto,Auto,Auto,Auto"
                               ColumnDefinitions="180,*"
@@ -330,20 +333,22 @@
 
                         <StackPanel Orientation="Horizontal"
                                     Spacing="10">
-                            <ui:CsButton Classes="outline compact"
-                                         Command="{Binding CheckForUpdatesCommand}"
-                                         Content="{Binding UpdateCheckButtonText}"/>
-                            <ui:CsButton Classes="outline compact"
-                                         Command="{Binding OpenDownloadedUpdateCommand}"
-                                         IsEnabled="{Binding CanOpenDownloadedUpdate}"
-                                         Content="{i18n:Tr settings.version.openDownloaded}"/>
-                            <ui:CsButton Classes="compact"
-                                         Command="{Binding OpenLatestReleaseCommand}"
-                                         IsEnabled="{Binding CanOpenLatestRelease}"
-                                         Content="{i18n:Tr settings.version.openReleases}"/>
+                            <cui:CodexButton Variant="Outline"
+                                             Size="Small"
+                                             Command="{Binding CheckForUpdatesCommand}"
+                                             Content="{Binding UpdateCheckButtonText}"/>
+                            <cui:CodexButton Variant="Outline"
+                                             Size="Small"
+                                             Command="{Binding OpenDownloadedUpdateCommand}"
+                                             IsEnabled="{Binding CanOpenDownloadedUpdate}"
+                                             Content="{i18n:Tr settings.version.openDownloaded}"/>
+                            <cui:CodexButton Size="Small"
+                                             Command="{Binding OpenLatestReleaseCommand}"
+                                             IsEnabled="{Binding CanOpenLatestRelease}"
+                                             Content="{i18n:Tr settings.version.openReleases}"/>
                         </StackPanel>
                     </StackPanel>
-                </ui:CsSection>
+                </cui:CodexSection>
             </Grid>
         </Grid>
     </ScrollViewer>

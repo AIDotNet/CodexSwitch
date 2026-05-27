@@ -95,6 +95,15 @@
                             </ui:CodexButton.LeadingIcon>
                             <TextBlock Text="{Binding CodexSessionMigrationButtonText}"/>
                         </ui:CodexButton>
+                        <ui:CodexButton Variant="Outline"
+                                        Size="Small"
+                                        IsEnabled="{Binding CanRestoreCodexSessions}"
+                                        Command="{Binding RestoreCodexSessionsCommand}">
+                            <ui:CodexButton.LeadingIcon>
+                                <lucide:LucideIcon Kind="History" Size="14" StrokeWidth="2"/>
+                            </ui:CodexButton.LeadingIcon>
+                            <TextBlock Text="{Binding CodexSessionRestoreButtonText}"/>
+                        </ui:CodexButton>
                     </StackPanel>
                 </ui:CodexSection.Actions>
             </ui:CodexSection>
@@ -141,7 +150,7 @@
                         </Border>
 
                         <Grid Grid.Row="2"
-                              ColumnDefinitions="*,*"
+                              ColumnDefinitions="*,*,*"
                               RowDefinitions="Auto,Auto"
                               ColumnSpacing="10"
                               RowSpacing="10">
@@ -162,8 +171,17 @@
                                                Classes="session-label"/>
                                 </StackPanel>
                             </Border>
+                            <Border Grid.Column="2"
+                                    Classes="session-metric">
+                                <StackPanel Spacing="3">
+                                    <TextBlock Text="{Binding CodexSessionRestorableCount}"
+                                               Classes="session-number"/>
+                                    <TextBlock Text="{i18n:Tr codexSessions.restorable}"
+                                               Classes="session-label"/>
+                                </StackPanel>
+                            </Border>
                             <Border Grid.Row="1"
-                                    Grid.ColumnSpan="2"
+                                    Grid.ColumnSpan="3"
                                     Classes="session-metric">
                                 <StackPanel Spacing="3">
                                     <TextBlock Text="{Binding CodexSessionTotalDetail}"
@@ -171,6 +189,8 @@
                                                FontWeight="SemiBold"
                                                TextTrimming="CharacterEllipsis"/>
                                     <text:CodexText Text="{Binding CodexSessionMigratableDetail}"
+                                                    Role="Muted"/>
+                                    <text:CodexText Text="{Binding CodexSessionRestorableDetail}"
                                                     Role="Muted"/>
                                 </StackPanel>
                             </Border>
@@ -183,15 +203,27 @@
                                             Role="Muted"
                                             TextWrapping="Wrap"
                                             VerticalAlignment="Center"/>
-                            <ui:CodexButton Grid.Column="1"
-                                            Size="Small"
-                                            IsEnabled="{Binding CanMigrateCodexSessions}"
-                                            Command="{Binding MigrateCodexSessionsCommand}">
-                                <ui:CodexButton.LeadingIcon>
-                                    <lucide:LucideIcon Kind="MoveRight" Size="14" StrokeWidth="2"/>
-                                </ui:CodexButton.LeadingIcon>
-                                <TextBlock Text="{Binding CodexSessionMigrationButtonText}"/>
-                            </ui:CodexButton>
+                            <StackPanel Grid.Column="1"
+                                        Orientation="Horizontal"
+                                        Spacing="8">
+                                <ui:CodexButton Variant="Outline"
+                                                Size="Small"
+                                                IsEnabled="{Binding CanRestoreCodexSessions}"
+                                                Command="{Binding RestoreCodexSessionsCommand}">
+                                    <ui:CodexButton.LeadingIcon>
+                                        <lucide:LucideIcon Kind="History" Size="14" StrokeWidth="2"/>
+                                    </ui:CodexButton.LeadingIcon>
+                                    <TextBlock Text="{Binding CodexSessionRestoreButtonText}"/>
+                                </ui:CodexButton>
+                                <ui:CodexButton Size="Small"
+                                                IsEnabled="{Binding CanMigrateCodexSessions}"
+                                                Command="{Binding MigrateCodexSessionsCommand}">
+                                    <ui:CodexButton.LeadingIcon>
+                                        <lucide:LucideIcon Kind="MoveRight" Size="14" StrokeWidth="2"/>
+                                    </ui:CodexButton.LeadingIcon>
+                                    <TextBlock Text="{Binding CodexSessionMigrationButtonText}"/>
+                                </ui:CodexButton>
+                            </StackPanel>
                         </Grid>
                     </Grid>
                 </Border>

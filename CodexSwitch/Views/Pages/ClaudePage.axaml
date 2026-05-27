@@ -2,6 +2,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:CodexSwitch.ViewModels"
              xmlns:ui="using:CodexSwitch.Controls"
+             xmlns:cui="using:CodexSwitchUI.Controls"
              xmlns:i18n="using:CodexSwitch.I18n"
              xmlns:lucide="using:Lucide.Avalonia"
              x:Class="CodexSwitch.Views.Pages.ClaudePage"
@@ -18,10 +19,11 @@
                     <ui:CsText Text="{i18n:Tr claude.title}" Classes="title"/>
                     <ui:CsText Text="{Binding Endpoint}" Classes="muted"/>
                 </StackPanel>
-                <ui:CsButton Grid.Column="1"
-                             Classes="outline compact"
-                             Command="{Binding ShowProvidersCommand}"
-                             Content="{i18n:Tr claude.backToProviders}"/>
+                <cui:CodexButton Grid.Column="1"
+                                 Variant="Outline"
+                                 Size="Small"
+                                 Command="{Binding ShowProvidersCommand}"
+                                 Content="{i18n:Tr claude.backToProviders}"/>
             </Grid>
 
             <Border Grid.Row="1" Classes="dialog-section">
@@ -80,14 +82,16 @@
                                                     Orientation="Horizontal"
                                                     Spacing="8"
                                                     HorizontalAlignment="Right">
-                                            <ui:CsButton Classes="outline compact"
-                                                         Command="{Binding SelectCommand}"
-                                                         CommandParameter="{Binding}"
-                                                         Content="{i18n:Tr addProvider.setActive}"/>
-                                            <ui:CsButton Classes="outline compact"
-                                                         Command="{Binding EditCommand}"
-                                                         CommandParameter="{Binding}"
-                                                         Content="{i18n:Tr common.edit}"/>
+                                            <cui:CodexButton Variant="Outline"
+                                                             Size="Small"
+                                                             Command="{Binding SelectCommand}"
+                                                             CommandParameter="{Binding}"
+                                                             Content="{i18n:Tr addProvider.setActive}"/>
+                                            <cui:CodexButton Variant="Outline"
+                                                             Size="Small"
+                                                             Command="{Binding EditCommand}"
+                                                             CommandParameter="{Binding}"
+                                                             Content="{i18n:Tr common.edit}"/>
                                         </StackPanel>
                                     </Grid>
                                 </Border>
@@ -107,10 +111,10 @@
                                    Classes="muted"/>
                     </StackPanel>
 
-                    <ui:CsField Label="{i18n:Tr claude.model}">
+                    <cui:CodexField Label="{i18n:Tr claude.model}">
                         <StackPanel Spacing="10">
-                            <ui:CsInput Text="{Binding ClaudeCodeModel, Mode=TwoWay}"
-                                        PlaceholderText="{i18n:Tr claude.model}"/>
+                            <cui:CodexTextBox Text="{Binding ClaudeCodeModel, Mode=TwoWay}"
+                                              PlaceholderText="{i18n:Tr claude.model}"/>
                             <ItemsControl ItemsSource="{Binding ClaudeCodeModelOptions}">
                                 <ItemsControl.ItemsPanel>
                                     <ItemsPanelTemplate>
@@ -119,35 +123,36 @@
                                 </ItemsControl.ItemsPanel>
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate>
-                                        <ui:CsButton Classes="outline compact"
-                                                     Margin="0,0,8,8"
-                                                     Command="{Binding #Root.DataContext.SelectClaudeCodeModelCommand}"
-                                                     CommandParameter="{Binding}"
-                                                     Content="{Binding}"/>
+                                        <cui:CodexButton Variant="Outline"
+                                                         Size="Small"
+                                                         Margin="0,0,8,8"
+                                                         Command="{Binding #Root.DataContext.SelectClaudeCodeModelCommand}"
+                                                         CommandParameter="{Binding}"
+                                                         Content="{Binding}"/>
                                     </DataTemplate>
                                 </ItemsControl.ItemTemplate>
                             </ItemsControl>
                         </StackPanel>
-                    </ui:CsField>
+                    </cui:CodexField>
 
                     <StackPanel Spacing="12">
-                        <ui:CsSwitch Content="{i18n:Tr claude.think}"
-                                     IsChecked="{Binding ClaudeCodeThinkEnabled, Mode=TwoWay}"/>
-                        <ui:CsSwitch Content="{i18n:Tr claude.skipDangerousPrompt}"
-                                     IsChecked="{Binding ClaudeCodeSkipDangerousModePermissionPrompt, Mode=TwoWay}"/>
-                        <ui:CsSwitch Content="{i18n:Tr claude.oneMillionContext}"
-                                     IsChecked="{Binding ClaudeCodeOneMillionContextEnabled, Mode=TwoWay}"
-                                     IsEnabled="{Binding IsClaudeOneMillionContextAvailable}"/>
+                        <cui:CodexSwitch Content="{i18n:Tr claude.think}"
+                                         IsChecked="{Binding ClaudeCodeThinkEnabled, Mode=TwoWay}"/>
+                        <cui:CodexSwitch Content="{i18n:Tr claude.skipDangerousPrompt}"
+                                         IsChecked="{Binding ClaudeCodeSkipDangerousModePermissionPrompt, Mode=TwoWay}"/>
+                        <cui:CodexSwitch Content="{i18n:Tr claude.oneMillionContext}"
+                                         IsChecked="{Binding ClaudeCodeOneMillionContextEnabled, Mode=TwoWay}"
+                                         IsEnabled="{Binding IsClaudeOneMillionContextAvailable}"/>
                     </StackPanel>
 
-                    <ui:CsButton Classes="compact"
-                                 Command="{Binding SaveClaudeCodeSettingsCommand}"
-                                 HorizontalAlignment="Left">
-                        <StackPanel Orientation="Horizontal" Spacing="7">
+                    <cui:CodexButton Size="Small"
+                                     Command="{Binding SaveClaudeCodeSettingsCommand}"
+                                     HorizontalAlignment="Left"
+                                     Content="{i18n:Tr claude.saveSettings}">
+                        <cui:CodexButton.LeadingIcon>
                             <lucide:LucideIcon Kind="Save" Size="14" StrokeWidth="2"/>
-                            <TextBlock Text="{i18n:Tr claude.saveSettings}"/>
-                        </StackPanel>
-                    </ui:CsButton>
+                        </cui:CodexButton.LeadingIcon>
+                    </cui:CodexButton>
                 </StackPanel>
             </Border>
         </Grid>

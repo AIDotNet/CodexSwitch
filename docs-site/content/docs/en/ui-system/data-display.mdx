@@ -1,10 +1,50 @@
 ---
 title: Data Display
-description: Tables, ranked charts, cards, separators, typography, and ECharts theme adapter.
+description: Tables, data-table patterns, chart composition, bar and line charts, items, aspect ratio, carousel, pagination, scroll areas, ranked charts, cards, separators, typography, and ECharts theme adapter.
 icon: Table2
 ---
 
-Data display components power provider lists, model catalogs, usage dashboards, and chart surfaces.
+Data display components power provider lists, model catalogs, data-table workflows, chart composition surfaces, item rows, fixed-ratio media slots, carousel rails, usage dashboards, and chart surfaces.
+
+## Component families
+
+- Table
+- Data Table pattern for filtering, sorting, column visibility, row selection, actions, and pagination
+- Item for media/title/description rows, trailing actions, selected/loading/disabled states, groups, and separators
+- Aspect Ratio for fixed video, square, portrait, and bounded media slots with clipped content
+- Carousel
+- Chart composition for containers, legends, tooltip content, indicator styles, and refresh motion
+- Bar Chart for native vertical/horizontal plots, grid lines, active-bar tooltip state, `ActiveItemChanged`, negative values, and tokenized redraw motion
+- Line Chart for native line/area plots, grid lines, point dots, active-point tooltip state, `ActivePointChanged`, and tokenized redraw motion
+- Image Icon for provider bitmaps, `ImageLoaded` / `ImageLoadFailed` lifecycle events, and source-state classes
+- Pagination
+- Scroll area
+- Ranked and usage charts, including `ActiveItemChanged` on ranked rows and usage pie slices
+- Card
+- Separator
+- Typography
+
+Carousel coverage follows the Web composition path with selected-index state, previous/next commands, loop boundaries, horizontal and vertical orientation, keyboard navigation, status text, `SelectionChanged` source metadata, old/new item metadata, and per-example inline AXAML source in Docs.
+
+Pagination coverage follows the Web page-navigation contract with boundary/sibling ellipses, current page state, first/previous/next/last commands, keyboard navigation, loading suppression, compact mode, and `PageChanged` source metadata for page item, action, keyboard, and programmatic changes.
+
+Item coverage follows the Web row composition path with media, title, description, content, action, footer, group, separator, pointer activation, Enter/Space activation, command guards, and nested action slots.
+
+Aspect Ratio coverage follows the shadcn ratio primitive with video, square, portrait, empty, width/height/contain fit modes, clipped content, pointer hover motion, RatioChanged events, and independent Docs examples whose AXAML expands below each rendered case.
+
+Data Table coverage follows the shadcn guide pattern: it composes the Table primitives with TextBox filtering, Dropdown column visibility, Checkbox row selection, row action menus, selection summaries, pagination, and transition-key refresh motion. Each desktop Docs case renders first, then expands the local AXAML directly under that case.
+
+Chart coverage follows the shadcn Recharts helper model without locking the library to one chart engine: `CodexChartContainer`, `CodexChartLegend`, `CodexChartLegendItem`, `CodexChartTooltipContent`, and `CodexChartTooltipItem` wrap bar charts, line charts, usage pie, ranked bar, ECharts, or custom chart content with shared config colors, tooltip labels, indicator styles, and tokenized refresh motion.
+
+Bar Chart coverage adds native Avalonia vertical and horizontal plots for common Web dashboard examples: ordered `ItemsSource` items drive rounded bars, grid lines, axis labels, zero baseline support for negative values, empty state, active bar, tooltip interpolation, reduced-motion behavior, and per-case AXAML expansion in Docs.
+
+Line Chart coverage adds a native Avalonia plot for common Web chart examples: ordered `ItemsSource` points drive smoothed line geometry, optional area fill, grid lines, point markers, empty state, active point, tooltip interpolation, reduced-motion behavior, and per-case AXAML expansion in Docs.
+
+Usage Pie Chart coverage now exposes the same event contract as the newer native charts: pointer hover updates `ActiveIndex`, raises `ActiveItemChanged` with old/new slice metadata, animates slice emphasis and tooltip interpolation, and keeps reduced-motion refreshes deterministic.
+
+Ranked Bar Chart coverage now uses the same observable active-item contract: pointer hover updates `ActiveIndex`, raises `ActiveItemChanged` with old/new row metadata, and exposes `has-active-row` for Web-style active row styling.
+
+Image Icon coverage now mirrors Web image lifecycle handling: changing `Path` reloads avares or local file sources, successful loads raise `ImageLoaded`, missing or unreadable assets raise `ImageLoadFailed`, and `HasSource`, `IsMissing`, `IsEmpty`, and `LastLoadError` drive state classes and Docs examples.
 
 ## Chart adapter
 

@@ -145,7 +145,7 @@ internal sealed class ResponsesWebSocketProxy
         var config = _getConfig();
         var requestedModel = snapshot.RequestModel;
         var selection = ProviderRoutingResolver.Resolve(config, requestedModel, ClientAppKind.Codex);
-        var provider = selection?.Provider ?? ProviderRoutingResolver.ResolveActiveProvider(config, ClientAppKind.Codex);
+        var provider = selection?.Provider;
         if (provider is null)
         {
             await SendErrorAsync(

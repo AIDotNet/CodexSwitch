@@ -16,6 +16,8 @@ public sealed class AppConfig
 
     public string ActiveProviderId { get; set; } = "default";
 
+    public Collection<string> DeletedBuiltinProviderIds { get; set; } = [];
+
     public Collection<ProviderConfig> Providers { get; set; } = [];
 
     public ProviderTestSettings GlobalTest { get; set; } = new();

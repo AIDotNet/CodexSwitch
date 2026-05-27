@@ -72,6 +72,8 @@ public sealed class ConfigurationStore
         config.GlobalTest ??= new ProviderTestSettings();
         config.GlobalCost ??= new ProviderCostSettings();
         config.Providers ??= [];
+        config.DeletedBuiltinProviderIds ??= [];
+        NormalizeDeletedBuiltInProviders(config);
         config.Ui.Theme = AppThemeService.Normalize(config.Ui.Theme);
         if (string.IsNullOrWhiteSpace(config.Ui.Language))
             config.Ui.Language = "zh-CN";
@@ -174,23 +176,41 @@ public sealed class ConfigurationStore
 
     private static void EnsureRequiredBuiltIns(AppConfig config)
     {
-        if (!HasProvider(config, ProviderTemplateCatalog.RoutinAiBuiltinId, "https://api.routin.ai/v1"))
+        if (!IsBuiltInDeleted(config, ProviderTemplateCatalog.RoutinAiBuiltinId) &&
+            !HasProvider(config, ProviderTemplateCatalog.RoutinAiBuiltinId, "https://api.routin.ai/v1"))
+        {
             AddFromTemplate(config, ProviderTemplateCatalog.RoutinAiBuiltinId);
+        }
 
-        if (!HasProvider(config, ProviderTemplateCatalog.RoutinAiPlanBuiltinId, "https://api.routin.ai/plan/v1"))
+        if (!IsBuiltInDeleted(config, ProviderTemplateCatalog.RoutinAiPlanBuiltinId) &&
+            !HasProvider(config, ProviderTemplateCatalog.RoutinAiPlanBuiltinId, "https://api.routin.ai/plan/v1"))
+        {
             AddFromTemplate(config, ProviderTemplateCatalog.RoutinAiPlanBuiltinId);
+        }
 
-        if (!HasProvider(config, ProviderTemplateCatalog.OpenAiOfficialBuiltinId, "https://api.openai.com/v1"))
+        if (!IsBuiltInDeleted(config, ProviderTemplateCatalog.OpenAiOfficialBuiltinId) &&
+            !HasProvider(config, ProviderTemplateCatalog.OpenAiOfficialBuiltinId, ProviderTemplateCatalog.OpenAiOfficialBaseUrl))
+        {
             AddFromTemplate(config, ProviderTemplateCatalog.OpenAiOfficialBuiltinId);
+        }
 
-        if (!HasProvider(config, ProviderTemplateCatalog.AnthropicBuiltinId, "https://api.anthropic.com/v1"))
+        if (!IsBuiltInDeleted(config, ProviderTemplateCatalog.AnthropicBuiltinId) &&
+            !HasProvider(config, ProviderTemplateCatalog.AnthropicBuiltinId, "https://api.anthropic.com/v1"))
+        {
             AddFromTemplate(config, ProviderTemplateCatalog.AnthropicBuiltinId);
+        }
 
-        if (!HasProvider(config, ProviderTemplateCatalog.DeepSeekBuiltinId, "https://api.deepseek.com/v1"))
+        if (!IsBuiltInDeleted(config, ProviderTemplateCatalog.DeepSeekBuiltinId) &&
+            !HasProvider(config, ProviderTemplateCatalog.DeepSeekBuiltinId, "https://api.deepseek.com/v1"))
+        {
             AddFromTemplate(config, ProviderTemplateCatalog.DeepSeekBuiltinId);
+        }
 
-        if (!HasProvider(config, ProviderTemplateCatalog.XiaomiBuiltinId, "https://api.xiaomimimo.com/v1"))
+        if (!IsBuiltInDeleted(config, ProviderTemplateCatalog.XiaomiBuiltinId) &&
+            !HasProvider(config, ProviderTemplateCatalog.XiaomiBuiltinId, ProviderTemplateCatalog.XiaomiLegacyBaseUrl))
+        {
             AddFromTemplate(config, ProviderTemplateCatalog.XiaomiBuiltinId);
+        }
     }
 
     private static void EnsureProviderClientSupport(AppConfig config)
@@ -302,7 +322,23 @@ public sealed class ConfigurationStore
                 provider.DefaultModel = string.IsNullOrWhiteSpace(provider.DefaultModel) ? CodexSwitchDefaults.ManagedCodexModel : provider.DefaultModel;
                 SyncProviderTemplate(provider, ProviderTemplateCatalog.RoutinAiPlanBuiltinId);
             }
-            else if (IsBaseUrl(provider, "https://api.openai.com/v1"))
+            else if (IsXiaomiProvider(provider))
+            {
+                provider.BuiltinId = ProviderTemplateCatalog.XiaomiBuiltinId;
+                provider.DisplayName = string.IsNullOrWhiteSpace(provider.DisplayName) ? "Xiaomi MiMo" : provider.DisplayName;
+                provider.Website ??= "https://platform.xiaomimimo.com";
+                provider.IconSlug ??= "xiaomi";
+                if (string.IsNullOrWhiteSpace(provider.BaseUrl) ||
+                    IsBaseUrl(provider, ProviderTemplateCatalog.XiaomiLegacyBaseUrl))
+                {
+                    provider.BaseUrl = ProviderTemplateCatalog.OpenAiOfficialBaseUrl;
+                }
+                provider.AuthMode = ProviderAuthMode.ApiKey;
+                provider.Protocol = ProviderProtocol.OpenAiChat;
+                provider.DefaultModel = string.IsNullOrWhiteSpace(provider.DefaultModel) ? "mimo-v2.5-pro" : provider.DefaultModel;
+                SyncProviderTemplate(provider, ProviderTemplateCatalog.XiaomiBuiltinId);
+            }
+            else if (IsBaseUrl(provider, ProviderTemplateCatalog.OpenAiOfficialBaseUrl))
             {
                 provider.BuiltinId ??= ProviderTemplateCatalog.OpenAiOfficialBuiltinId;
                 provider.IconSlug ??= "openai";
@@ -340,18 +376,6 @@ public sealed class ConfigurationStore
                 provider.DefaultModel = string.IsNullOrWhiteSpace(provider.DefaultModel) ? "deepseek-v4-flash" : provider.DefaultModel;
                 SyncProviderTemplate(provider, ProviderTemplateCatalog.DeepSeekBuiltinId);
             }
-            else if (IsBaseUrl(provider, "https://api.xiaomimimo.com/v1"))
-            {
-                provider.BuiltinId ??= ProviderTemplateCatalog.XiaomiBuiltinId;
-                provider.DisplayName = string.IsNullOrWhiteSpace(provider.DisplayName) ? "Xiaomi MiMo" : provider.DisplayName;
-                provider.Website ??= "https://platform.xiaomimimo.com";
-                provider.IconSlug ??= "xiaomi";
-                provider.AuthMode = ProviderAuthMode.ApiKey;
-                provider.Protocol = ProviderProtocol.OpenAiChat;
-                provider.DefaultModel = string.IsNullOrWhiteSpace(provider.DefaultModel) ? "mimo-v2.5-pro" : provider.DefaultModel;
-                SyncProviderTemplate(provider, ProviderTemplateCatalog.XiaomiBuiltinId);
-            }
-
             if (provider.AuthMode == ProviderAuthMode.OAuth)
                 provider.ApiKey = "";
         }
@@ -359,7 +383,32 @@ public sealed class ConfigurationStore
 
     private static void AddFromTemplate(AppConfig config, string templateId)
     {
+        if (IsBuiltInDeleted(config, templateId))
+            return;
+
         config.Providers.Add(ProviderTemplateCatalog.CreateProvider(templateId, config.Providers.Select(provider => provider.Id)));
+    }
+
+    private static bool IsBuiltInDeleted(AppConfig config, string builtinId)
+    {
+        return config.DeletedBuiltinProviderIds.Any(id =>
+            string.Equals(id, builtinId, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static void NormalizeDeletedBuiltInProviders(AppConfig config)
+    {
+        if (config.DeletedBuiltinProviderIds.Count == 0)
+            return;
+
+        var normalized = config.DeletedBuiltinProviderIds
+            .Where(id => !string.IsNullOrWhiteSpace(id))
+            .Select(id => id.Trim())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+
+        config.DeletedBuiltinProviderIds.Clear();
+        foreach (var id in normalized)
+            config.DeletedBuiltinProviderIds.Add(id);
     }
 
     private static void EnsureProviderModelConversions(AppConfig config)
@@ -445,6 +494,12 @@ public sealed class ConfigurationStore
         return string.Equals(provider.BuiltinId, ProviderTemplateCatalog.DeepSeekBuiltinId, StringComparison.OrdinalIgnoreCase) ||
             IsBaseUrl(provider, "https://api.deepseek.com/anthropic") ||
             IsBaseUrl(provider, "https://api.deepseek.com/v1");
+    }
+
+    private static bool IsXiaomiProvider(ProviderConfig provider)
+    {
+        return string.Equals(provider.BuiltinId, ProviderTemplateCatalog.XiaomiBuiltinId, StringComparison.OrdinalIgnoreCase) ||
+            IsBaseUrl(provider, ProviderTemplateCatalog.XiaomiLegacyBaseUrl);
     }
 
     private static bool ProviderSupportsClient(ProviderConfig provider, ClientAppKind kind)

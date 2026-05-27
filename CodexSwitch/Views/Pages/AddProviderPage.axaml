@@ -2,6 +2,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:CodexSwitch.ViewModels"
              xmlns:ui="using:CodexSwitch.Controls"
+             xmlns:cui="using:CodexSwitchUI.Controls"
              xmlns:i18n="using:CodexSwitch.I18n"
              xmlns:lucide="using:Lucide.Avalonia"
              x:Class="CodexSwitch.Views.Pages.AddProviderPage"
@@ -99,49 +100,49 @@
                     <Grid ColumnDefinitions="*,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto"
                           ColumnSpacing="12"
                           RowSpacing="12">
-                        <ui:CsField Label="{i18n:Tr addProvider.providerName}">
-                            <ui:CsInput Text="{Binding SelectedProviderName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
-                        </ui:CsField>
-                        <ui:CsField Grid.Column="1" Label="{i18n:Tr addProvider.note}">
-                            <ui:CsInput Text="{Binding SelectedProviderNote, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
-                        </ui:CsField>
-                        <ui:CsField Grid.Row="1" Grid.ColumnSpan="2" Label="{i18n:Tr addProvider.website}">
-                            <ui:CsInput Text="{Binding SelectedProviderWebsite, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                        PlaceholderText="{i18n:Tr addProvider.websitePlaceholder}"/>
-                        </ui:CsField>
-                        <ui:CsField Grid.Row="2" Grid.ColumnSpan="2" Label="{i18n:Tr providerDialog.apiKey}">
-                            <ui:CsInput Text="{Binding SelectedApiKey, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                        PasswordChar="*"
-                                        PlaceholderText="{i18n:Tr addProvider.apiKeyPlaceholder}"/>
-                        </ui:CsField>
-                        <ui:CsField Grid.Row="3" Grid.ColumnSpan="2" Label="{i18n:Tr addProvider.baseUrl}">
-                            <ui:CsInput Text="{Binding SelectedBaseUrl, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                        PlaceholderText="https://your-api-endpoint.com/v1"/>
-                        </ui:CsField>
-                        <ui:CsField Grid.Row="4" Label="{i18n:Tr addProvider.modelName}">
-                            <ui:CsInput Text="{Binding SelectedDefaultModel, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
-                        </ui:CsField>
-                        <ui:CsField Grid.Row="4" Grid.Column="1" Label="{i18n:Tr providerDialog.protocol}">
-                            <ui:CsSelect ItemsSource="{Binding ProtocolOptions}"
-                                         SelectedItem="{Binding SelectedProtocol, Mode=TwoWay}"/>
-                        </ui:CsField>
+                        <cui:CodexField Label="{i18n:Tr addProvider.providerName}">
+                            <cui:CodexTextBox Text="{Binding SelectedProviderName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                        </cui:CodexField>
+                        <cui:CodexField Grid.Column="1" Label="{i18n:Tr addProvider.note}">
+                            <cui:CodexTextBox Text="{Binding SelectedProviderNote, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                        </cui:CodexField>
+                        <cui:CodexField Grid.Row="1" Grid.ColumnSpan="2" Label="{i18n:Tr addProvider.website}">
+                            <cui:CodexTextBox Text="{Binding SelectedProviderWebsite, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                              PlaceholderText="{i18n:Tr addProvider.websitePlaceholder}"/>
+                        </cui:CodexField>
+                        <cui:CodexField Grid.Row="2" Grid.ColumnSpan="2" Label="{i18n:Tr providerDialog.apiKey}">
+                            <cui:CodexTextBox Text="{Binding SelectedApiKey, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                              PasswordChar="*"
+                                              PlaceholderText="{i18n:Tr addProvider.apiKeyPlaceholder}"/>
+                        </cui:CodexField>
+                        <cui:CodexField Grid.Row="3" Grid.ColumnSpan="2" Label="{i18n:Tr addProvider.baseUrl}">
+                            <cui:CodexTextBox Text="{Binding SelectedBaseUrl, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                              PlaceholderText="https://your-api-endpoint.com/v1"/>
+                        </cui:CodexField>
+                        <cui:CodexField Grid.Row="4" Label="{i18n:Tr addProvider.modelName}">
+                            <cui:CodexTextBox Text="{Binding SelectedDefaultModel, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                        </cui:CodexField>
+                        <cui:CodexField Grid.Row="4" Grid.Column="1" Label="{i18n:Tr providerDialog.protocol}">
+                            <cui:CodexSelect ItemsSource="{Binding ProtocolOptions}"
+                                             SelectedItem="{Binding SelectedProtocol, Mode=TwoWay}"/>
+                        </cui:CodexField>
                     </Grid>
 
                     <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
                         <StackPanel Orientation="Horizontal" Spacing="18">
-                            <ui:CsSwitch Content="{i18n:Tr providerDialog.supportsCodex}"
-                                         IsChecked="{Binding SelectedSupportsCodex, Mode=TwoWay}"/>
-                            <ui:CsSwitch Content="{i18n:Tr providerDialog.supportsClaudeCode}"
-                                         IsChecked="{Binding SelectedSupportsClaudeCode, Mode=TwoWay}"/>
-                            <ui:CsSwitch Content="{i18n:Tr providerDialog.supportsWebSockets}"
-                                         IsChecked="{Binding SelectedSupportsWebSockets, Mode=TwoWay}"/>
-                            <ui:CsSwitch Content="{i18n:Tr providerDialog.codexOneMillionContext}"
-                                         IsChecked="{Binding SelectedCodexOneMillionContextEnabled, Mode=TwoWay}"
-                                         IsEnabled="{Binding IsSelectedCodexOneMillionContextAvailable}"/>
-                            <ui:CsSwitch Content="{i18n:Tr providerDialog.overrideRequestModel}"
-                                         IsChecked="{Binding SelectedOverrideModel, Mode=TwoWay}"/>
-                            <ui:CsSwitch Content="{i18n:Tr providerDialog.fastModePricing}"
-                                         IsChecked="{Binding SelectedFastMode, Mode=TwoWay}"/>
+                            <cui:CodexSwitch Content="{i18n:Tr providerDialog.supportsCodex}"
+                                             IsChecked="{Binding SelectedSupportsCodex, Mode=TwoWay}"/>
+                            <cui:CodexSwitch Content="{i18n:Tr providerDialog.supportsClaudeCode}"
+                                             IsChecked="{Binding SelectedSupportsClaudeCode, Mode=TwoWay}"/>
+                            <cui:CodexSwitch Content="{i18n:Tr providerDialog.supportsWebSockets}"
+                                             IsChecked="{Binding SelectedSupportsWebSockets, Mode=TwoWay}"/>
+                            <cui:CodexSwitch Content="{i18n:Tr providerDialog.codexOneMillionContext}"
+                                             IsChecked="{Binding SelectedCodexOneMillionContextEnabled, Mode=TwoWay}"
+                                             IsEnabled="{Binding IsSelectedCodexOneMillionContextAvailable}"/>
+                            <cui:CodexSwitch Content="{i18n:Tr providerDialog.overrideRequestModel}"
+                                             IsChecked="{Binding SelectedOverrideModel, Mode=TwoWay}"/>
+                            <cui:CodexSwitch Content="{i18n:Tr providerDialog.fastModePricing}"
+                                             IsChecked="{Binding SelectedFastMode, Mode=TwoWay}"/>
                         </StackPanel>
                         <ui:CsButton Grid.Column="1"
                                      Classes="compact"
@@ -229,7 +230,7 @@
                                                           ColumnSpacing="8"
                                                           RowSpacing="4"
                                                           Margin="0,6,0,0">
-                                                        <ui:CsInput Text="{Binding DisplayName}"/>
+                                                        <cui:CodexTextBox Text="{Binding DisplayName}"/>
                                                         <ui:CsButton Grid.Column="1"
                                                                      Classes="outline compact"
                                                                      Command="{Binding SaveNameCommand}"
