@@ -162,13 +162,10 @@ public sealed class UiV2InfrastructureTests : IDisposable
         Assert.True(config.Network.BypassProxyOnLocal);
         Assert.Equal(OutboundHttpVersion.Http2, config.Network.OutboundHttpVersion);
         Assert.Equal(30, config.Network.ConnectTimeoutSeconds);
-        Assert.True(config.Resilience.CircuitBreakerEnabled);
-        Assert.Equal(3, config.Resilience.CircuitBreakerFailureThreshold);
-        Assert.Equal([5, 15, 30, 60, 120], config.Resilience.CircuitBreakerRecoveryDelaySeconds);
     }
 
     [Fact]
-    public void EnsureValidDefaults_SkipsDisabledActiveProvider_WhenEnabledFallbackExists()
+    public void EnsureValidDefaults_ReenablesLegacyDisabledProviders()
     {
         var config = new AppConfig
         {
@@ -183,9 +180,10 @@ public sealed class UiV2InfrastructureTests : IDisposable
 
         ConfigurationStore.EnsureValidDefaults(config);
 
-        Assert.False(config.Providers[0].Enabled);
-        Assert.Equal("enabled", config.ActiveCodexProviderId);
-        Assert.Equal("enabled", config.ActiveProviderId);
+        Assert.True(config.Providers[0].Enabled);
+        Assert.True(config.Providers[1].Enabled);
+        Assert.Equal("disabled", config.ActiveCodexProviderId);
+        Assert.Equal("disabled", config.ActiveProviderId);
     }
 
     [Fact]
@@ -249,48 +247,6 @@ public sealed class UiV2InfrastructureTests : IDisposable
         Assert.Equal(new Uri("http://127.0.0.1:7890/"), custom.Proxy.GetProxy(new Uri("https://api.openai.com/")));
         Assert.False(disabled.UseProxy);
         Assert.Null(disabled.Proxy);
-    }
-
-    [Fact]
-    public void ProviderCircuitBreakerRegistry_OpensAndProbesWithIncreasingDelays()
-    {
-        var now = DateTimeOffset.Parse("2026-05-21T00:00:00Z", CultureInfo.InvariantCulture);
-        var registry = new ProviderCircuitBreakerRegistry(() => now);
-        var settings = new ResilienceSettings
-        {
-            CircuitBreakerFailureThreshold = 2,
-            CircuitBreakerRecoveryDelaySeconds = [5, 15, 30, 60, 120]
-        };
-
-        Assert.True(registry.Evaluate("upstream", settings).CanAttempt);
-
-        registry.ReportFailure("upstream", settings);
-        Assert.True(registry.Evaluate("upstream", settings).CanAttempt);
-
-        registry.ReportFailure("upstream", settings);
-        var open = registry.Evaluate("upstream", settings);
-        Assert.False(open.CanAttempt);
-        Assert.Equal(ProviderCircuitBreakerState.Open, open.State);
-        Assert.Equal(now + TimeSpan.FromSeconds(5), open.NextAttemptAt);
-
-        now += TimeSpan.FromSeconds(5);
-        var firstProbe = registry.Evaluate("upstream", settings);
-        Assert.True(firstProbe.CanAttempt);
-        Assert.True(firstProbe.IsProbe);
-        Assert.Equal(ProviderCircuitBreakerState.HalfOpen, firstProbe.State);
-
-        registry.ReportFailure("upstream", settings);
-        var secondOpen = registry.Evaluate("upstream", settings);
-        Assert.False(secondOpen.CanAttempt);
-        Assert.Equal(now + TimeSpan.FromSeconds(15), secondOpen.NextAttemptAt);
-
-        now += TimeSpan.FromSeconds(15);
-        Assert.True(registry.Evaluate("upstream", settings).CanAttempt);
-        registry.ReportSuccess("upstream", settings);
-
-        var closed = registry.Evaluate("upstream", settings);
-        Assert.True(closed.CanAttempt);
-        Assert.Equal(ProviderCircuitBreakerState.Closed, closed.State);
     }
 
     [Fact]
@@ -544,7 +500,7 @@ public sealed class UiV2InfrastructureTests : IDisposable
     }
 
     [Fact]
-    public async Task ProxyHostService_Responses_DoesNotFallbackFromDisabledSelectedProvider()
+    public async Task ProxyHostService_Responses_StillUsesSelectedProviderWhenLegacyConfigMarksItDisabled()
     {
         var paths = CreatePaths("responses-disabled-skip");
         var config = CreateResponsesProxyConfig(
@@ -572,8 +528,8 @@ public sealed class UiV2InfrastructureTests : IDisposable
             $"http://127.0.0.1:{config.Proxy.Port}/v1/responses",
             new StringContent("""{"model":"switch-model","input":"ping"}""", Encoding.UTF8, "application/json"));
 
-        Assert.Equal(HttpStatusCode.ServiceUnavailable, response.StatusCode);
-        Assert.Empty(calledHosts);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal(["bad.test"], calledHosts);
     }
 
     [Fact]

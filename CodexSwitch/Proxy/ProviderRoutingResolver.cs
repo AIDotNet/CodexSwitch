@@ -13,7 +13,7 @@ public static class ProviderRoutingResolver
     public static ProviderRouteSelection? Resolve(AppConfig config, string? requestModel, ClientAppKind kind)
     {
         var activeProvider = ResolveSelectedProvider(config, kind);
-        if (activeProvider is null || !activeProvider.Enabled)
+        if (activeProvider is null)
             return null;
 
         if (string.IsNullOrWhiteSpace(requestModel))
@@ -26,7 +26,7 @@ public static class ProviderRoutingResolver
     {
         var map = new Dictionary<string, HashSet<string>>(StringComparer.OrdinalIgnoreCase);
 
-        foreach (var provider in config.Providers.Where(provider => provider.Enabled))
+        foreach (var provider in config.Providers)
         {
             foreach (var modelId in EnumeratePublicModelIds(provider))
             {
@@ -61,7 +61,7 @@ public static class ProviderRoutingResolver
             return [];
 
         return config.Providers
-            .Where(provider => provider.Enabled && ProviderSupports(provider, candidates))
+            .Where(provider => ProviderSupports(provider, candidates))
             .Select(provider => provider.Id)
             .OrderBy(id => id, StringComparer.OrdinalIgnoreCase)
             .ToArray();
@@ -75,11 +75,10 @@ public static class ProviderRoutingResolver
     public static ProviderConfig? ResolveActiveProvider(AppConfig config, ClientAppKind kind)
     {
         var activeProvider = ResolveSelectedProvider(config, kind);
-        if (activeProvider is { Enabled: true })
+        if (activeProvider is not null)
             return activeProvider;
 
         return config.Providers.FirstOrDefault(provider =>
-                provider.Enabled &&
                 ProviderSupportsClient(provider, kind)) ??
             activeProvider;
     }

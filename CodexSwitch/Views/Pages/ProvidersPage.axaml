@@ -167,11 +167,6 @@
                                                 </DataTemplate>
                                             </ui:CodexSelect.SelectionBoxItemTemplate>
                                         </ui:CodexSelect>
-                                        <ui:CodexBadge Variant="Warning"
-                                                       Padding="7,2"
-                                                       IsVisible="{Binding IsDisabled}">
-                                            <TextBlock Text="{i18n:Tr providers.disabled}" FontSize="11"/>
-                                        </ui:CodexBadge>
                                     </StackPanel>
                                 </ui:CodexProviderCard.Meta>
                                 <ui:CodexProviderCard.Status>

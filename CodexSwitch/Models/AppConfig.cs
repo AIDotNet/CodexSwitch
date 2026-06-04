@@ -6,8 +6,6 @@ public sealed class AppConfig
 
     public NetworkSettings Network { get; set; } = new();
 
-    public ResilienceSettings Resilience { get; set; } = new();
-
     public AppUiSettings Ui { get; set; } = new();
 
     public string ActiveCodexProviderId { get; set; } = "";
@@ -92,15 +90,6 @@ public enum OutboundHttpVersion
     Http1,
     Http2,
     Http3
-}
-
-public sealed class ResilienceSettings
-{
-    public bool CircuitBreakerEnabled { get; set; } = true;
-
-    public int CircuitBreakerFailureThreshold { get; set; } = 3;
-
-    public Collection<int> CircuitBreakerRecoveryDelaySeconds { get; set; } = [5, 15, 30, 60, 120];
 }
 
 public sealed class ProviderConfig

@@ -1,6 +1,5 @@
 using System.Net;
 using System.Net.Sockets;
-using System.Globalization;
 using CodexSwitch.Models;
 using CodexSwitch.Serialization;
 using CodexSwitch.Services;
@@ -31,7 +30,6 @@ public sealed class ProxyHostService : IAsyncDisposable
     private readonly ProviderAuthService _providerAuthService;
     private readonly Dictionary<ProviderProtocol, IProviderProtocolAdapter> _adapters;
     private readonly ResponsesConversationStateStore _responseStateStore = new();
-    private readonly ProviderCircuitBreakerRegistry _circuitBreakers = new();
     private WebApplication? _app;
     private AppConfig _config = new();
 
@@ -339,7 +337,7 @@ public sealed class ProxyHostService : IAsyncDisposable
             httpContext.Items[ProtocolAdapterCommon.OutputActivityItemKey] = outputActivity;
             try
             {
-                await ForwardWithCircuitBreakerAsync(
+                await ForwardAsync(
                     httpContext,
                     snapshot,
                     requestModel,
@@ -376,7 +374,7 @@ public sealed class ProxyHostService : IAsyncDisposable
             httpContext.Items[ProtocolAdapterCommon.OutputActivityItemKey] = outputActivity;
             try
             {
-                await ForwardWithCircuitBreakerAsync(
+                await ForwardAsync(
                     httpContext,
                     document,
                     requestModel,
@@ -391,7 +389,7 @@ public sealed class ProxyHostService : IAsyncDisposable
         }
     }
 
-    private async Task ForwardWithCircuitBreakerAsync(
+    private async Task ForwardAsync(
         HttpContext httpContext,
         JsonDocument document,
         string? requestModel,
@@ -399,7 +397,7 @@ public sealed class ProxyHostService : IAsyncDisposable
         string noProviderMessage,
         Func<IProviderProtocolAdapter, ProviderRequestContext, CancellationToken, Task<ProviderAdapterResult>> invokeAdapter)
     {
-        await ForwardWithCircuitBreakerAsync(
+        await ForwardAsync(
             httpContext,
             document,
             requestSnapshot: null,
@@ -409,7 +407,7 @@ public sealed class ProxyHostService : IAsyncDisposable
             invokeAdapter);
     }
 
-    private async Task ForwardWithCircuitBreakerAsync(
+    private async Task ForwardAsync(
         HttpContext httpContext,
         ResponsesRequestSnapshot requestSnapshot,
         string? requestModel,
@@ -417,7 +415,7 @@ public sealed class ProxyHostService : IAsyncDisposable
         string noProviderMessage,
         Func<IProviderProtocolAdapter, ProviderRequestContext, CancellationToken, Task<ProviderAdapterResult>> invokeAdapter)
     {
-        await ForwardWithCircuitBreakerAsync(
+        await ForwardAsync(
             httpContext,
             document: null,
             requestSnapshot,
@@ -427,7 +425,7 @@ public sealed class ProxyHostService : IAsyncDisposable
             invokeAdapter);
     }
 
-    private async Task ForwardWithCircuitBreakerAsync(
+    private async Task ForwardAsync(
         HttpContext httpContext,
         JsonDocument? document,
         ResponsesRequestSnapshot? requestSnapshot,
@@ -454,13 +452,6 @@ public sealed class ProxyHostService : IAsyncDisposable
             if (!_adapters.TryGetValue(protocol, out var adapter))
             {
                 attempts.Add($"{ResolveProviderLabel(provider)}: unsupported protocol {protocol}");
-                continue;
-            }
-
-            var circuitAttempt = _circuitBreakers.Evaluate(provider.Id, _config.Resilience);
-            if (!circuitAttempt.CanAttempt)
-            {
-                attempts.Add(FormatCircuitOpenAttempt(provider, circuitAttempt));
                 continue;
             }
 
@@ -512,13 +503,7 @@ public sealed class ProxyHostService : IAsyncDisposable
 
             var result = await invokeAdapter(adapter, context, httpContext.RequestAborted);
             if (result.Kind == ProviderAdapterResultKind.Success)
-            {
-                _circuitBreakers.ReportSuccess(provider.Id, _config.Resilience);
                 return;
-            }
-
-            if (result.CountsAsCircuitFailure)
-                _circuitBreakers.ReportFailure(provider.Id, _config.Resilience);
 
             attempts.Add(FormatProviderAttempt(provider, result));
 
@@ -543,7 +528,6 @@ public sealed class ProxyHostService : IAsyncDisposable
     {
         var activeProvider = ProviderRoutingResolver.ResolveSelectedProvider(config, clientApp);
         if (activeProvider is null ||
-            !activeProvider.Enabled ||
             !ProviderRoutingResolver.ProviderSupportsClient(activeProvider, clientApp))
         {
             return [];
@@ -581,14 +565,6 @@ public sealed class ProxyHostService : IAsyncDisposable
             error = error[..160] + "...";
 
         return $"{ResolveProviderLabel(provider)}: HTTP {result.StatusCode} {error}";
-    }
-
-    private static string FormatCircuitOpenAttempt(
-        ProviderConfig provider,
-        ProviderCircuitBreakerAttempt attempt)
-    {
-        var next = attempt.NextAttemptAt?.ToLocalTime().ToString("HH:mm:ss", CultureInfo.InvariantCulture) ?? "later";
-        return $"{ResolveProviderLabel(provider)}: circuit {attempt.State.ToString().ToLowerInvariant()} until {next}";
     }
 
     private static string ResolveProviderLabel(ProviderConfig provider)

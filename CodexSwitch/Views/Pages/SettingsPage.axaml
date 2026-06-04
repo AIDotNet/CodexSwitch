@@ -191,28 +191,6 @@
                     </Grid>
                 </cui:CodexSection>
 
-                <cui:CodexSection Grid.Row="3"
-                                  Title="{i18n:Tr settings.resilience.title}"
-                                  Description="{i18n:Tr settings.resilience.description}"
-                                  IsVisible="{Binding IsRouteSettingsVisible}">
-                    <Grid RowDefinitions="Auto,Auto"
-                          ColumnDefinitions="*,160"
-                          ColumnSpacing="12"
-                          RowSpacing="12">
-                        <cui:CodexSwitch Content="{i18n:Tr settings.resilience.enabled}"
-                                         IsChecked="{Binding CircuitBreakerEnabled}"/>
-                        <cui:CodexField Grid.Column="1" Label="{i18n:Tr settings.resilience.failureThreshold}">
-                            <cui:CodexTextBox Text="{Binding CircuitBreakerFailureThreshold}"/>
-                        </cui:CodexField>
-                        <cui:CodexField Grid.Row="1"
-                                        Grid.ColumnSpan="2"
-                                        Label="{i18n:Tr settings.resilience.recoveryDelays}">
-                            <cui:CodexTextBox Text="{Binding CircuitBreakerRecoveryDelaySeconds}"
-                                              PlaceholderText="5,15,30,60,120"/>
-                        </cui:CodexField>
-                    </Grid>
-                </cui:CodexSection>
-
                 <cui:CodexSection Title="{i18n:Tr settings.auth.title}"
                                   Description="{i18n:Tr settings.auth.description}"
                                   IsVisible="{Binding IsAuthSettingsVisible}">

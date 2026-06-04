@@ -1,4 +1,5 @@
 using Avalonia.Controls;
+using Avalonia.Controls.Primitives.PopupPositioning;
 using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Threading;
@@ -20,19 +21,39 @@ public sealed class CsProviderContextMenu : ContextMenu
         Items.Add(CreateSeparator());
         Items.Add(CreateSelectItem(viewModel, provider));
         Items.Add(CreateEditItem(provider));
-        Items.Add(CreateToggleEnabledItem(provider));
         Items.Add(CreateSeparator());
         Items.Add(CreateDeleteItem(provider));
     }
 
-    public static void OpenFor(Control target, MainWindowViewModel viewModel, ProviderListItem provider)
+    public static void OpenFor(Control target, MainWindowViewModel viewModel, ProviderListItem provider, Point? anchorPoint = null)
     {
+        var previousMenu = target.ContextMenu;
+        if (previousMenu?.IsOpen == true)
+            previousMenu.Close();
+        if (previousMenu is CsProviderContextMenu)
+            previousMenu = null;
+
         var menu = new CsProviderContextMenu(viewModel, provider)
         {
             Opacity = 0,
-            Placement = PlacementMode.Pointer,
+            Placement = anchorPoint.HasValue ? PlacementMode.AnchorAndGravity : PlacementMode.Pointer,
+            PlacementTarget = target,
             RenderTransform = new TranslateTransform(0, OpenOffsetY),
             RenderTransformOrigin = RelativePoint.TopLeft
+        };
+
+        if (anchorPoint is { } point)
+        {
+            menu.PlacementAnchor = PopupAnchor.TopLeft;
+            menu.PlacementGravity = PopupGravity.BottomRight;
+            menu.PlacementRect = new Rect(point, new Size(1, 1));
+        }
+
+        target.ContextMenu = menu;
+        menu.Closed += (_, _) =>
+        {
+            if (ReferenceEquals(target.ContextMenu, menu))
+                target.ContextMenu = previousMenu;
         };
 
         menu.Open(target);
@@ -84,18 +105,6 @@ public sealed class CsProviderContextMenu : ContextMenu
         {
             Header = CreateActionHeader(T("providers.edit")),
             Command = provider.EditCommand,
-            CommandParameter = provider
-        };
-        item.Classes.Add("provider-menu-item");
-        return item;
-    }
-
-    private static MenuItem CreateToggleEnabledItem(ProviderListItem provider)
-    {
-        var item = new MenuItem
-        {
-            Header = CreateActionHeader(provider.IsEnabled ? T("providers.disable") : T("providers.enable")),
-            Command = provider.ToggleEnabledCommand,
             CommandParameter = provider
         };
         item.Classes.Add("provider-menu-item");

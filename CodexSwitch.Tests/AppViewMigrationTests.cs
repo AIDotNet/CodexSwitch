@@ -34,8 +34,7 @@ public sealed class AppViewMigrationTests
         Assert.DoesNotContain("<ui:CsTextarea", source);
         Assert.Contains("<cui:CodexTextBox Text=\"{Binding Id, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}\"", source);
         Assert.Contains("<cui:CodexSelect ItemsSource=\"{Binding ProtocolOptions}\"", source);
-        Assert.Contains("<cui:CodexSwitch Content=\"{i18n:Tr providerDialog.enabled}\"", source);
-        Assert.Contains("<cui:CodexSwitch Grid.Row=\"1\"", source);
+        Assert.Contains("<cui:CodexSwitch Content=\"{i18n:Tr providerDialog.supportsCodex}\"", source);
         Assert.Contains("IsReadOnly=\"{Binding IsDefault}\"", source);
         Assert.Contains("IsEnabled=\"{Binding CanEditTarget}\"", source);
     }
@@ -54,7 +53,6 @@ public sealed class AppViewMigrationTests
         Assert.Contains("<cui:CodexSelect.ItemTemplate>", source);
         Assert.Contains("<cui:CodexTextBox Text=\"{Binding ProxyListenHost}\"", source);
         Assert.Contains("<cui:CodexSelect ItemsSource=\"{Binding HttpVersionOptions}\"", source);
-        Assert.Contains("<cui:CodexTextBox Text=\"{Binding CircuitBreakerRecoveryDelaySeconds}\"", source);
         Assert.Contains("<cui:CodexTextBox Text=\"{Binding InboundApiKey}\"", source);
         Assert.Contains("<cui:CodexTextBox Text=\"{Binding DefaultFastMultiplier}\"", source);
         Assert.Contains("<cui:CodexSwitch Content=\"{i18n:Tr settings.desktop.startWithWindows}\"", source);

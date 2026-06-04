@@ -68,10 +68,10 @@ public sealed class ConfigurationStore
         config.Ui ??= new AppUiSettings();
         config.Proxy ??= new ProxySettings();
         config.Network ??= new NetworkSettings();
-        config.Resilience ??= new ResilienceSettings();
         config.GlobalTest ??= new ProviderTestSettings();
         config.GlobalCost ??= new ProviderCostSettings();
         config.Providers ??= [];
+        EnsureProvidersAlwaysEnabled(config);
         config.DeletedBuiltinProviderIds ??= [];
         NormalizeDeletedBuiltInProviders(config);
         config.Ui.Theme = AppThemeService.Normalize(config.Ui.Theme);
@@ -84,8 +84,6 @@ public sealed class ConfigurationStore
         if (config.Network.ConnectTimeoutSeconds <= 0)
             config.Network.ConnectTimeoutSeconds = 30;
         config.Network.CustomProxyUrl = config.Network.CustomProxyUrl?.Trim() ?? "";
-        NormalizeResilienceSettings(config.Resilience);
-
         if (config.Proxy.UseFakeCodexAppAuth)
             config.Proxy.PreserveCodexAppAuth = false;
 
@@ -228,6 +226,12 @@ public sealed class ConfigurationStore
         }
     }
 
+    private static void EnsureProvidersAlwaysEnabled(AppConfig config)
+    {
+        foreach (var provider in config.Providers)
+            provider.Enabled = true;
+    }
+
     private static void EnsureProviderClaudeCodeSettings(AppConfig config)
     {
         foreach (var provider in config.Providers)
@@ -252,7 +256,6 @@ public sealed class ConfigurationStore
 
         var exists = !string.IsNullOrWhiteSpace(currentId) &&
             config.Providers.Any(provider =>
-                provider.Enabled &&
                 ProviderSupportsClient(provider, kind) &&
                 string.Equals(provider.Id, currentId, StringComparison.OrdinalIgnoreCase));
         if (exists)
@@ -260,8 +263,6 @@ public sealed class ConfigurationStore
 
         var fallback = config.Providers.FirstOrDefault(provider => ProviderSupportsClient(provider, kind)) ??
             config.Providers.FirstOrDefault();
-        fallback = config.Providers.FirstOrDefault(provider => provider.Enabled && ProviderSupportsClient(provider, kind)) ??
-            fallback;
         if (fallback is null)
             return;
 
@@ -269,24 +270,6 @@ public sealed class ConfigurationStore
             config.ActiveCodexProviderId = fallback.Id;
         else
             config.ActiveClaudeCodeProviderId = fallback.Id;
-    }
-
-    private static void NormalizeResilienceSettings(ResilienceSettings settings)
-    {
-        if (settings.CircuitBreakerFailureThreshold <= 0)
-            settings.CircuitBreakerFailureThreshold = 3;
-
-        settings.CircuitBreakerRecoveryDelaySeconds ??= [];
-        var normalized = settings.CircuitBreakerRecoveryDelaySeconds
-            .Where(delay => delay > 0)
-            .Take(5)
-            .ToArray();
-        if (normalized.Length == 0)
-            normalized = [5, 15, 30, 60, 120];
-
-        settings.CircuitBreakerRecoveryDelaySeconds.Clear();
-        foreach (var delay in normalized)
-            settings.CircuitBreakerRecoveryDelaySeconds.Add(delay);
     }
 
     private static void MigrateBuiltInProviders(AppConfig config)
