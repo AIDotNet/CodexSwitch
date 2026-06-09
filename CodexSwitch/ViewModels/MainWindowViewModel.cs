@@ -642,6 +642,7 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
         RequestRemoveProviderCommand = new RelayCommand<ProviderListItem>(RequestRemoveProvider);
         CancelRemoveProviderCommand = new RelayCommand(() => IsDeleteProviderDialogOpen = false);
         ConfirmRemoveProviderCommand = new AsyncRelayCommand(ConfirmRemoveProviderAsync);
+        ConfirmRemoveProviderInlineCommand = new AsyncRelayCommand<ProviderListItem>(ConfirmRemoveProviderInlineAsync);
         SelectOAuthAccountCommand = new RelayCommand<OAuthAccountListItem>(SelectOAuthAccount);
         RemoveOAuthAccountCommand = new RelayCommand<OAuthAccountListItem>(RemoveOAuthAccount);
         SaveOAuthAccountNameCommand = new RelayCommand<OAuthAccountListItem>(SaveOAuthAccountName);
@@ -826,6 +827,8 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
     public IRelayCommand CancelRemoveProviderCommand { get; }
 
     public IAsyncRelayCommand ConfirmRemoveProviderCommand { get; }
+
+    public IAsyncRelayCommand<ProviderListItem> ConfirmRemoveProviderInlineCommand { get; }
 
     public IRelayCommand<OAuthAccountListItem> SelectOAuthAccountCommand { get; }
 
@@ -2591,11 +2594,24 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
         if (string.IsNullOrWhiteSpace(_providerPendingDeleteId))
             return;
 
+        await RemoveProviderAsync(_providerPendingDeleteId);
+    }
+
+    private async Task ConfirmRemoveProviderInlineAsync(ProviderListItem? row)
+    {
+        if (row is null)
+            return;
+
+        await RemoveProviderAsync(row.Id);
+    }
+
+    private async Task RemoveProviderAsync(string providerId)
+    {
         var provider = _config.Providers.FirstOrDefault(item =>
-            string.Equals(item.Id, _providerPendingDeleteId, StringComparison.OrdinalIgnoreCase));
+            string.Equals(item.Id, providerId, StringComparison.OrdinalIgnoreCase));
         if (provider is null)
         {
-            IsDeleteProviderDialogOpen = false;
+            ClearProviderPendingDelete(providerId);
             return;
         }
 
@@ -2612,15 +2628,26 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
                 _config.Providers.FirstOrDefault(item => item.SupportsClaudeCode)?.Id ?? "";
         _config.ActiveProviderId = _config.ActiveCodexProviderId;
 
-        _providerPendingDeleteId = null;
-        ProviderPendingDeleteName = "";
-        IsDeleteProviderDialogOpen = false;
+        ClearProviderPendingDelete(provider.Id);
         _store.SaveConfig(_config);
         RefreshProviderRows();
         SelectProvider(SelectedProviderRows.FirstOrDefault(row => row.IsActive) ?? SelectedProviderRows.FirstOrDefault());
         StatusMessage = T("status.providerRemoved");
         if ((wasCodexActive || wasClaudeActive) && _config.Proxy.Enabled)
             await ReloadProxyConfigAsync();
+    }
+
+    private void ClearProviderPendingDelete(string? providerId = null)
+    {
+        if (providerId is not null &&
+            !string.Equals(_providerPendingDeleteId, providerId, StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        _providerPendingDeleteId = null;
+        ProviderPendingDeleteName = "";
+        IsDeleteProviderDialogOpen = false;
     }
 
     private void RememberDeletedBuiltInProvider(ProviderConfig provider)
@@ -3023,7 +3050,8 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
             SelectCommand = SelectProviderCommand,
             ChangeDefaultModelCommand = ChangeProviderDefaultModelCommand,
             EditCommand = EditProviderCommand,
-            DeleteCommand = RequestRemoveProviderCommand
+            DeleteCommand = RequestRemoveProviderCommand,
+            ConfirmDeleteCommand = ConfirmRemoveProviderInlineCommand
         };
 
         foreach (var account in provider.OAuthAccounts)
@@ -5361,6 +5389,8 @@ public sealed partial class ProviderListItem : ObservableObject
     public IRelayCommand<ProviderListItem>? EditCommand { get; init; }
 
     public IRelayCommand<ProviderListItem>? DeleteCommand { get; init; }
+
+    public IAsyncRelayCommand<ProviderListItem>? ConfirmDeleteCommand { get; init; }
 
     public ObservableCollection<OAuthAccountListItem> OAuthAccounts { get; set; } = [];
 

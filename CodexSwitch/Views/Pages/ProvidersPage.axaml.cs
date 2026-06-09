@@ -31,18 +31,25 @@ public partial class ProvidersPage : UserControl
 
     private void ProviderContextHost_OnPointerPressed(object? sender, PointerPressedEventArgs e)
     {
-        if (!e.GetCurrentPoint(this).Properties.IsRightButtonPressed)
+        var point = e.GetCurrentPoint(this);
+        if (!point.Properties.IsRightButtonPressed &&
+            point.Properties.PointerUpdateKind != PointerUpdateKind.RightButtonPressed)
+        {
             return;
+        }
 
-        OpenProviderContextMenu(e.Source as Control, () => e.Handled = true);
+        OpenProviderContextMenu(e.Source, row => e.GetPosition(row), () => e.Handled = true);
     }
 
     private void ProviderContextHost_OnContextRequested(object? sender, ContextRequestedEventArgs e)
     {
-        OpenProviderContextMenu(e.Source as Control, () => e.Handled = true);
+        OpenProviderContextMenu(
+            e.Source,
+            row => e.TryGetPosition(row, out var position) ? position : null,
+            () => e.Handled = true);
     }
 
-    private void OpenProviderContextMenu(Control? source, Action markHandled)
+    private void OpenProviderContextMenu(object? source, Func<Control, Point?> resolveAnchorPoint, Action markHandled)
     {
         if (_providerDrag is not null ||
             DataContext is not MainWindowViewModel viewModel ||
@@ -53,7 +60,7 @@ public partial class ProvidersPage : UserControl
             return;
         }
 
-        CsProviderContextMenu.OpenFor(row, viewModel, item);
+        CsProviderContextMenu.OpenFor(row, viewModel, item, resolveAnchorPoint(row));
         markHandled();
     }
 
@@ -255,12 +262,15 @@ public partial class ProvidersPage : UserControl
             .ToList();
     }
 
-    private static Control? FindProviderRow(Control source)
+    private static Control? FindProviderRow(object source)
     {
-        if (source.Classes.Contains("provider-list-row"))
-            return source;
+        if (source is Control control && control.Classes.Contains("provider-list-row"))
+            return control;
 
-        return source.GetVisualAncestors()
+        if (source is not Visual visual)
+            return null;
+
+        return visual.GetVisualAncestors()
             .OfType<Control>()
             .FirstOrDefault(control => control.Classes.Contains("provider-list-row"));
     }

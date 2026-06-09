@@ -2261,6 +2261,509 @@ Verification:
 
 - `dotnet test tests/CodexSwitchUI.Tests/CodexSwitchUI.Tests.csproj -f net10.0 --no-restore --filter "FullyQualifiedName~ComponentStructureTests|FullyQualifiedName~ControlStateTests|FullyQualifiedName~FormComponentDetailTests|FullyQualifiedName~DocsPanelLayoutTests"`
 
+### Agent C198: Popup Align Effective Placement And Default Closed Docs Samples
+
+Status: completed for this overlay/default-behavior parity slice. This pass makes trigger-owned popup components translate Web `side + align` semantics into actual Avalonia popup placement instead of relying on surface-local alignment, and removes accidental default-open behavior from non-state Docs composition examples.
+
+Scope:
+
+- `CodexSwitchUI/src/CodexSwitchUI/Controls/CodexPopupPlacement.cs`
+- `CodexSwitchUI/src/CodexSwitchUI/Controls/CodexPopover.cs`
+- `CodexSwitchUI/src/CodexSwitchUI/Controls/CodexHoverCard.cs`
+- `CodexSwitchUI/src/CodexSwitchUI/Controls/CodexDropdownButton.cs`
+- `CodexSwitchUI/src/CodexSwitchUI/Controls/CodexSplitButton.cs`
+- `CodexSwitchUI/src/CodexSwitchUI/Themes/Controls/Popover.axaml`
+- `CodexSwitchUI/src/CodexSwitchUI/Themes/Controls/HoverCard.axaml`
+- `CodexSwitchUI/src/CodexSwitchUI/Themes/Controls/DropdownButton.axaml`
+- `CodexSwitchUI/src/CodexSwitchUI/Themes/Controls/SplitButton.axaml`
+- `CodexSwitchUI/src/CodexSwitchUI.Docs/Examples/Axaml/Forms/CalendarComposition.axaml`
+- `CodexSwitchUI/src/CodexSwitchUI.Docs/Examples/Axaml/Navigation/MenubarComposition.axaml`
+- `CodexSwitchUI/tests/CodexSwitchUI.Tests/OverlayFeedbackComponentTests.cs`
+- `CodexSwitchUI/tests/CodexSwitchUI.Tests/DocsPanelLayoutTests.cs`
+- `CodexSwitchUI/tests/CodexSwitchUI.Tests/Snapshots/DocsVisualFingerprints.json`
+
+Evidence gathered:
+
+- Agent audit confirmed Popover, HoverCard, DropdownButton, and SplitButton exposed `Align`, but templates still bound native `Popup.Placement` directly to `Placement`; `align-start/end` only affected local surface alignment.
+- Web/Radix side + align maps to Avalonia edge-aligned placement: bottom/top start-end map to left/right edges, and left/right start-end map to top/bottom edges.
+- Default-open Docs audit found accidental open composition examples in Calendar and Menubar, while `*Anatomy.axaml` and `*States.axaml` examples intentionally remain open to demonstrate visual states.
+
+Implementation targets:
+
+- Add shared `CodexPopupPlacement.Resolve(...)` for Popover, HoverCard, DropdownButton, and SplitButton align enums. Status: completed.
+- Add `EffectivePlacement` to the four trigger-owned popup controls and update templates to bind `Popup.Placement` to it. Status: completed.
+- Preserve explicitly edge-aligned `Placement` values when `Align=Center`, and preserve non-side Avalonia placement modes instead of folding them to bottom. Status: completed.
+- Convert Calendar composition to a closed-by-default Popover trigger composition, and remove default-open submenu flags from Menubar composition. Status: completed.
+- Add tests for the 12 Web side+align mappings across all four controls, template binding to `EffectivePlacement`, and a static guard that non-state Docs AXAML samples do not default disclosure controls open. Status: completed.
+
+Verification:
+
+- `dotnet test tests/CodexSwitchUI.Tests/CodexSwitchUI.Tests.csproj -f net10.0 --no-restore --filter "FullyQualifiedName~OverlayFeedbackComponentTests|FullyQualifiedName~DocsNonStateSamplesDoNotDefaultDisclosureControlsOpen"`
+- `dotnet test tests/CodexSwitchUI.Tests/CodexSwitchUI.Tests.csproj -f net10.0 --no-restore --filter FullyQualifiedName~DocsPanelLayoutTests`
+- `dotnet test tests/CodexSwitchUI.Tests/CodexSwitchUI.Tests.csproj -f net10.0 --no-restore --filter "FullyQualifiedName~DocsNavigationAndDarkThemeSwitchDoNotDetachAnimatedPageContent|FullyQualifiedName~DocsRepresentativePagesRenderScreenshotsAcrossThemes|FullyQualifiedName~DocsMultiCaseExamplesExpandInlineCodeAndRenderAcrossThemes"`
+- `CODEXSWITCHUI_UPDATE_DOCS_VISUAL_SNAPSHOTS=1 dotnet test tests/CodexSwitchUI.Tests/CodexSwitchUI.Tests.csproj -f net10.0 --no-restore --filter FullyQualifiedName~DocsVisualFingerprintsMatchBaselineAcrossThemes`
+- `dotnet test tests/CodexSwitchUI.Tests/CodexSwitchUI.Tests.csproj -f net10.0 --no-restore --filter FullyQualifiedName~DocsVisualFingerprintsMatchBaselineAcrossThemes`
+
+### Agent C190: Forms Interaction Examples Default Closed
+
+Status: completed for this default-behavior Docs pass. This slice fixes Forms interaction examples that were still starting popup/disclosure components open, so the rendered Docs behavior now matches Web defaults: closed by default, open only through trigger, keyboard, or an explicit demo command.
+
+Scope:
+
+- `CodexSwitchUI/src/CodexSwitchUI.Docs/MainWindow.cs`
+- `CodexSwitchUI/src/CodexSwitchUI.Docs/Examples/Axaml/Forms/SelectInteraction.axaml`
+- `CodexSwitchUI/src/CodexSwitchUI.Docs/Examples/Axaml/Forms/ComboboxInteraction.axaml`
+- `CodexSwitchUI/src/CodexSwitchUI.Docs/Examples/Axaml/Forms/SplitButtonInteraction.axaml`
+- `CodexSwitchUI/src/CodexSwitchUI.Docs/Examples/Axaml/Forms/DatePickerInteraction.axaml`
+- `CodexSwitchUI/src/CodexSwitchUI.Docs/Examples/CSharp/Forms/SelectInteraction.cs`
+- `CodexSwitchUI/src/CodexSwitchUI.Docs/Examples/CSharp/Forms/ComboboxInteraction.cs`
+- `CodexSwitchUI/src/CodexSwitchUI.Docs/Examples/CSharp/Forms/SplitButtonInteraction.cs`
+- `CodexSwitchUI/src/CodexSwitchUI.Docs/Examples/CSharp/Forms/DatePickerInteraction.cs`
+- `CodexSwitchUI/tests/CodexSwitchUI.Tests/DocsPanelLayoutTests.cs`
+- `CodexSwitchUI/tests/CodexSwitchUI.Tests/Snapshots/DocsVisualFingerprints.json`
+
+Evidence gathered:
+
+- A read-only local Agent audited `MainWindow.cs` and the Forms companion C# interaction samples for `Combobox`, `NativeSelect`, `DatePicker`, and `SplitButton`; it flagged initial-open usage in Combobox, DatePicker, and SplitButton interaction docs.
+- Local inspection also found `Forms/SelectInteraction.axaml` and `BuildSelectInteractionPreview` starting `CodexSelect` with `IsDropDownOpen=true`, so Select was included in the same default-closed cleanup.
+- Web-style select, combobox, date picker, and split-button surfaces should enter closed and disclose through trigger, keyboard, or controlled state, not through a docs interaction case's initial object initializer.
+
+Implementation targets:
+
+- Remove initial `IsDropDownOpen=true` / `IsOpen=true` / `isOpen: true` from Forms Select, Combobox, SplitButton, and DatePicker interaction previews. Status: completed.
+- Add explicit small demo buttons where needed: Select `Open`, Combobox `Open`, SplitButton `Open`/`Dismiss`, DatePicker `ArrowDown`/`Escape`, and DatePicker range `Open range`/`Finish range`. Status: completed.
+- Keep state/anatomy examples free to show open surfaces, while interaction examples now model default closed behavior. Status: completed.
+- Add `FormInteractionDocsDoNotStartPopupExamplesOpen` to guard the MainWindow methods, companion C# samples, and standalone AXAML interaction samples against initial-open regressions. Status: completed.
+
+Verification:
+
+- `dotnet test tests/CodexSwitchUI.Tests/CodexSwitchUI.Tests.csproj -f net10.0 --no-restore --filter FullyQualifiedName~DocsPanelLayoutTests`
+- `dotnet test tests/CodexSwitchUI.Tests/CodexSwitchUI.Tests.csproj -f net10.0 --no-restore --filter "FullyQualifiedName~DocsMultiCaseExamplesExpandInlineCodeAndRenderAcrossThemes|FullyQualifiedName~DocsRepresentativePagesRenderScreenshotsAcrossThemes|FullyQualifiedName~DocsNavigationAndDarkThemeSwitchDoNotDetachAnimatedPageContent"`
+- `CODEXSWITCHUI_UPDATE_DOCS_VISUAL_SNAPSHOTS=1 dotnet test tests/CodexSwitchUI.Tests/CodexSwitchUI.Tests.csproj -f net10.0 --no-restore --filter FullyQualifiedName~DocsVisualFingerprintsMatchBaselineAcrossThemes`
+- `dotnet test tests/CodexSwitchUI.Tests/CodexSwitchUI.Tests.csproj -f net10.0 --no-restore --filter FullyQualifiedName~DocsVisualFingerprintsMatchBaselineAcrossThemes`
+
+### Agent C191: Navigation Interaction Examples Default Closed
+
+Status: completed for this default-behavior Docs pass. This slice extends the default-closed cleanup from Forms into high-risk Navigation interaction examples, so Dropdown, Accordion, and Collapsible examples no longer mount already-open surfaces in the interaction case.
+
+Scope:
+
+- `CodexSwitchUI/src/CodexSwitchUI.Docs/MainWindow.cs`
+- `CodexSwitchUI/src/CodexSwitchUI.Docs/Examples/Axaml/Navigation/DropdownButtonInteraction.axaml`
+- `CodexSwitchUI/src/CodexSwitchUI.Docs/Examples/Axaml/Navigation/AccordionInteraction.axaml`
+- `CodexSwitchUI/src/CodexSwitchUI.Docs/Examples/Axaml/Navigation/CollapsibleInteraction.axaml`
+- `CodexSwitchUI/src/CodexSwitchUI.Docs/Examples/CSharp/Navigation/DropdownButtonInteraction.cs`
+- `CodexSwitchUI/src/CodexSwitchUI.Docs/Examples/CSharp/Navigation/AccordionInteraction.cs`
+- `CodexSwitchUI/src/CodexSwitchUI.Docs/Examples/CSharp/Navigation/CollapsibleInteraction.cs`
+- `CodexSwitchUI/tests/CodexSwitchUI.Tests/DocsPanelLayoutTests.cs`
+- `CodexSwitchUI/tests/CodexSwitchUI.Tests/Snapshots/DocsVisualFingerprints.json`
+
+Evidence gathered:
+
+- A read-only local Agent audited only `BuildDropdownInteractionPreview`, `BuildAccordionInteractionPreview`, `BuildCollapsibleInteractionPreview`, and the matching Navigation companion C# files; it flagged initial-open usage in all three interaction families.
+- Local AXAML inspection found matching `IsOpen="True"` in `Navigation/DropdownButtonInteraction.axaml`, `Navigation/AccordionInteraction.axaml`, and `Navigation/CollapsibleInteraction.axaml`.
+- Web-style dropdown/disclosure/accordion interaction examples should start closed and demonstrate open behavior through a trigger, keyboard path, or explicit demo command; state/anatomy examples can still show open states separately.
+
+Implementation targets:
+
+- Remove initial `IsOpen=true` from DropdownButton, Accordion, and Collapsible interaction previews and companion C# samples. Status: completed.
+- Remove matching `IsOpen="True"` defaults from the standalone AXAML interaction samples. Status: completed.
+- Add explicit small demo controls where needed: Dropdown `Open`/`Dismiss`, Accordion `Open routing`/`Open billing`/`Collapse all`, and Collapsible `Toggle`/`Reduce motion`. Status: completed.
+- Add `NavigationInteractionDocsDoNotStartDisclosureExamplesOpen` to guard MainWindow methods, companion C# samples, and standalone AXAML interaction samples against initial-open regressions. Status: completed.
+
+Verification:
+
+- `dotnet test tests/CodexSwitchUI.Tests/CodexSwitchUI.Tests.csproj -f net10.0 --no-restore --filter FullyQualifiedName~DocsPanelLayoutTests`
+- `dotnet test tests/CodexSwitchUI.Tests/CodexSwitchUI.Tests.csproj -f net10.0 --no-restore --filter "FullyQualifiedName~DocsMultiCaseExamplesExpandInlineCodeAndRenderAcrossThemes|FullyQualifiedName~DocsRepresentativePagesRenderScreenshotsAcrossThemes|FullyQualifiedName~DocsNavigationAndDarkThemeSwitchDoNotDetachAnimatedPageContent"`
+- `CODEXSWITCHUI_UPDATE_DOCS_VISUAL_SNAPSHOTS=1 dotnet test tests/CodexSwitchUI.Tests/CodexSwitchUI.Tests.csproj -f net10.0 --no-restore --filter FullyQualifiedName~DocsVisualFingerprintsMatchBaselineAcrossThemes`
+- `dotnet test tests/CodexSwitchUI.Tests/CodexSwitchUI.Tests.csproj -f net10.0 --no-restore --filter FullyQualifiedName~DocsVisualFingerprintsMatchBaselineAcrossThemes`
+
+### Agent C192: Overlay Interaction Examples Default Closed
+
+Status: completed for this default-behavior Docs pass. This slice extends the default-closed cleanup into Overlay interaction examples so Dialog, Popover, Sheet, Drawer, and CommandDialog no longer mount already-open layers in the interaction case.
+
+Scope:
+
+- `CodexSwitchUI/src/CodexSwitchUI.Docs/MainWindow.cs`
+- `CodexSwitchUI/src/CodexSwitchUI.Docs/Examples/Axaml/Overlay/DialogInteraction.axaml`
+- `CodexSwitchUI/src/CodexSwitchUI.Docs/Examples/Axaml/Overlay/PopoverInteraction.axaml`
+- `CodexSwitchUI/src/CodexSwitchUI.Docs/Examples/Axaml/Overlay/SheetInteraction.axaml`
+- `CodexSwitchUI/src/CodexSwitchUI.Docs/Examples/Axaml/Overlay/DrawerInteraction.axaml`
+- `CodexSwitchUI/src/CodexSwitchUI.Docs/Examples/Axaml/Overlay/CommandDialogInteraction.axaml`
+- `CodexSwitchUI/src/CodexSwitchUI.Docs/Examples/CSharp/Overlay/PopoverInteraction.cs`
+- `CodexSwitchUI/src/CodexSwitchUI.Docs/Examples/CSharp/Overlay/SheetInteraction.cs`
+- `CodexSwitchUI/src/CodexSwitchUI.Docs/Examples/CSharp/Overlay/DrawerInteraction.cs`
+- `CodexSwitchUI/src/CodexSwitchUI.Docs/Examples/CSharp/Overlay/CommandDialogInteraction.cs`
+- `CodexSwitchUI/tests/CodexSwitchUI.Tests/DocsPanelLayoutTests.cs`
+- `CodexSwitchUI/tests/CodexSwitchUI.Tests/Snapshots/DocsVisualFingerprints.json`
+
+Evidence gathered:
+
+- A read-only local Agent audited only the Overlay interaction methods and companion C# samples. It flagged initial-open object initializers in Sheet, Drawer, CommandDialog, and Popover, then stalled after producing usable line-level evidence and was terminated.
+- Local AXAML inspection found matching `IsOpen="True"` in Dialog, Popover, Sheet, Drawer, and CommandDialog interaction samples.
+- Web-style overlay examples should start closed and open through trigger, keyboard, or an explicit demo command; States and Anatomy examples remain free to display open surfaces.
+
+Implementation targets:
+
+- Remove initial `IsOpen=true` from Dialog, Popover, Sheet, Drawer, and CommandDialog interaction previews where the layer was mounted open. Status: completed.
+- Remove matching `IsOpen="True"` defaults from the standalone AXAML Overlay interaction samples. Status: completed.
+- Add or preserve explicit triggers for manual/persistent/action overlay variants so default-closed samples still expose the intended interaction path. Status: completed.
+- Update companion C# samples for Popover, Sheet, Drawer, and CommandDialog so their sample code matches the default-closed behavior shown by Docs. Status: completed.
+- Add `OverlayInteractionDocsDoNotStartLayerExamplesOpen` to guard MainWindow methods, companion C# samples, and standalone AXAML interaction samples against initial-open regressions. Status: completed.
+
+Verification:
+
+- `dotnet test tests/CodexSwitchUI.Tests/CodexSwitchUI.Tests.csproj -f net10.0 --no-restore --filter FullyQualifiedName~DocsPanelLayoutTests`
+- `dotnet test tests/CodexSwitchUI.Tests/CodexSwitchUI.Tests.csproj -f net10.0 --no-restore --filter "FullyQualifiedName~DocsMultiCaseExamplesExpandInlineCodeAndRenderAcrossThemes|FullyQualifiedName~DocsRepresentativePagesRenderScreenshotsAcrossThemes|FullyQualifiedName~DocsNavigationAndDarkThemeSwitchDoNotDetachAnimatedPageContent"`
+- `CODEXSWITCHUI_UPDATE_DOCS_VISUAL_SNAPSHOTS=1 dotnet test tests/CodexSwitchUI.Tests/CodexSwitchUI.Tests.csproj -f net10.0 --no-restore --filter FullyQualifiedName~DocsVisualFingerprintsMatchBaselineAcrossThemes`
+- `dotnet test tests/CodexSwitchUI.Tests/CodexSwitchUI.Tests.csproj -f net10.0 --no-restore --filter FullyQualifiedName~DocsVisualFingerprintsMatchBaselineAcrossThemes`
+
+### Agent C193: Remaining Overlay Interaction Examples Default Closed
+
+Status: completed for this default-behavior Docs pass. This slice completes the Overlay interaction default-closed cleanup for AlertDialog, Tooltip, and HoverCard after C192 handled Dialog, Popover, Sheet, Drawer, and CommandDialog.
+
+Scope:
+
+- `CodexSwitchUI/src/CodexSwitchUI.Docs/MainWindow.cs`
+- `CodexSwitchUI/src/CodexSwitchUI.Docs/Examples/Axaml/Overlay/AlertDialogInteraction.axaml`
+- `CodexSwitchUI/src/CodexSwitchUI.Docs/Examples/Axaml/Overlay/TooltipInteraction.axaml`
+- `CodexSwitchUI/src/CodexSwitchUI.Docs/Examples/Axaml/Overlay/HoverCardInteraction.axaml`
+- `CodexSwitchUI/src/CodexSwitchUI.Docs/Examples/CSharp/Overlay/AlertDialogInteraction.cs`
+- `CodexSwitchUI/src/CodexSwitchUI.Docs/Examples/CSharp/Overlay/TooltipInteraction.cs`
+- `CodexSwitchUI/src/CodexSwitchUI.Docs/Examples/CSharp/Overlay/HoverCardInteraction.cs`
+- `CodexSwitchUI/tests/CodexSwitchUI.Tests/DocsPanelLayoutTests.cs`
+- `CodexSwitchUI/tests/CodexSwitchUI.Tests/Snapshots/DocsVisualFingerprints.json`
+
+Evidence gathered:
+
+- A read-only local Agent audited only `BuildAlertDialogInteractionPreview`, `BuildTooltipInteractionPreview`, `BuildHoverCardInteractionPreview`, and the matching AXAML/C# interaction samples; it identified initial-open examples in AlertDialog, Tooltip, and HoverCard before stalling and being terminated.
+- Local inspection confirmed `IsOpen=true` / `IsOpen="True"` in AlertDialog async/manual policy, Tooltip persistent/large examples, and HoverCard default/instant-focus examples.
+- These are interaction examples, so they should demonstrate open behavior through trigger, delayed hover/focus, or explicit demo controls rather than being mounted open on first render.
+
+Implementation targets:
+
+- Remove initial `IsOpen=true` from AlertDialog async/manual, Tooltip persistent/large, and HoverCard default/instant-focus interaction previews. Status: completed.
+- Remove matching `IsOpen="True"` defaults from standalone AXAML interaction samples. Status: completed.
+- Add explicit triggers for default-closed AlertDialog manual policy and Tooltip persistent examples so the intended behavior remains reachable from the rendered component. Status: completed.
+- Extend `OverlayInteractionDocsDoNotStartLayerExamplesOpen` to cover AlertDialog, Tooltip, and HoverCard MainWindow methods plus their C# and AXAML samples. Status: completed.
+
+Verification:
+
+- `dotnet test tests/CodexSwitchUI.Tests/CodexSwitchUI.Tests.csproj -f net10.0 --no-restore --filter FullyQualifiedName~DocsPanelLayoutTests`
+- `dotnet test tests/CodexSwitchUI.Tests/CodexSwitchUI.Tests.csproj -f net10.0 --no-restore --filter "FullyQualifiedName~DocsMultiCaseExamplesExpandInlineCodeAndRenderAcrossThemes|FullyQualifiedName~DocsRepresentativePagesRenderScreenshotsAcrossThemes|FullyQualifiedName~DocsNavigationAndDarkThemeSwitchDoNotDetachAnimatedPageContent"`
+- `CODEXSWITCHUI_UPDATE_DOCS_VISUAL_SNAPSHOTS=1 dotnet test tests/CodexSwitchUI.Tests/CodexSwitchUI.Tests.csproj -f net10.0 --no-restore --filter FullyQualifiedName~DocsVisualFingerprintsMatchBaselineAcrossThemes`
+- `dotnet test tests/CodexSwitchUI.Tests/CodexSwitchUI.Tests.csproj -f net10.0 --no-restore --filter FullyQualifiedName~DocsVisualFingerprintsMatchBaselineAcrossThemes`
+
+### Agent C194: Remaining Navigation Interaction Examples Default Closed
+
+Status: completed for this default-behavior Docs pass. This slice finishes the Navigation interaction examples that still mounted menu-like surfaces open on first render, so the examples now match Web defaults and only disclose through hover/focus, right click, or explicit demo triggers.
+
+Scope:
+
+- `CodexSwitchUI/src/CodexSwitchUI.Docs/MainWindow.cs`
+- `CodexSwitchUI/src/CodexSwitchUI.Docs/Examples/Axaml/Navigation/NavigationMenuInteraction.axaml`
+- `CodexSwitchUI/src/CodexSwitchUI.Docs/Examples/Axaml/Navigation/MenubarInteraction.axaml`
+- `CodexSwitchUI/src/CodexSwitchUI.Docs/Examples/Axaml/Navigation/MenuInteraction.axaml`
+- `CodexSwitchUI/src/CodexSwitchUI.Docs/Examples/Axaml/Navigation/ContextMenuInteraction.axaml`
+- `CodexSwitchUI/src/CodexSwitchUI.Docs/Examples/Axaml/Navigation/BreadcrumbInteraction.axaml`
+- `CodexSwitchUI/src/CodexSwitchUI.Docs/Examples/CSharp/Navigation/NavigationMenuInteraction.cs`
+- `CodexSwitchUI/src/CodexSwitchUI.Docs/Examples/CSharp/Navigation/MenubarInteraction.cs`
+- `CodexSwitchUI/src/CodexSwitchUI.Docs/Examples/CSharp/Navigation/MenuInteraction.cs`
+- `CodexSwitchUI/src/CodexSwitchUI.Docs/Examples/CSharp/Navigation/ContextMenuInteraction.cs`
+- `CodexSwitchUI/src/CodexSwitchUI.Docs/Examples/CSharp/Navigation/BreadcrumbInteraction.cs`
+- `CodexSwitchUI/tests/CodexSwitchUI.Tests/DocsPanelLayoutTests.cs`
+- `CodexSwitchUI/tests/CodexSwitchUI.Tests/Snapshots/DocsVisualFingerprints.json`
+
+Evidence gathered:
+
+- A read-only local Agent audited default-open risks across remaining Docs interaction examples and flagged NavigationMenu active values, Menubar/Menu/ContextMenu open submenus, Breadcrumb dropdown open state, plus later slices for Chart/Toast/Sonner/DataTable/Overlay primitives.
+- Local inspection confirmed Navigation interaction cases were using initial `ActivateItem`, `OpenMenu`, `IsSubMenuOpen=true`, `Classes.Add("context-menu-open")`, and `IsOpen=true` patterns that made the rendered examples start already disclosed.
+- Web-style navigation menus, menubars, menus, context menus, and breadcrumb overflow menus should be closed by default; docs can still provide explicit controls to demonstrate opening without changing initial behavior.
+
+Implementation targets:
+
+- Remove initial `ActivateItem` calls and `ActiveValue` defaults from NavigationMenu interaction previews and samples, then add explicit small `Open components` / `Open vertical` demo buttons. Status: completed.
+- Remove initial `OpenMenu(file)` / submenu-open defaults from Menubar interaction previews and samples while preserving an explicit `Open view` demo trigger. Status: completed.
+- Remove `IsSubMenuOpen=true` from Menu and ContextMenu interaction previews, companion C# samples, and AXAML samples. Status: completed.
+- Replace context-menu-open class-based rendered surfaces with real `CodexButton.ContextMenu` trigger targets in the interaction preview and companion samples. Status: completed.
+- Remove the initial open Breadcrumb overflow dropdown state and extend `NavigationInteractionDocsDoNotStartDisclosureExamplesOpen` to cover these remaining Navigation interaction families. Status: completed.
+
+Verification:
+
+- `dotnet test tests/CodexSwitchUI.Tests/CodexSwitchUI.Tests.csproj -f net10.0 --no-restore --filter FullyQualifiedName~DocsPanelLayoutTests`
+- `dotnet test tests/CodexSwitchUI.Tests/CodexSwitchUI.Tests.csproj -f net10.0 --no-restore --filter "FullyQualifiedName~DocsMultiCaseExamplesExpandInlineCodeAndRenderAcrossThemes|FullyQualifiedName~DocsRepresentativePagesRenderScreenshotsAcrossThemes|FullyQualifiedName~DocsNavigationAndDarkThemeSwitchDoNotDetachAnimatedPageContent"`
+- `CODEXSWITCHUI_UPDATE_DOCS_VISUAL_SNAPSHOTS=1 dotnet test tests/CodexSwitchUI.Tests/CodexSwitchUI.Tests.csproj -f net10.0 --no-restore --filter FullyQualifiedName~DocsVisualFingerprintsMatchBaselineAcrossThemes`
+- `dotnet test tests/CodexSwitchUI.Tests/CodexSwitchUI.Tests.csproj -f net10.0 --no-restore --filter FullyQualifiedName~DocsVisualFingerprintsMatchBaselineAcrossThemes`
+
+### Agent C195: Feedback Data And Primitive Interaction Examples Default Closed
+
+Status: completed for this default-behavior Docs pass. This slice clears the remaining interaction examples that mounted transient surfaces or tooltip-like content immediately on render, while preserving explicit user-triggered open paths.
+
+Scope:
+
+- `CodexSwitchUI/src/CodexSwitchUI.Docs/MainWindow.cs`
+- `CodexSwitchUI/src/CodexSwitchUI.Docs/Examples/Axaml/Feedback/ToastInteraction.axaml`
+- `CodexSwitchUI/src/CodexSwitchUI.Docs/Examples/Axaml/Feedback/SonnerInteraction.axaml`
+- `CodexSwitchUI/src/CodexSwitchUI.Docs/Examples/Axaml/DataDisplay/ChartInteraction.axaml`
+- `CodexSwitchUI/src/CodexSwitchUI.Docs/Examples/Axaml/DataDisplay/DataTableInteraction.axaml`
+- `CodexSwitchUI/src/CodexSwitchUI.Docs/Examples/Axaml/Primitives/OverlayInteraction.axaml`
+- `CodexSwitchUI/src/CodexSwitchUI.Docs/Examples/CSharp/Feedback/ToastInteraction.cs`
+- `CodexSwitchUI/src/CodexSwitchUI.Docs/Examples/CSharp/Feedback/SonnerInteraction.cs`
+- `CodexSwitchUI/src/CodexSwitchUI.Docs/Examples/CSharp/DataDisplay/ChartInteraction.cs`
+- `CodexSwitchUI/src/CodexSwitchUI.Docs/Examples/CSharp/Primitives/OverlayInteraction.cs`
+- `CodexSwitchUI/tests/CodexSwitchUI.Tests/DocsPanelLayoutTests.cs`
+- `CodexSwitchUI/tests/CodexSwitchUI.Tests/Snapshots/DocsVisualFingerprints.json`
+
+Evidence gathered:
+
+- A read-only local Agent audited the Feedback, DataDisplay, and Primitives interaction examples, then re-ran after edits and confirmed remaining open/service calls only live inside explicit click handlers.
+- Local inspection found `ToastInteraction` mounting toast roots open by default, `SonnerInteraction` enqueueing notifications during preview construction, `ChartInteraction` initializing tooltip state open, `OverlayInteraction` mounting primitive overlays open, and `DataTableInteraction.axaml` opening dropdown menus statically.
+- States/anatomy examples remain allowed to display open overlays, dropdowns, and chart tooltips; interaction examples should model the Web default of closed/empty until user action.
+
+Implementation targets:
+
+- Set Toast interaction roots to `IsOpen=false` and add explicit `Show toast` / `Show action toast` / toggle controls for interaction paths. Status: completed.
+- Change Sonner interaction to build empty viewports and queue success, warning, and loading toasts only from buttons. Status: completed.
+- Initialize Chart interaction tooltip state as closed and feed the first tooltip through the same controlled `tooltipOpen` state used by the toggle button. Status: completed.
+- Set Overlay primitive interaction overlays to closed by default while preserving an explicit `Open` button and scrim/policy controls. Status: completed.
+- Remove default-open dropdown attributes from the DataTable AXAML interaction sample and add `FeedbackDataAndPrimitiveInteractionDocsDoNotStartTransientExamplesOpen` regression coverage. Status: completed.
+
+Verification:
+
+- `dotnet test tests/CodexSwitchUI.Tests/CodexSwitchUI.Tests.csproj -f net10.0 --no-restore --filter FullyQualifiedName~DocsPanelLayoutTests`
+- `dotnet test tests/CodexSwitchUI.Tests/CodexSwitchUI.Tests.csproj -f net10.0 --no-restore --filter "FullyQualifiedName~DocsMultiCaseExamplesExpandInlineCodeAndRenderAcrossThemes|FullyQualifiedName~DocsRepresentativePagesRenderScreenshotsAcrossThemes|FullyQualifiedName~DocsNavigationAndDarkThemeSwitchDoNotDetachAnimatedPageContent"`
+- `CODEXSWITCHUI_UPDATE_DOCS_VISUAL_SNAPSHOTS=1 dotnet test tests/CodexSwitchUI.Tests/CodexSwitchUI.Tests.csproj -f net10.0 --no-restore --filter FullyQualifiedName~DocsVisualFingerprintsMatchBaselineAcrossThemes`
+- `dotnet test tests/CodexSwitchUI.Tests/CodexSwitchUI.Tests.csproj -f net10.0 --no-restore --filter FullyQualifiedName~DocsVisualFingerprintsMatchBaselineAcrossThemes`
+
+### Agent C197: Tooltip HoverCard And Popover Popup Positioning
+
+Status: completed for this overlay-positioning parity pass. This slice removes layout-bound and content-width-guessed positioning from Tooltip, HoverCard, and Popover so all three now use a real `Popup` anchored to their trigger, with Web/shadcn-style 4px side offsets and refreshed Docs visual fingerprints.
+
+Scope:
+
+- `CodexSwitchUI/src/CodexSwitchUI/Controls/CodexHoverCard.cs`
+- `CodexSwitchUI/src/CodexSwitchUI/Themes/Controls/Tooltip.axaml`
+- `CodexSwitchUI/src/CodexSwitchUI/Themes/Controls/HoverCard.axaml`
+- `CodexSwitchUI/src/CodexSwitchUI/Themes/Controls/Popover.axaml`
+- `CodexSwitchUI/tests/CodexSwitchUI.Tests/OverlayFeedbackComponentTests.cs`
+- `CodexSwitchUI/tests/CodexSwitchUI.Tests/Snapshots/DocsVisualFingerprints.json`
+
+Evidence gathered:
+
+- Local style inspection found Tooltip and HoverCard still used fixed or negative margin guesses such as `-188`, `-248`, `-112`, `38`, and `36` to simulate side placement relative to a trigger.
+- A read-only local Agent audited the overlay positioning slice after the Tooltip/HoverCard edit and confirmed the next high-priority issue: Popover still used normal two-row layout instead of popup/portal-style positioning, so closed content could affect layout and side/align classes did not drive actual floating placement.
+- Existing overlay behavior tests already proved open/close source metadata and default-closed behavior, so this pass focused on replacing positioning mechanics while preserving event contracts.
+
+Implementation targets:
+
+- Change `Tooltip.axaml` so `PART_Surface` and `PART_Arrow` live under `Popup#PART_Popup` with `PlacementTarget="PART_Trigger"` and `Placement="{TemplateBinding Placement}"`. Status: completed.
+- Replace Tooltip's hardcoded trigger-position margins with side-aware 4px offsets and keep arrow offsets as visual styling only. Status: completed.
+- Change `HoverCard.axaml` to the same popup anchoring model, replacing `-112`, `38`, `-248`, and arrow `-14` guesses with 4px surface offsets and small arrow overlap margins. Status: completed.
+- Add HoverCard surface pointer enter/exit handlers in `CodexHoverCard.cs` so moving from trigger to popup content cancels a pending close and preserves Radix-style hoverable content behavior. Status: completed.
+- Change `Popover.axaml` from a normal `RowDefinitions="Auto,Auto"` layout to a real trigger-anchored popup and replace the old `0,8,0,0` margin with side-aware 4px offsets. Status: completed.
+- Add `TooltipHoverCardAndPopoverUsePopupSideOffsetPlacement` to guard `PART_Popup`, trigger placement, 4px offsets, and absence of old width/height guesses. Status: completed.
+
+Verification:
+
+- `dotnet test tests/CodexSwitchUI.Tests/CodexSwitchUI.Tests.csproj -f net10.0 --no-restore --filter "FullyQualifiedName~TooltipHoverCardAndPopoverUsePopupSideOffsetPlacement|FullyQualifiedName~PopoverTriggerOpenChangedAndKeyboardToggleMirrorWebRoot|FullyQualifiedName~PopoverTooltipAndHoverCardOpenChangedEventsExposeSourceMetadata|FullyQualifiedName~DismissableSurfacesRequestFocusRestoreAfterClose|FullyQualifiedName~OverlayAndFeedbackStylesDeclareTemplatesAndMotion|FullyQualifiedName~OverlayMotionSurfacesExposeTokenizedTransitionsAndDismissState|FullyQualifiedName~ReducedMotionOverlaySurfacesResolveZeroDurationTransitions|FullyQualifiedName~HoverCardRenderedDelayStatesMatchWebOpenCloseTiming"`
+- `dotnet test tests/CodexSwitchUI.Tests/CodexSwitchUI.Tests.csproj -f net10.0 --no-restore --filter FullyQualifiedName~OverlayFeedbackComponentTests`
+- `dotnet test tests/CodexSwitchUI.Tests/CodexSwitchUI.Tests.csproj -f net10.0 --no-restore --filter "FullyQualifiedName~DocsNavigationAndDarkThemeSwitchDoNotDetachAnimatedPageContent|FullyQualifiedName~DocsRepresentativePagesRenderScreenshotsAcrossThemes|FullyQualifiedName~DocsMultiCaseExamplesExpandInlineCodeAndRenderAcrossThemes"`
+- `CODEXSWITCHUI_UPDATE_DOCS_VISUAL_SNAPSHOTS=1 dotnet test tests/CodexSwitchUI.Tests/CodexSwitchUI.Tests.csproj -f net10.0 --no-restore --filter FullyQualifiedName~DocsVisualFingerprintsMatchBaselineAcrossThemes`
+- `dotnet test tests/CodexSwitchUI.Tests/CodexSwitchUI.Tests.csproj -f net10.0 --no-restore --filter FullyQualifiedName~DocsVisualFingerprintsMatchBaselineAcrossThemes`
+
+### Agent C196: Popup Disclosure Side Offset And Form Row Density
+
+Status: completed for this spacing parity pass. This slice aligns popup/disclosure side offsets and form popup row density with the Web/shadcn 4px side-offset and compact 32px menu-row rhythm, then locks the contract with targeted style tests and refreshed Docs visual fingerprints.
+
+Scope:
+
+- `CodexSwitchUI/src/CodexSwitchUI/Themes/Controls/DropdownButton.axaml`
+- `CodexSwitchUI/src/CodexSwitchUI/Themes/Controls/SplitButton.axaml`
+- `CodexSwitchUI/src/CodexSwitchUI/Themes/Controls/Select.axaml`
+- `CodexSwitchUI/src/CodexSwitchUI/Themes/Controls/Combobox.axaml`
+- `CodexSwitchUI/src/CodexSwitchUI/Themes/Controls/DatePicker.axaml`
+- `CodexSwitchUI/src/CodexSwitchUI/Themes/Controls/Menu.axaml`
+- `CodexSwitchUI/src/CodexSwitchUI/Themes/Controls/Menubar.axaml`
+- `CodexSwitchUI/tests/CodexSwitchUI.Tests/FormComponentDetailTests.cs`
+- `CodexSwitchUI/tests/CodexSwitchUI.Tests/NavigationDataComponentTests.cs`
+- `CodexSwitchUI/tests/CodexSwitchUI.Tests/Snapshots/DocsVisualFingerprints.json`
+
+Evidence gathered:
+
+- Web docs/home surfaces use the established 4/8/12/16/20 spacing rhythm, and shadcn/Radix popup content commonly uses a 4px side offset rather than the older 6px desktop offset.
+- The theme token set already exposes `CodexSwitch.PopoverEnterOffset = 4`, but several popup templates still had hardcoded `Margin="0,6,0,0"` or 6px side placement values.
+- A read-only local Agent audited the edited popup files and confirmed target popup offsets were 4px; it also flagged two test precision gaps, so this pass tightened assertions for Menu/Menubar default right-side submenus and item style blocks.
+
+Implementation targets:
+
+- Change DropdownButton and SplitButton popup surface margins, side placement setters, and entrance transforms from 6px to 4px. Status: completed.
+- Change Select, Combobox, and DatePicker popup border margins from `0,6,0,0` to `0,4,0,0`. Status: completed.
+- Change Menu and Menubar top-level/side submenu popup offsets and entrance transforms to 4px, including the Menubar base submenu transform. Status: completed.
+- Change Select popup item padding from `10,7` to `8,6` in both the item container theme and fallback item style. Status: completed.
+- Change Combobox item row density from `MinHeight=34` / `Padding=8,7` to `MinHeight=32` / `Padding=8,6`. Status: completed.
+- Add targeted Form and Navigation style tests for 4px popup offsets, precise Select/Combobox row density, and absence of stale 6px/34px form-popup values. Status: completed.
+
+Verification:
+
+- `dotnet test tests/CodexSwitchUI.Tests/CodexSwitchUI.Tests.csproj -f net10.0 --no-restore --filter "FullyQualifiedName~FormComponentDetailTests|FullyQualifiedName~NavigationDataComponentTests"`
+- `dotnet test tests/CodexSwitchUI.Tests/CodexSwitchUI.Tests.csproj -f net10.0 --no-restore --filter "FullyQualifiedName~DropdownAndSplitButtonPopupMotionAndTriggerStateMatchWebMenuContract|FullyQualifiedName~ReducedMotionDropdownAndSplitButtonPopupTransitionsResolveZeroDuration|FullyQualifiedName~SelectNavigationMenuAndCollapsibleChevronMotionSelectorsHitMountedTemplates|FullyQualifiedName~MenuAndContextMenuSubMenuMotionSelectorsHitMountedTemplates"`
+- `dotnet test tests/CodexSwitchUI.Tests/CodexSwitchUI.Tests.csproj -f net10.0 --no-restore --filter "FullyQualifiedName~DocsNavigationAndDarkThemeSwitchDoNotDetachAnimatedPageContent|FullyQualifiedName~DocsRepresentativePagesRenderScreenshotsAcrossThemes|FullyQualifiedName~DocsMultiCaseExamplesExpandInlineCodeAndRenderAcrossThemes"`
+- `CODEXSWITCHUI_UPDATE_DOCS_VISUAL_SNAPSHOTS=1 dotnet test tests/CodexSwitchUI.Tests/CodexSwitchUI.Tests.csproj -f net10.0 --no-restore --filter FullyQualifiedName~DocsVisualFingerprintsMatchBaselineAcrossThemes`
+- `dotnet test tests/CodexSwitchUI.Tests/CodexSwitchUI.Tests.csproj -f net10.0 --no-restore --filter FullyQualifiedName~DocsVisualFingerprintsMatchBaselineAcrossThemes`
+
+### Agent C189: Button And Navigation Action Row Web Spacing
+
+Status: completed for this spacing-parity pass. This slice aligns desktop action rows with the local Web home page CTA and link-row evidence, and keeps the Docs visual baseline updated after the spacing changes.
+
+Scope:
+
+- `CodexSwitchUI/src/CodexSwitchUI/Themes/Controls/Button.axaml`
+- `CodexSwitchUI/src/CodexSwitchUI/Themes/Controls/ButtonGroup.axaml`
+- `CodexSwitchUI/src/CodexSwitchUI/Themes/Controls/NavigationMenu.axaml`
+- `CodexSwitchUI/src/CodexSwitchUI/Themes/Controls/ApplicationShell.axaml`
+- `CodexSwitchUI/tests/CodexSwitchUI.Tests/NavigationDataComponentTests.cs`
+- `CodexSwitchUI/tests/CodexSwitchUI.Tests/Snapshots/DocsVisualFingerprints.json`
+
+Evidence gathered:
+
+- `docs-site/app/[lang]/(home)/page.tsx` uses CTA buttons with `inline-flex h-11 items-center gap-2 rounded-md ... px-5 text-sm font-medium`, mapping to Avalonia `44` height, `20` horizontal padding, `8` content gap, and `16` icons.
+- The same Web page uses link rows with `inline-flex items-center gap-2 rounded-md border px-4 py-3 text-sm font-medium`, mapping to Avalonia `16,12` padding and `8` icon/text spacing.
+- Web list rows use `flex items-center justify-between px-4 py-3 text-sm`, so desktop side navigation items should share the same row rhythm rather than the earlier denser `10,8` shell-local spacing.
+
+Implementation targets:
+
+- Set default `CodexButton` and `CodexButton.size-icon` action height to `44`, default button padding to `20,0`, and preserve the existing `8` content spacing. Status: completed.
+- Align `CodexButtonGroupText` with the same `44` action height and `20,0` horizontal padding so grouped text actions do not drift from standalone buttons. Status: completed.
+- Align `CodexNavigationMenuLink` rows to `44` minimum height, `16,12` padding, `8` column spacing, and `16` icon sizing. Status: completed.
+- Align `CodexSideNavItem` to the Web list-row rhythm with `44` minimum height, `16,12` padding, and `8` icon/text spacing. Status: completed.
+- Add `ButtonsAndNavigationLinksUseWebActionRowSpacing` so future theme edits cannot quietly regress these spacing contracts. Status: completed.
+
+Agent usage:
+
+- A read-only local verification Agent was launched with a narrow prompt covering only the five files in this slice. It did not produce output after more than two hours, so it was terminated and the bounded local test/visual gates below were used as the source of truth for this pass.
+
+Verification:
+
+- `dotnet test tests/CodexSwitchUI.Tests/CodexSwitchUI.Tests.csproj -f net10.0 --no-restore --filter "FullyQualifiedName~NavigationDataComponentTests|FullyQualifiedName~ComponentStructureTests|FullyQualifiedName~FormComponentDetailTests"`
+- `dotnet test tests/CodexSwitchUI.Tests/CodexSwitchUI.Tests.csproj -f net10.0 --no-restore --filter "FullyQualifiedName~DocsMultiCaseExamplesExpandInlineCodeAndRenderAcrossThemes|FullyQualifiedName~DocsRepresentativePagesRenderScreenshotsAcrossThemes|FullyQualifiedName~DocsNavigationAndDarkThemeSwitchDoNotDetachAnimatedPageContent"`
+- `CODEXSWITCHUI_UPDATE_DOCS_VISUAL_SNAPSHOTS=1 dotnet test tests/CodexSwitchUI.Tests/CodexSwitchUI.Tests.csproj -f net10.0 --no-restore --filter FullyQualifiedName~DocsVisualFingerprintsMatchBaselineAcrossThemes`
+- `dotnet test tests/CodexSwitchUI.Tests/CodexSwitchUI.Tests.csproj -f net10.0 --no-restore --filter FullyQualifiedName~DocsVisualFingerprintsMatchBaselineAcrossThemes`
+
+### Agent C186: Default Closed Docs Examples And Web Menu Spacing
+
+Status: completed for this default-behavior and menu-density slice. This pass keeps Web-style disclosure surfaces closed by default in the default Docs examples and preview builders, keeps intentionally visible surfaces such as Toast and Sidebar open, and aligns menu item density with shadcn/Radix menu spacing.
+
+Scope:
+
+- `CodexSwitchUI/src/CodexSwitchUI/Controls/CodexChart.cs`
+- `CodexSwitchUI/src/CodexSwitchUI/Primitives/CodexOverlay.cs`
+- `CodexSwitchUI/src/CodexSwitchUI/Themes/Controls/Menu.axaml`
+- `CodexSwitchUI/src/CodexSwitchUI/Themes/Controls/ContextMenu.axaml`
+- `CodexSwitchUI/src/CodexSwitchUI/Themes/Controls/Menubar.axaml`
+- `CodexSwitchUI/src/CodexSwitchUI.Docs/MainWindow.cs`
+- `CodexSwitchUI/src/CodexSwitchUI.Docs/Examples/Axaml/**`
+- `CodexSwitchUI/tests/CodexSwitchUI.Tests/DocsPanelLayoutTests.cs`
+- `CodexSwitchUI/tests/CodexSwitchUI.Tests/NavigationDataComponentTests.cs`
+- `CodexSwitchUI/tests/CodexSwitchUI.Tests/OverlayFeedbackComponentTests.cs`
+- `CodexSwitchUI/tests/CodexSwitchUI.Tests/Snapshots/DocsVisualFingerprints.json`
+
+Evidence gathered:
+
+- Web/Radix overlay, tooltip, popover, dropdown, navigation menu, collapsible, accordion, and chart tooltip surfaces are hover/trigger/state driven and should not mount open by default.
+- Toast creation and desktop sidebar layout are intentionally visible by default in the desktop shell, so those defaults remain open.
+- shadcn menu content uses `p-1`, items use `px-2 py-1.5`, and separators use `-mx-1 my-1`, mapping to Avalonia menu content padding 4, item padding `8,6`, and separator margin `-4,4`.
+- The read-only Agent audit caught that the default Overlay Docs sample became visually trigger-like without actual open wiring after switching the primitive to default closed; the preview and AXAML sample now provide a real user-triggered open path.
+
+Implementation targets:
+
+- Remove forced `IsOpen`, `IsSubMenuOpen`, `IsDropDownOpen`, `IsExpanded`, `ActivateItem`, `OpenMenu`, and `context-menu-open` usage from default Docs examples and preview builders while leaving states/anatomy/interaction examples free to show explicit open states. Status: completed.
+- Change `CodexChartTooltipContent` and primitive `CodexOverlay` defaults to closed. Status: completed.
+- Convert the default ContextMenu example to a trigger-owned context menu instead of an always-open standalone menu. Status: completed.
+- Make the default Overlay example triggerable while keeping its initial state closed. Status: completed.
+- Align Menu, ContextMenu, and Menubar item/inset/separator spacing to Web menu density. Status: completed.
+- Add tests guarding default-closed disclosure samples, default component closed/open exceptions, and Web menu spacing constants. Status: completed.
+
+Verification:
+
+- `dotnet test tests/CodexSwitchUI.Tests/CodexSwitchUI.Tests.csproj -f net10.0 --no-restore --filter "FullyQualifiedName~DocsPanelLayoutTests|FullyQualifiedName~OverlayFeedbackComponentTests|FullyQualifiedName~NavigationDataComponentTests"`
+- `dotnet test tests/CodexSwitchUI.Tests/CodexSwitchUI.Tests.csproj -f net10.0 --no-restore --filter "FullyQualifiedName~DocsMultiCaseExamplesExpandInlineCodeAndRenderAcrossThemes|FullyQualifiedName~DocsRepresentativePagesRenderScreenshotsAcrossThemes|FullyQualifiedName~DocsNavigationAndDarkThemeSwitchDoNotDetachAnimatedPageContent"`
+- `CODEXSWITCHUI_UPDATE_DOCS_VISUAL_SNAPSHOTS=1 dotnet test tests/CodexSwitchUI.Tests/CodexSwitchUI.Tests.csproj -f net10.0 --no-restore --filter FullyQualifiedName~DocsVisualFingerprintsMatchBaselineAcrossThemes`
+- `dotnet test tests/CodexSwitchUI.Tests/CodexSwitchUI.Tests.csproj -f net10.0 --no-restore --filter FullyQualifiedName~DocsVisualFingerprintsMatchBaselineAcrossThemes`
+
+### Agent C187: Card EmptyState Field And Sheet Web Panel Spacing
+
+Status: completed for this panel-density slice. This pass tightens the high-traffic content surfaces that were still wider than the Web project panels, while preserving Dialog and Sheet outer `p-6` overlay padding where it matches the shadcn overlay contract.
+
+Scope:
+
+- `CodexSwitchUI/src/CodexSwitchUI/Themes/Controls/Card.axaml`
+- `CodexSwitchUI/src/CodexSwitchUI/Themes/Controls/EmptyState.axaml`
+- `CodexSwitchUI/src/CodexSwitchUI/Themes/Controls/Field.axaml`
+- `CodexSwitchUI/src/CodexSwitchUI/Themes/Controls/Sheet.axaml`
+- `CodexSwitchUI/tests/CodexSwitchUI.Tests/NavigationDataComponentTests.cs`
+- `CodexSwitchUI/tests/CodexSwitchUI.Tests/Snapshots/DocsVisualFingerprints.json`
+
+Evidence gathered:
+
+- Local Web home/docs surfaces use `p-4` and `p-5` for repeated panels/cards, `gap-4` for content rhythm, and `space-y-2` style form spacing.
+- `CodexCard` still used `Padding=24`, making regular cards read like overlay dialogs instead of Web panels.
+- `CodexEmptyState` used `Padding=28/36` and tall `MinHeight=180/220`, which made empty/no-result panels noticeably looser than the Web panel density.
+- `CodexField` used `RowSpacing=6` and `FieldGroup`/`FieldSet` vertical spacing `14`, missing the Web `space-y-2` and `gap-4` cadence.
+- `CodexSheet` kept overlay padding at `24`, but its internal row spacing was `18` while Dialog and Web `gap-4` use `16`.
+
+Implementation targets:
+
+- Align Card default padding to Web `p-5` (`20`). Status: completed.
+- Align EmptyState default/small/large padding to `20/16/24` and min-heights to `160/128/200`. Status: completed.
+- Align Field vertical rhythm to `RowSpacing=8`, with small/icon/large at `6/4/10`, and FieldGroup/FieldSet vertical rhythm to `16`. Status: completed.
+- Align Sheet internal header/content/action row spacing to `16` while preserving overlay padding `24`. Status: completed.
+- Add a source guard for Card, EmptyState, Field, Dialog, and Sheet spacing so future edits cannot drift back to the old looser values. Status: completed.
+
+Verification:
+
+- `dotnet test tests/CodexSwitchUI.Tests/CodexSwitchUI.Tests.csproj -f net10.0 --no-restore --filter "FullyQualifiedName~NavigationDataComponentTests|FullyQualifiedName~DocsPanelLayoutTests"`
+- `dotnet test tests/CodexSwitchUI.Tests/CodexSwitchUI.Tests.csproj -f net10.0 --no-restore --filter "FullyQualifiedName~DocsMultiCaseExamplesExpandInlineCodeAndRenderAcrossThemes|FullyQualifiedName~DocsRepresentativePagesRenderScreenshotsAcrossThemes|FullyQualifiedName~DocsNavigationAndDarkThemeSwitchDoNotDetachAnimatedPageContent"`
+- `CODEXSWITCHUI_UPDATE_DOCS_VISUAL_SNAPSHOTS=1 dotnet test tests/CodexSwitchUI.Tests/CodexSwitchUI.Tests.csproj -f net10.0 --no-restore --filter FullyQualifiedName~DocsVisualFingerprintsMatchBaselineAcrossThemes`
+- `dotnet test tests/CodexSwitchUI.Tests/CodexSwitchUI.Tests.csproj -f net10.0 --no-restore --filter FullyQualifiedName~DocsVisualFingerprintsMatchBaselineAcrossThemes`
+
+### Agent C188: Docs Shell Code Block And Matrix Web Spacing
+
+Status: completed for this Docs density slice. This pass aligns the documentation shell and inline source reveal areas with the local Web spacing cadence so every component page inherits the same desktop gutter, vertical rhythm, code-block padding, and behavior-row density.
+
+Scope:
+
+- `CodexSwitchUI/src/CodexSwitchUI.Docs/MainWindow.cs`
+- `CodexSwitchUI/src/CodexSwitchUI.Docs/Controls/DocsCodeBlock.cs`
+- `CodexSwitchUI/tests/CodexSwitchUI.Tests/DocsPanelLayoutTests.cs`
+- `CodexSwitchUI/tests/CodexSwitchUI.Tests/Snapshots/DocsVisualFingerprints.json`
+
+Evidence gathered:
+
+- The local Web home/docs surfaces use `px-5 py-14 md:px-8 lg:px-10` for page containers, so the desktop Docs shell should map to a 40 px gutter and 56 px vertical page padding.
+- The Web code block uses `rounded-md bg-muted p-4`, so the Avalonia `DocsCodeBlock` needs a 16 px content inset rather than the previous 2 px top/bottom code padding.
+- Web repeated link/row actions use `px-4 py-3`, so the Docs behavior matrix and notes should use 16/12 padding instead of the tighter 10/8 cells.
+- Inline examples already render preview first, then `Show code` / `Hide code`, then copyable code blocks; this slice keeps that behavior and only tightens the visual rhythm around it.
+
+Implementation targets:
+
+- Add Docs shell spacing constants for desktop gutter, vertical page padding, inline example gap, and matrix cell padding. Status: completed.
+- Change the Docs content scroll padding to `40,56,40,56` and the stable topbar gutter to 40. Status: completed.
+- Align inline example and code reveal stack spacing to 16. Status: completed.
+- Align behavior notes and state/event matrix cells to `px-4 py-3` density. Status: completed.
+- Align `DocsCodeBlock` titlebar/content insets and line-number column with a Web-style `p-4` source block. Status: completed.
+- Add source guards for the new spacing constants and code-block inset contract. Status: completed.
+
+Verification:
+
+- `dotnet test tests/CodexSwitchUI.Tests/CodexSwitchUI.Tests.csproj -f net10.0 --no-restore --filter "FullyQualifiedName~DocsPanelLayoutTests"`
+- `dotnet test tests/CodexSwitchUI.Tests/CodexSwitchUI.Tests.csproj -f net10.0 --no-restore --filter "FullyQualifiedName~DocsMultiCaseExamplesExpandInlineCodeAndRenderAcrossThemes|FullyQualifiedName~DocsRepresentativePagesRenderScreenshotsAcrossThemes|FullyQualifiedName~DocsNavigationAndDarkThemeSwitchDoNotDetachAnimatedPageContent"`
+- `CODEXSWITCHUI_UPDATE_DOCS_VISUAL_SNAPSHOTS=1 dotnet test tests/CodexSwitchUI.Tests/CodexSwitchUI.Tests.csproj -f net10.0 --no-restore --filter FullyQualifiedName~DocsVisualFingerprintsMatchBaselineAcrossThemes`
+- `dotnet test tests/CodexSwitchUI.Tests/CodexSwitchUI.Tests.csproj -f net10.0 --no-restore --filter FullyQualifiedName~DocsVisualFingerprintsMatchBaselineAcrossThemes`
+
+Next audit slice:
+
+- Continue with a narrow Agent for remaining button/link row height and gap parity against Web `h-11 px-5 gap-2`, plus motion/event deltas on the highest-traffic controls.
+
 ### Agent C168: Menubar Anatomy Docs Case
 
 Status: completed for this Navigation Docs coverage slice. This pass splits Menubar anatomy out of the broader composition example so the docs page exposes an independent Root/Trigger/Content anatomy case with its own inline `Show code` / `Hide code` AXAML sample.
