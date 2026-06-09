@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v0.2.2] - 2026-06-09
+
+### Added
+
+- Added inline provider delete confirmation on the providers page.
+
+### Changed
+
+- Refined provider context-menu handling so right-click and context-request events resolve the correct provider row.
+- Updated the `CodexSwitchUI` submodule with the latest overlay placement and docs parity work.
+- Expanded the web-parity planning notes to cover the refreshed UI flow.
+
+### Fixed
+
+- Centralized provider deletion cleanup so pending-delete state is cleared consistently after successful deletes and missing-provider cases.
+
 ## [v0.2.1] - 2026-05-27
 
 ### Added
