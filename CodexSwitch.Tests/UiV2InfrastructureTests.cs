@@ -305,7 +305,7 @@ public sealed class UiV2InfrastructureTests : IDisposable
             {
                 Enabled = false,
                 Host = "127.0.0.1",
-                Port = 12785
+                Port = GetAvailablePort()
             },
             Providers =
             {
@@ -319,11 +319,14 @@ public sealed class UiV2InfrastructureTests : IDisposable
         };
         using var httpClient = new HttpClient();
         await using var service = new ProxyHostService(
+            configStore,
             new UsageMeter(calculator),
             calculator,
             CreateUsageLogWriter(paths),
+            new UsageLogReader(paths),
             new CodexConfigWriter(paths),
             new ClaudeCodeConfigWriter(paths),
+            new CodexSessionMigrationService(paths),
             new ProviderAuthService(configStore, config, httpClient),
             Array.Empty<IProviderProtocolAdapter>());
 
@@ -370,11 +373,14 @@ public sealed class UiV2InfrastructureTests : IDisposable
 
         using var authHttpClient = new HttpClient();
         await using var service = new ProxyHostService(
+            configStore,
             new UsageMeter(calculator),
             calculator,
             CreateUsageLogWriter(paths),
+            new UsageLogReader(paths),
             new CodexConfigWriter(paths),
             new ClaudeCodeConfigWriter(paths),
+            new CodexSessionMigrationService(paths),
             new ProviderAuthService(configStore, config, authHttpClient),
             Array.Empty<IProviderProtocolAdapter>());
 
@@ -422,11 +428,14 @@ public sealed class UiV2InfrastructureTests : IDisposable
         };
         using var authHttpClient = new HttpClient();
         await using var service = new ProxyHostService(
+            configStore,
             new UsageMeter(calculator),
             calculator,
             CreateUsageLogWriter(paths),
+            new UsageLogReader(paths),
             new CodexConfigWriter(paths),
             new ClaudeCodeConfigWriter(paths),
+            new CodexSessionMigrationService(paths),
             new ProviderAuthService(configStore, config, authHttpClient),
             Array.Empty<IProviderProtocolAdapter>());
 
@@ -670,11 +679,14 @@ public sealed class UiV2InfrastructureTests : IDisposable
         };
         using var authHttpClient = new HttpClient();
         await using var service = new ProxyHostService(
+            configStore,
             meter,
             calculator,
             CreateUsageLogWriter(paths),
+            new UsageLogReader(paths),
             new CodexConfigWriter(paths),
             new ClaudeCodeConfigWriter(paths),
+            new CodexSessionMigrationService(paths),
             new ProviderAuthService(configStore, config, authHttpClient),
             [new AnthropicMessagesAdapter(upstreamHttpClient)]);
 
@@ -771,11 +783,14 @@ public sealed class UiV2InfrastructureTests : IDisposable
         };
         using var authHttpClient = new HttpClient();
         await using var service = new ProxyHostService(
+            configStore,
             meter,
             calculator,
             CreateUsageLogWriter(paths),
+            new UsageLogReader(paths),
             new CodexConfigWriter(paths),
             new ClaudeCodeConfigWriter(paths),
+            new CodexSessionMigrationService(paths),
             new ProviderAuthService(configStore, config, authHttpClient),
             [new AnthropicMessagesAdapter(upstreamHttpClient)]);
 
@@ -869,11 +884,14 @@ public sealed class UiV2InfrastructureTests : IDisposable
         };
         using var authHttpClient = new HttpClient();
         await using var service = new ProxyHostService(
+            configStore,
             meter,
             calculator,
             CreateUsageLogWriter(paths),
+            new UsageLogReader(paths),
             new CodexConfigWriter(paths),
             new ClaudeCodeConfigWriter(paths),
+            new CodexSessionMigrationService(paths),
             new ProviderAuthService(configStore, config, authHttpClient),
             [new OpenAiChatAdapter(upstreamHttpClient)]);
 
@@ -938,11 +956,14 @@ public sealed class UiV2InfrastructureTests : IDisposable
         };
         using var httpClient = new HttpClient();
         await using var service = new ProxyHostService(
+            configStore,
             new UsageMeter(calculator),
             calculator,
             CreateUsageLogWriter(paths),
+            new UsageLogReader(paths),
             new CodexConfigWriter(paths),
             new ClaudeCodeConfigWriter(paths),
+            new CodexSessionMigrationService(paths),
             new ProviderAuthService(configStore, config, httpClient),
             Array.Empty<IProviderProtocolAdapter>());
         var statuses = new List<string>();
@@ -1003,11 +1024,14 @@ public sealed class UiV2InfrastructureTests : IDisposable
         };
         using var authHttpClient = new HttpClient();
         await using var service = new ProxyHostService(
+            configStore,
             new UsageMeter(calculator),
             calculator,
             CreateUsageLogWriter(paths),
+            new UsageLogReader(paths),
             new CodexConfigWriter(paths),
             new ClaudeCodeConfigWriter(paths),
+            new CodexSessionMigrationService(paths),
             new ProviderAuthService(configStore, config, authHttpClient),
             [new OpenAiResponsesAdapter(upstreamHttpClient)]);
 
@@ -1072,11 +1096,14 @@ public sealed class UiV2InfrastructureTests : IDisposable
 
         using var authHttpClient = new HttpClient();
         await using var service = new ProxyHostService(
+            configStore,
             meter,
             calculator,
             CreateUsageLogWriter(paths),
+            new UsageLogReader(paths),
             new CodexConfigWriter(paths),
             new ClaudeCodeConfigWriter(paths),
+            new CodexSessionMigrationService(paths),
             new ProviderAuthService(configStore, config, authHttpClient),
             [new OpenAiResponsesAdapter(new HttpClient())]);
 
@@ -1153,11 +1180,14 @@ public sealed class UiV2InfrastructureTests : IDisposable
 
         using var authHttpClient = new HttpClient();
         await using var service = new ProxyHostService(
+            configStore,
             meter,
             calculator,
             CreateUsageLogWriter(paths),
+            new UsageLogReader(paths),
             new CodexConfigWriter(paths),
             new ClaudeCodeConfigWriter(paths),
+            new CodexSessionMigrationService(paths),
             new ProviderAuthService(configStore, config, authHttpClient),
             Array.Empty<IProviderProtocolAdapter>());
 
@@ -1225,6 +1255,7 @@ public sealed class UiV2InfrastructureTests : IDisposable
             UpstreamModel = "gpt-upstream"
         });
         config.Providers.Add(provider);
+        var configStore = new ConfigurationStore(paths);
 
         var refreshCalls = 0;
         using var authHttpClient = new HttpClient(new AsyncHandler((_, _) =>
@@ -1239,12 +1270,15 @@ public sealed class UiV2InfrastructureTests : IDisposable
             });
         }));
         await using var service = new ProxyHostService(
+            configStore,
             meter,
             calculator,
             CreateUsageLogWriter(paths),
+            new UsageLogReader(paths),
             new CodexConfigWriter(paths),
             new ClaudeCodeConfigWriter(paths),
-            new ProviderAuthService(new ConfigurationStore(paths), config, authHttpClient),
+            new CodexSessionMigrationService(paths),
+            new ProviderAuthService(configStore, config, authHttpClient),
             [new OpenAiResponsesAdapter(new HttpClient())]);
 
         await service.StartAsync(config);
@@ -2582,11 +2616,14 @@ public sealed class UiV2InfrastructureTests : IDisposable
         var calculator = new PriceCalculator(new ModelPricingCatalog());
         var configStore = new ConfigurationStore(paths);
         return new ProxyHostService(
+            configStore,
             meter,
             calculator,
             CreateUsageLogWriter(paths),
+            new UsageLogReader(paths),
             new CodexConfigWriter(paths),
             new ClaudeCodeConfigWriter(paths),
+            new CodexSessionMigrationService(paths),
             new ProviderAuthService(configStore, config, upstreamHttpClient),
             [new OpenAiResponsesAdapter(upstreamHttpClient)]);
     }

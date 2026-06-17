@@ -1,4 +1,5 @@
 using System.Text.Json.Serialization;
+using CodexSwitch.AdminApi;
 using CodexSwitch.I18n;
 using CodexSwitch.Models;
 using CodexSwitch.Proxy;
@@ -31,7 +32,19 @@ namespace CodexSwitch.Serialization;
 [JsonSerializable(typeof(I18nLanguageResource))]
 [JsonSerializable(typeof(Dictionary<string, Dictionary<string, string>>))]
 [JsonSerializable(typeof(UsageSnapshot))]
+[JsonSerializable(typeof(UsageDashboard))]
+[JsonSerializable(typeof(ProviderUsageSummary))]
+[JsonSerializable(typeof(ModelUsageSummary))]
+[JsonSerializable(typeof(UsageTrendPoint))]
 [JsonSerializable(typeof(UsageLogRecord))]
+[JsonSerializable(typeof(CodexSessionInspection))]
+[JsonSerializable(typeof(CodexSessionProviderSummary))]
+[JsonSerializable(typeof(CodexSessionMigrationResult))]
+[JsonSerializable(typeof(CodexSessionRestoreResult))]
+[JsonSerializable(typeof(AdminBootstrapDto))]
+[JsonSerializable(typeof(AdminProviderListDto))]
+[JsonSerializable(typeof(AdminUpdateStatusDto))]
+[JsonSerializable(typeof(ProviderConfig[]))]
 [JsonSerializable(typeof(ProxyHealthResponse))]
 [JsonSerializable(typeof(ModelsListResponse))]
 [JsonSerializable(typeof(ModelInfoResponse))]

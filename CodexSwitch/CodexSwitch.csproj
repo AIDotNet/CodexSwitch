@@ -15,30 +15,41 @@
         <AvaloniaResource Include="Assets\**" />
     </ItemGroup>
 
+    <Target Name="BuildAdminWeb" BeforeTargets="CopyAdminWebAssetsToOutput;CopyAdminWebAssetsToPublish" Condition="'$(Configuration)' == 'Release' And Exists('..\CodexSwitch.AdminWeb\package.json')">
+        <Exec WorkingDirectory="..\CodexSwitch.AdminWeb" Command="npm install" />
+        <Exec WorkingDirectory="..\CodexSwitch.AdminWeb" Command="npm run build" />
+    </Target>
+
+    <Target Name="CopyAdminWebAssetsToOutput" AfterTargets="Build" Condition="Exists('..\CodexSwitch.AdminWeb\dist')">
+        <ItemGroup>
+            <AdminWebAsset Include="..\CodexSwitch.AdminWeb\dist\**\*" />
+        </ItemGroup>
+        <Copy SourceFiles="@(AdminWebAsset)"
+              DestinationFiles="@(AdminWebAsset->'$(OutDir)admin/%(RecursiveDir)%(Filename)%(Extension)')"
+              SkipUnchangedFiles="true" />
+    </Target>
+
+    <Target Name="CopyAdminWebAssetsToPublish" AfterTargets="Publish" Condition="Exists('..\CodexSwitch.AdminWeb\dist')">
+        <ItemGroup>
+            <AdminWebAsset Include="..\CodexSwitch.AdminWeb\dist\**\*" />
+        </ItemGroup>
+        <Copy SourceFiles="@(AdminWebAsset)"
+              DestinationFiles="@(AdminWebAsset->'$(PublishDir)admin/%(RecursiveDir)%(Filename)%(Extension)')"
+              SkipUnchangedFiles="true" />
+    </Target>
+
     <ItemGroup>
         <FrameworkReference Include="Microsoft.AspNetCore.App" />
     </ItemGroup>
 
     <ItemGroup>
-        <ProjectReference Include="..\CodexSwitchUI\src\CodexSwitchUI\CodexSwitchUI.csproj" />
-        <ProjectReference Include="..\CodexSwitchUI\src\CodexSwitchUI.ECharts\CodexSwitchUI.ECharts.csproj" />
-    </ItemGroup>
-
-    <ItemGroup>
         <PackageReference Include="Avalonia" />
         <PackageReference Include="Avalonia.Desktop" />
-        <PackageReference Include="Avalonia.Themes.Fluent" />
         <PackageReference Include="AvaloniaUI.DiagnosticsSupport">
             <IncludeAssets Condition="'$(Configuration)' != 'Debug'">None</IncludeAssets>
             <PrivateAssets Condition="'$(Configuration)' != 'Debug'">All</PrivateAssets>
         </PackageReference>
         <PackageReference Include="CommunityToolkit.Mvvm" />
-        <PackageReference Include="Lucide.Avalonia" />
     </ItemGroup>
 
-    <ItemGroup>
-      <Compile Update="Views\Pages\AddProviderPage.axaml.cs">
-        <DependentUpon>AddProviderPage.axaml</DependentUpon>
-      </Compile>
-    </ItemGroup>
 </Project>

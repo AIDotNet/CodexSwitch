@@ -1,10 +1,11 @@
+using System.Diagnostics;
 using Avalonia;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
 using Avalonia.Platform;
 using CodexSwitch.Services;
 using CodexSwitch.ViewModels;
-using CodexSwitch.Views;
+using CodexSwitch.WebHost;
 
 namespace CodexSwitch;
 
@@ -12,7 +13,6 @@ public partial class App : Application
 {
     private TrayMenuController? _trayMenuController;
     private MainWindowViewModel? _viewModel;
-    private MainWindow? _mainWindow;
 
     public override void Initialize()
     {
@@ -25,25 +25,20 @@ public partial class App : Application
 
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
-            var startHidden = StartupLaunchOptions.ShouldStartHidden(Environment.GetCommandLineArgs().Skip(1));
-            MacDockIconService.ConfigureForWindowVisibility(!startHidden);
+            MacDockIconService.ConfigureForWindowVisibility(false);
 
             _viewModel = new MainWindowViewModel();
             _trayMenuController = new TrayMenuController(
                 this,
                 desktop,
                 _viewModel,
-                ShowMainWindow,
+                OpenAdminWeb,
                 LoadTrayIcon());
-
-            if (!startHidden)
-                ShowMainWindow();
 
             desktop.ShutdownRequested += async (_, _) =>
             {
                 _trayMenuController?.Dispose();
                 _trayMenuController = null;
-                CloseMainWindow();
 
                 if (_viewModel is not null)
                     await _viewModel.DisposeAsync();
@@ -59,69 +54,13 @@ public partial class App : Application
         ClaudeBootstrapConfigWriter.TryApplyForCurrentUser();
     }
 
-    private void ShowMainWindow()
+    private static void OpenAdminWeb()
     {
-        if (ApplicationLifetime is not IClassicDesktopStyleApplicationLifetime desktop ||
-            _viewModel is null)
+        Process.Start(new ProcessStartInfo
         {
-            return;
-        }
-
-        MacDockIconService.ConfigureForWindowVisibility(true);
-
-        var mainWindow = _mainWindow;
-        if (mainWindow is null)
-        {
-            mainWindow = new MainWindow
-            {
-                DataContext = _viewModel
-            };
-            mainWindow.Closed += OnMainWindowClosed;
-            _mainWindow = mainWindow;
-            desktop.MainWindow = mainWindow;
-        }
-
-        if (!mainWindow.IsVisible)
-            mainWindow.Show();
-
-        if (mainWindow.WindowState == WindowState.Minimized)
-            mainWindow.WindowState = WindowState.Normal;
-
-        mainWindow.Activate();
-    }
-
-    private void CloseMainWindow()
-    {
-        if (_mainWindow is not { } mainWindow)
-            return;
-
-        mainWindow.Close();
-        ReleaseMainWindow(mainWindow);
-    }
-
-    private void OnMainWindowClosed(object? sender, EventArgs e)
-    {
-        if (sender is MainWindow mainWindow)
-            ReleaseMainWindow(mainWindow);
-    }
-
-    private void ReleaseMainWindow(MainWindow mainWindow)
-    {
-        mainWindow.Closed -= OnMainWindowClosed;
-        mainWindow.DataContext = null;
-
-        if (ReferenceEquals(_mainWindow, mainWindow))
-        {
-            _mainWindow = null;
-            MacDockIconService.ConfigureForWindowVisibility(false);
-            RequestMemoryTrim();
-        }
-
-        if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop &&
-            ReferenceEquals(desktop.MainWindow, mainWindow))
-        {
-            desktop.MainWindow = null;
-        }
+            FileName = AdminWebHost.ResolveSource(),
+            UseShellExecute = true
+        });
     }
 
     private static WindowIcon? LoadTrayIcon()
@@ -135,10 +74,5 @@ public partial class App : Application
         {
             return null;
         }
-    }
-
-    private static void RequestMemoryTrim()
-    {
-        GC.Collect(GC.MaxGeneration, GCCollectionMode.Forced, blocking: false, compacting: true);
     }
 }

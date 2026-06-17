@@ -1,5 +1,3 @@
-using CodexSwitchUI.ECharts.Abstractions;
-
 namespace CodexSwitch.Models;
 
 public enum UsageTimeRange
@@ -87,7 +85,7 @@ public sealed class ModelUsageSummary
     public decimal AverageCost { get; init; }
 }
 
-public sealed class UsageTrendPoint : IUsageTrendChartPoint
+public sealed class UsageTrendPoint
 {
     public DateTimeOffset Timestamp { get; init; }
 

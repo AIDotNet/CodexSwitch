@@ -11,7 +11,7 @@ public sealed class TrayMenuController : IDisposable
     private readonly Application _application;
     private readonly IClassicDesktopStyleApplicationLifetime _desktop;
     private readonly MainWindowViewModel _viewModel;
-    private readonly Action _showMainWindow;
+    private readonly Action _openAdminWeb;
     private readonly I18nService _i18n;
     private readonly TrayIcon _trayIcon;
     private readonly NativeMenu _menu = new();
@@ -22,13 +22,13 @@ public sealed class TrayMenuController : IDisposable
         Application application,
         IClassicDesktopStyleApplicationLifetime desktop,
         MainWindowViewModel viewModel,
-        Action showMainWindow,
+        Action openAdminWeb,
         WindowIcon? icon)
     {
         _application = application;
         _desktop = desktop;
         _viewModel = viewModel;
-        _showMainWindow = showMainWindow;
+        _openAdminWeb = openAdminWeb;
         _i18n = I18nService.Current;
 
         _desktop.ShutdownMode = ShutdownMode.OnExplicitShutdown;
@@ -68,7 +68,7 @@ public sealed class TrayMenuController : IDisposable
 
     private void OnTrayIconClicked(object? sender, EventArgs e)
     {
-        ShowMainWindow();
+        OpenAdminWeb();
     }
 
     private void OnMenuNeedsUpdate(object? sender, EventArgs e)
@@ -120,7 +120,7 @@ public sealed class TrayMenuController : IDisposable
             return;
 
         _menu.Items.Clear();
-        _menu.Items.Add(CreateOpenMainWindowItem());
+        _menu.Items.Add(CreateOpenAdminItem());
         _menu.Items.Add(CreateCodexProvidersItem());
         _menu.Items.Add(CreateClaudeCodeProvidersItem());
         _menu.Items.Add(new NativeMenuItemSeparator());
@@ -131,13 +131,13 @@ public sealed class TrayMenuController : IDisposable
         _trayIcon.ToolTipText = BuildToolTipText();
     }
 
-    private NativeMenuItem CreateOpenMainWindowItem()
+    private NativeMenuItem CreateOpenAdminItem()
     {
         var item = new NativeMenuItem(Localized(
             "tray.openMainWindow",
-            "\u6253\u5f00\u4e3b\u754c\u9762",
-            "Open main window"));
-        item.Click += (_, _) => ShowMainWindow();
+            "\u6253\u5f00\u7ba1\u7406\u7aef",
+            "Open admin"));
+        item.Click += (_, _) => OpenAdminWeb();
         return item;
     }
 
@@ -232,9 +232,9 @@ public sealed class TrayMenuController : IDisposable
         return $"CodexSwitch - {_viewModel.ServiceStateText} - {activeProvider.DisplayName}";
     }
 
-    private void ShowMainWindow()
+    private void OpenAdminWeb()
     {
-        _showMainWindow();
+        _openAdminWeb();
     }
 
     private void ExitApplication()

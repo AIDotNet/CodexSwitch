@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Sockets;
+using CodexSwitch.AdminApi;
 using CodexSwitch.Models;
 using CodexSwitch.Serialization;
 using CodexSwitch.Services;
@@ -9,6 +10,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.Server.Kestrel.Core;
 using Microsoft.AspNetCore.Server.Kestrel.Transport.Sockets;
+using Microsoft.AspNetCore.StaticFiles;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -18,15 +20,19 @@ namespace CodexSwitch.Proxy;
 public sealed class ProxyHostService : IAsyncDisposable
 {
     private static readonly TimeSpan ClientKeepAliveTimeout = TimeSpan.FromHours(2);
+    private static readonly FileExtensionContentTypeProvider AdminContentTypes = new();
     private static readonly TimeSpan ClientRequestHeadersTimeout = TimeSpan.FromSeconds(10);
     private static readonly TimeSpan ClientHttp2KeepAlivePingDelay = TimeSpan.FromSeconds(30);
     private static readonly TimeSpan ClientHttp2KeepAlivePingTimeout = TimeSpan.FromSeconds(15);
 
+    private readonly ConfigurationStore _store;
     private readonly UsageMeter _usageMeter;
     private readonly PriceCalculator _priceCalculator;
     private readonly UsageLogWriter _usageLogWriter;
+    private readonly UsageLogReader _usageLogReader;
     private readonly CodexConfigWriter _codexConfigWriter;
     private readonly ClaudeCodeConfigWriter _claudeCodeConfigWriter;
+    private readonly CodexSessionMigrationService _codexSessionMigrationService;
     private readonly ProviderAuthService _providerAuthService;
     private readonly Dictionary<ProviderProtocol, IProviderProtocolAdapter> _adapters;
     private readonly ResponsesConversationStateStore _responseStateStore = new();
@@ -34,19 +40,25 @@ public sealed class ProxyHostService : IAsyncDisposable
     private AppConfig _config = new();
 
     public ProxyHostService(
+        ConfigurationStore store,
         UsageMeter usageMeter,
         PriceCalculator priceCalculator,
         UsageLogWriter usageLogWriter,
+        UsageLogReader usageLogReader,
         CodexConfigWriter codexConfigWriter,
         ClaudeCodeConfigWriter claudeCodeConfigWriter,
+        CodexSessionMigrationService codexSessionMigrationService,
         ProviderAuthService providerAuthService,
         IEnumerable<IProviderProtocolAdapter> adapters)
     {
+        _store = store;
         _usageMeter = usageMeter;
         _priceCalculator = priceCalculator;
         _usageLogWriter = usageLogWriter;
+        _usageLogReader = usageLogReader;
         _codexConfigWriter = codexConfigWriter;
         _claudeCodeConfigWriter = claudeCodeConfigWriter;
+        _codexSessionMigrationService = codexSessionMigrationService;
         _providerAuthService = providerAuthService;
         _adapters = adapters.ToDictionary(adapter => adapter.Protocol);
     }
@@ -61,33 +73,25 @@ public sealed class ProxyHostService : IAsyncDisposable
             return;
 
         _config = config;
-        if (!config.Proxy.Enabled)
-        {
-            _codexConfigWriter.RestoreOriginal();
-            _claudeCodeConfigWriter.RestoreOriginal();
-            SetState(false, "Disabled", config.Proxy.Endpoint, ResolveCodexProviderId(config), "", null);
-            return;
-        }
-
         var codexProvider = ProviderRoutingResolver.ResolveActiveProvider(config, ClientAppKind.Codex);
         var claudeProvider = ProviderRoutingResolver.ResolveActiveProvider(config, ClientAppKind.ClaudeCode);
         var provider = codexProvider ?? claudeProvider;
-        if (provider is null)
-        {
-            _codexConfigWriter.RestoreOriginal();
-            _claudeCodeConfigWriter.RestoreOriginal();
-            SetState(false, "No active provider", config.Proxy.Endpoint, "", "", "Active provider was not found.");
-            return;
-        }
+        var proxyEnabled = config.Proxy.Enabled && provider is not null;
 
-        SetState(false, "Starting", config.Proxy.Endpoint, provider.Id, provider.Protocol.ToString(), null);
+        SetState(
+            false,
+            proxyEnabled ? "Starting" : config.Proxy.Enabled ? "No active provider" : "Disabled",
+            config.Proxy.Endpoint,
+            provider?.Id ?? ResolveCodexProviderId(config),
+            provider?.Protocol.ToString() ?? "",
+            config.Proxy.Enabled && provider is null ? "Active provider was not found." : null);
 
         if (!IsPortAvailable(config.Proxy.Host, config.Proxy.Port))
         {
             var message = $"Port {config.Proxy.Port} on {config.Proxy.Host} is already in use.";
             _codexConfigWriter.RestoreOriginal();
             _claudeCodeConfigWriter.RestoreOriginal();
-            SetState(false, "Port unavailable", config.Proxy.Endpoint, provider.Id, provider.Protocol.ToString(), message);
+            SetState(false, "Port unavailable", config.Proxy.Endpoint, provider?.Id ?? ResolveCodexProviderId(config), provider?.Protocol.ToString() ?? "", message);
             return;
         }
 
@@ -126,11 +130,13 @@ public sealed class ProxyHostService : IAsyncDisposable
         });
         app.Use(ApplyLowLatencyClientConnectionAsync);
         app.MapGet("/health", WriteHealthAsync);
+        app.MapAdminApi(_store, _usageLogReader, _codexSessionMigrationService, () => _config, () => State, ApplyAdminConfig);
         app.MapGet("/v1/models", WriteModelsAsync);
         app.MapGet("/v1/responses", HandleResponsesWebSocketAsync);
         app.MapPost("/v1/responses", HandleResponsesAsync);
         app.MapPost("/v1/messages", HandleMessagesAsync);
         app.MapHealthChecks("/health");
+        app.MapGet("/{**path}", WriteAdminAssetAsync);
 
         try
         {
@@ -141,13 +147,19 @@ public sealed class ProxyHostService : IAsyncDisposable
             await app.DisposeAsync();
             _codexConfigWriter.RestoreOriginal();
             _claudeCodeConfigWriter.RestoreOriginal();
-            SetState(false, "Start failed", config.Proxy.Endpoint, provider.Id, provider.Protocol.ToString(), ex.Message);
+            SetState(false, "Start failed", config.Proxy.Endpoint, provider?.Id ?? ResolveCodexProviderId(config), provider?.Protocol.ToString() ?? "", ex.Message);
             return;
         }
 
         try
         {
-            ApplyManagedClientConfig(config);
+            if (proxyEnabled)
+                ApplyManagedClientConfig(config);
+            else
+            {
+                _codexConfigWriter.RestoreOriginal();
+                _claudeCodeConfigWriter.RestoreOriginal();
+            }
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
@@ -155,12 +167,18 @@ public sealed class ProxyHostService : IAsyncDisposable
             await app.DisposeAsync();
             _codexConfigWriter.RestoreOriginal();
             _claudeCodeConfigWriter.RestoreOriginal();
-            SetState(false, "Start failed", config.Proxy.Endpoint, provider.Id, provider.Protocol.ToString(), ex.Message);
+            SetState(false, "Start failed", config.Proxy.Endpoint, provider?.Id ?? ResolveCodexProviderId(config), provider?.Protocol.ToString() ?? "", ex.Message);
             return;
         }
 
         _app = app;
-        SetState(true, "Running", config.Proxy.Endpoint, provider.Id, provider.Protocol.ToString(), null);
+        SetState(
+            proxyEnabled,
+            proxyEnabled ? "Running" : config.Proxy.Enabled ? "No active provider" : "Disabled",
+            config.Proxy.Endpoint,
+            provider?.Id ?? ResolveCodexProviderId(config),
+            provider?.Protocol.ToString() ?? "",
+            config.Proxy.Enabled && provider is null ? "Active provider was not found." : null);
     }
 
     public async Task StopAsync(CancellationToken cancellationToken = default)
@@ -587,6 +605,40 @@ public sealed class ProxyHostService : IAsyncDisposable
     {
         httpContext.Features.Get<IHttpResponseBodyFeature>()?.DisableBuffering();
         return next();
+    }
+
+    private void ApplyAdminConfig(AppConfig config)
+    {
+        _config = config;
+        ReloadConfig(config);
+    }
+
+    private static async Task WriteAdminAssetAsync(HttpContext httpContext, string? path)
+    {
+        var root = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "admin"));
+        var requestedPath = string.IsNullOrWhiteSpace(path) ? "index.html" : path;
+        var fullPath = Path.GetFullPath(Path.Combine(root, requestedPath));
+        if (!fullPath.StartsWith(root, StringComparison.OrdinalIgnoreCase))
+        {
+            httpContext.Response.StatusCode = StatusCodes.Status404NotFound;
+            return;
+        }
+
+        if (!File.Exists(fullPath))
+            fullPath = Path.Combine(root, "index.html");
+
+        if (!File.Exists(fullPath))
+        {
+            httpContext.Response.StatusCode = StatusCodes.Status503ServiceUnavailable;
+            httpContext.Response.ContentType = "text/plain; charset=utf-8";
+            await httpContext.Response.WriteAsync("CodexSwitch admin web assets were not found.", httpContext.RequestAborted);
+            return;
+        }
+
+        if (!AdminContentTypes.TryGetContentType(fullPath, out var contentType))
+            contentType = "application/octet-stream";
+        httpContext.Response.ContentType = contentType;
+        await httpContext.Response.SendFileAsync(fullPath, httpContext.RequestAborted);
     }
 
     private Task WriteHealthAsync(HttpContext httpContext)

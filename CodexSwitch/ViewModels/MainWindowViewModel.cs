@@ -9,11 +9,27 @@ using CodexSwitch.I18n;
 using CodexSwitch.Models;
 using CodexSwitch.Proxy;
 using CodexSwitch.Services;
-using CodexSwitchUI.Controls;
-using CodexSwitchUI.ECharts.Abstractions;
-using Lucide.Avalonia;
 
 namespace CodexSwitch.ViewModels;
+
+public enum UsageTrendChartGranularity
+{
+    Hour,
+    Day
+}
+
+public sealed record CodexRankedBarChartItem(
+    string Label,
+    long Value,
+    string ValueLabel,
+    string Detail);
+
+public sealed record CodexUsagePieChartItem(
+    string Label,
+    double Value,
+    string Percentage,
+    string Detail,
+    IBrush Brush);
 
 public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
 {
@@ -905,11 +921,14 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
         _codexQuotaProbeService = new CodexQuotaProbeService(_sharedHttpClient, _providerAuthService);
         _updateCheckService = new UpdateCheckService(_sharedHttpClient);
         _proxyHostService = new ProxyHostService(
+            _store,
             _usageMeter,
             _priceCalculator,
             _usageLogWriter,
+            _usageLogReader,
             _codexConfigWriter,
             _claudeCodeConfigWriter,
+            _codexSessionMigrationService,
             _providerAuthService,
             [
                 new OpenAiResponsesAdapter(_sharedHttpClient),
@@ -3963,31 +3982,31 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
         UsageMetrics.Add(CreateUsageMetric(
             T("usage.metric.requests"),
             filteredDashboard.Requests.ToString("N0", CultureInfo.InvariantCulture),
-            LucideIconKind.ChartNoAxesColumnIncreasing,
+            "ChartNoAxesColumnIncreasing",
             "#60A5FA",
             "#1D3B5F"));
         UsageMetrics.Add(CreateUsageMetric(
             T("usage.metric.cost"),
             DisplayFormatters.FormatCost(filteredDashboard.EstimatedCost),
-            LucideIconKind.BadgeDollarSign,
+            "BadgeDollarSign",
             "#34D399",
             "#153B2D"));
         UsageMetrics.Add(CreateUsageMetric(
             T("usage.metric.tokens"),
             DisplayFormatters.FormatTokenCount(totalTokens),
-            LucideIconKind.Layers2,
+            "Layers2",
             "#A78BFA",
             "#31254D"));
         UsageMetrics.Add(CreateUsageMetric(
             T("usage.metric.cachedTokens"),
             DisplayFormatters.FormatTokenCount(cachedTokens),
-            LucideIconKind.DatabaseZap,
+            "DatabaseZap",
             "#FBBF24",
             "#453516"));
         UsageMetrics.Add(CreateUsageMetric(
             T("usage.metric.cacheHitRate"),
             DisplayFormatters.FormatPercentage(cacheHitRate),
-            LucideIconKind.BadgePercent,
+            "BadgePercent",
             "#22D3EE",
             "#123C46"));
 
@@ -4397,7 +4416,7 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
     private static UsageMetricItem CreateUsageMetric(
         string label,
         string value,
-        LucideIconKind icon,
+        string icon,
         string foreground,
         string background)
     {
@@ -5659,7 +5678,7 @@ public sealed class ModelCatalogItem
 public sealed record UsageMetricItem(
     string Label,
     string Value,
-    LucideIconKind Icon,
+    string Icon,
     IBrush IconForeground,
     IBrush IconBackground);
 
